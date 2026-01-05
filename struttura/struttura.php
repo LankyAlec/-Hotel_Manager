@@ -523,12 +523,12 @@ $piano_id    = (int)($_GET['piano_id'] ?? 0);
   }
 
   function ensureBootstrap(){
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
       if (window.bootstrap) return resolve(window.bootstrap);
       const existing = document.querySelector('script[data-bs-autoload]');
       if (existing) {
         existing.addEventListener('load', () => resolve(window.bootstrap));
-        existing.addEventListener('error', () => reject(new Error('Bootstrap non caricato')));
+        existing.addEventListener('error', () => resolve(null));
         return;
       }
       const s = document.createElement('script');
@@ -536,15 +536,12 @@ $piano_id    = (int)($_GET['piano_id'] ?? 0);
       s.async = true;
       s.dataset.bsAutoload = '1';
       s.onload = () => resolve(window.bootstrap);
-      s.onerror = () => reject(new Error('Bootstrap non caricato'));
+      s.onerror = () => resolve(null);
       document.head.appendChild(s);
     });
   }
 
-  ensureBootstrap().then(() => {
-    modal = modalEl ? new bootstrap.Modal(modalEl) : null;
-    scheduleModal = scheduleModalEl ? new bootstrap.Modal(scheduleModalEl) : null;
-
+  function initInteractions(){
     // Intercetto i toggle
     root.addEventListener('change', async (e) => {
       const sw = e.target.closest('.js-toggle-attivo');
@@ -660,7 +657,7 @@ $piano_id    = (int)($_GET['piano_id'] ?? 0);
 
       const { sw, tipo, id, val } = pending;
       pending = null;
-      modal.hide();
+      modal?.hide();
 
       try {
         await doToggle(tipo, id, val);
@@ -683,8 +680,12 @@ $piano_id    = (int)($_GET['piano_id'] ?? 0);
       setSaving(sw, false);
       pending = null;
     });
-  }).catch((err) => {
-    console.error(err);
+  }
+
+  ensureBootstrap().then((bs) => {
+    modal = modalEl && bs ? new bs.Modal(modalEl) : null;
+    scheduleModal = scheduleModalEl && bs ? new bs.Modal(scheduleModalEl) : null;
+    initInteractions();
   });
 })();
 </script>
