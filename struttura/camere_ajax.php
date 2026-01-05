@@ -56,7 +56,7 @@ while($r = $rs->fetch_assoc()){
       .' title="Schedula attivazione/disattivazione"><i class="bi bi-clock"></i></button>';
 
   echo '  <div class="form-check form-switch m-0">';
-  echo '    <input class="form-check-input js-toggle-attivo" type="checkbox" data-tipo="camera" data-id="'.(int)$r['id'].'" '.$attivaEffettiva ? 'checked' : ''.' '.$toggleDisabled.'>';
+  echo '    <input class="form-check-input js-toggle-attivo" type="checkbox" data-tipo="camera" data-id="'.$id.'" '.$checked.' '.$disabled.'>';
 
   echo '  </div>';
   echo '</div>';
