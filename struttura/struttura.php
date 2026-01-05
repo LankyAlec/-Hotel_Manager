@@ -523,21 +523,31 @@ $piano_id    = (int)($_GET['piano_id'] ?? 0);
   }
 
   function ensureBootstrap(){
+    // Non blocchiamo mai l'inizializzazione: proviamo a caricare Bootstrap ma risolviamo comunque.
     return new Promise((resolve) => {
       if (window.bootstrap) return resolve(window.bootstrap);
+
+      const done = (bs) => resolve(bs || null);
+
       const existing = document.querySelector('script[data-bs-autoload]');
       if (existing) {
-        existing.addEventListener('load', () => resolve(window.bootstrap));
-        existing.addEventListener('error', () => resolve(null));
+        existing.addEventListener('load', () => done(window.bootstrap));
+        existing.addEventListener('error', () => done(null));
+        // Se per qualche motivo non scatta né load né error, fallback dopo 3s.
+        setTimeout(() => done(window.bootstrap || null), 3000);
         return;
       }
+
       const s = document.createElement('script');
       s.src = 'https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js';
       s.async = true;
       s.dataset.bsAutoload = '1';
-      s.onload = () => resolve(window.bootstrap);
-      s.onerror = () => resolve(null);
+      s.onload = () => done(window.bootstrap);
+      s.onerror = () => done(null);
       document.head.appendChild(s);
+
+      // Fallback di sicurezza in caso di blocco rete (nessun onerror).
+      setTimeout(() => done(window.bootstrap || null), 3000);
     });
   }
 
@@ -682,10 +692,17 @@ $piano_id    = (int)($_GET['piano_id'] ?? 0);
     });
   }
 
+  // Bind subito gli handler (non attendere bootstrap) così la UI resta operativa anche offline/CDN bloccato.
+  initInteractions();
+
   ensureBootstrap().then((bs) => {
-    modal = modalEl && bs ? new bs.Modal(modalEl) : null;
-    scheduleModal = scheduleModalEl && bs ? new bs.Modal(scheduleModalEl) : null;
-    initInteractions();
+    if (bs) {
+      modal = modalEl ? new bs.Modal(modalEl) : null;
+      scheduleModal = scheduleModalEl ? new bs.Modal(scheduleModalEl) : null;
+    } else if (window.bootstrap) {
+      modal = modalEl ? new window.bootstrap.Modal(modalEl) : null;
+      scheduleModal = scheduleModalEl ? new window.bootstrap.Modal(scheduleModalEl) : null;
+    }
   });
 })();
 </script>
