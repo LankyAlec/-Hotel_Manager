@@ -93,19 +93,11 @@ if ($method === 'POST' && $operatore_id <= 0) {
 /* =========================
  * DESTINAZIONI (scarico)
  * ======================= */
-$DEST_OPZ = [
-  'Park Hotel Paradiso',
-  'Imperial',
-  'Villa delle meraviglie',
-  'Cunina 1',
-  'Cucina 2',
-  'Office/Sala 1',
-  'Office/Sala 2',
-  'Bar',
-  'Lavanderia',
-  'Piani',
-  'Accoglienza',
-];
+$DEST_MAP = [];
+$resDest = mysqli_query($conn, "SELECT id, nome FROM destinazione ORDER BY nome ASC");
+while ($resDest && ($r = mysqli_fetch_assoc($resDest))) {
+  $DEST_MAP[(int)$r['id']] = (string)$r['nome'];
+}
 
 /* =========================
  * PRODOTTO / LOTTO
@@ -137,10 +129,12 @@ $render_panel = function(int $pid, int $lid, int $page) use ($conn, $MOV_PER_PAG
   $sqlM = "
     SELECT mv.id, mv.ts, mv.tipo, mv.quantita, mv.prezzo,
            mv.note, mv.fornitore_id, mv.doc_tipo, mv.doc_numero, mv.doc_data,
-           mv.operatore_id, mv.destinazione,
+           mv.operatore_id, mv.id_destinazione,
+           d.nome AS destinazione_nome,
            f.nome AS fornitore_nome,
            CONCAT(u.nome,' ',u.cognome) AS operatore_nome
     FROM movimenti mv
+    LEFT JOIN destinazione d ON d.id = mv.id_destinazione
     LEFT JOIN fornitori f ON f.id = mv.fornitore_id
     LEFT JOIN utenti u ON u.id = mv.operatore_id
     WHERE mv.prodotto_id = $pid AND mv.lotto_id = $lid
@@ -154,9 +148,11 @@ $render_panel = function(int $pid, int $lid, int $page) use ($conn, $MOV_PER_PAG
     $sqlM = "
       SELECT mv.id, mv.ts, mv.tipo, mv.quantita, mv.prezzo,
              mv.note, mv.fornitore_id, mv.doc_tipo, mv.doc_numero, mv.doc_data,
-             mv.operatore_id, mv.destinazione,
+             mv.operatore_id, mv.id_destinazione,
+             d.nome AS destinazione_nome,
              f.nome AS fornitore_nome
       FROM movimenti mv
+      LEFT JOIN destinazione d ON d.id = mv.id_destinazione
       LEFT JOIN fornitori f ON f.id = mv.fornitore_id
       WHERE mv.prodotto_id = $pid AND mv.lotto_id = $lid
       ORDER BY mv.ts DESC, mv.id DESC
@@ -212,7 +208,8 @@ $render_panel = function(int $pid, int $lid, int $page) use ($conn, $MOV_PER_PAG
               $docNumero = (string)($m['doc_numero'] ?? '');
               $docData = (string)($m['doc_data'] ?? '');
 
-              $destinazione = trim((string)($m['destinazione'] ?? ''));
+              $destinazioneId = (int)($m['id_destinazione'] ?? 0);
+              $destinazioneNome = trim((string)($m['destinazione_nome'] ?? ''));
 
               $opNome = trim((string)($m['operatore_nome'] ?? ''));
               $opId   = (int)($m['operatore_id'] ?? 0);
@@ -223,7 +220,8 @@ $render_panel = function(int $pid, int $lid, int $page) use ($conn, $MOV_PER_PAG
                 $docTipo=''; $docNumero=''; $docData='';
               }
               if ($tipo !== 'SCARICO') {
-                $destinazione = '';
+                $destinazioneId = 0;
+                $destinazioneNome = '';
               }
             ?>
             <tr>
@@ -248,7 +246,8 @@ $render_panel = function(int $pid, int $lid, int $page) use ($conn, $MOV_PER_PAG
                         data-mov-doc-data="<?= h($docData) ?>"
                         data-mov-note="<?= h((string)($m['note'] ?? '')) ?>"
                         data-mov-operatore="<?= h($opLbl) ?>"
-                        data-mov-destinazione="<?= h($destinazione) ?>">
+                        data-mov-destinazione-id="<?= (int)$destinazioneId ?>"
+                        data-mov-destinazione-label="<?= h($destinazioneNome) ?>">
                   <i class="bi bi-eye"></i>
                 </button>
 
@@ -267,7 +266,8 @@ $render_panel = function(int $pid, int $lid, int $page) use ($conn, $MOV_PER_PAG
                         data-mov-doc-numero="<?= h($docNumero) ?>"
                         data-mov-doc-data="<?= h($docData) ?>"
                         data-mov-note="<?= h((string)($m['note'] ?? '')) ?>"
-                        data-mov-destinazione="<?= h($destinazione) ?>">
+                        data-mov-destinazione-id="<?= (int)$destinazioneId ?>"
+                        data-mov-destinazione-label="<?= h($destinazioneNome) ?>">
                   <i class="bi bi-pencil-square"></i>
                 </button>
 
@@ -351,7 +351,7 @@ if ($method === 'POST') {
       $note = trim((string)($_POST['mov_note'] ?? ''));
 
       // ✅ destinazione (solo scarico)
-      $destinazione = trim((string)($_POST['mov_destinazione'] ?? ''));
+      $destinazioneId = (int)($_POST['mov_destinazione'] ?? 0);
 
       if (!in_array($tipo, ['CARICO','SCARICO'], true)) throw new RuntimeException('Tipo movimento non valido.');
       if ($qta <= 0) throw new RuntimeException('Quantità non valida.');
@@ -360,7 +360,7 @@ if ($method === 'POST') {
         if ($doc_tipo !== '' && !in_array($doc_tipo, ['FATTURA','DDT','ALTRO'], true)) throw new RuntimeException('Tipo documento non valido.');
         if ($doc_data !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $doc_data)) throw new RuntimeException('Data documento non valida.');
         // carico: niente destinazione
-        $destinazione = '';
+        $destinazioneId = 0;
       } else {
         $fornitore_id = 0;
         $prezzo = null;
@@ -369,7 +369,7 @@ if ($method === 'POST') {
         $doc_data = '';
 
         // ✅ scarico: destinazione obbligatoria e valida
-        if ($destinazione === '' || !in_array($destinazione, $DEST_OPZ, true)) {
+        if ($destinazioneId <= 0 || !array_key_exists($destinazioneId, $DEST_MAP)) {
           throw new RuntimeException('Seleziona una destinazione valida per lo scarico.');
         }
       }
@@ -394,12 +394,12 @@ if ($method === 'POST') {
       if ($operatore_id <= 0) throw new RuntimeException('Sessione scaduta: effettua di nuovo il login.');
 
       // ✅ destinazione db (solo scarico)
-      $destE = ($tipo === 'SCARICO' && $destinazione !== '')
-        ? ("'".mysqli_real_escape_string($conn, $destinazione)."'")
+      $destE = ($tipo === 'SCARICO' && $destinazioneId > 0)
+        ? (string)$destinazioneId
         : "NULL";
 
       $sqlIns = "
-        INSERT INTO movimenti (ts, tipo, prodotto_id, lotto_id, quantita, prezzo, fornitore_id, operatore_id, destinazione, note, doc_tipo, doc_numero, doc_data)
+        INSERT INTO movimenti (ts, tipo, prodotto_id, lotto_id, quantita, prezzo, fornitore_id, operatore_id, id_destinazione, note, doc_tipo, doc_numero, doc_data)
         VALUES ($tsE, $tipoE, $pid, $lid, $qta, $prezzoE, $fornE, $operatore_id, $destE, $noteE, $docTipoE, $docNumeroE, $docDataE)
       ";
       if (!mysqli_query($conn, $sqlIns)) throw new RuntimeException('Errore inserimento movimento: '.(mysqli_error($conn) ?: 'query failed'));
@@ -440,7 +440,7 @@ if ($method === 'POST') {
       $newNote = trim((string)($_POST['edit_note'] ?? ''));
 
       // ✅ destinazione edit (solo scarico)
-      $newDest = trim((string)($_POST['edit_destinazione'] ?? ''));
+      $newDestId = (int)($_POST['edit_destinazione'] ?? 0);
 
       if (!in_array($newTipo, ['CARICO','SCARICO'], true)) throw new RuntimeException('Tipo movimento non valido.');
       if ($newQta <= 0) throw new RuntimeException('Quantità non valida.');
@@ -448,7 +448,7 @@ if ($method === 'POST') {
       if ($newTipo === 'CARICO') {
         if ($newDocTipo !== '' && !in_array($newDocTipo, ['FATTURA','DDT','ALTRO'], true)) throw new RuntimeException('Tipo documento non valido.');
         if ($newDocData !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $newDocData)) throw new RuntimeException('Data documento non valida.');
-        $newDest = '';
+        $newDestId = 0;
       } else {
         $newForn = 0;
         $newPrezzo = null;
@@ -456,7 +456,7 @@ if ($method === 'POST') {
         $newDocNumero = '';
         $newDocData = '';
 
-        if ($newDest === '' || !in_array($newDest, $DEST_OPZ, true)) {
+        if ($newDestId <= 0 || !array_key_exists($newDestId, $DEST_MAP)) {
           throw new RuntimeException('Seleziona una destinazione valida per lo scarico.');
         }
       }
@@ -481,8 +481,8 @@ if ($method === 'POST') {
       $docNumeroE = ($newTipo === 'CARICO' && $newDocNumero !== '') ? ("'".mysqli_real_escape_string($conn, $newDocNumero)."'") : "NULL";
       $docDataE   = ($newTipo === 'CARICO' && $newDocData   !== '') ? ("'".mysqli_real_escape_string($conn, $newDocData)."'") : "NULL";
 
-      $destE = ($newTipo === 'SCARICO' && $newDest !== '')
-        ? ("'".mysqli_real_escape_string($conn, $newDest)."'")
+      $destE = ($newTipo === 'SCARICO' && $newDestId > 0)
+        ? (string)$newDestId
         : "NULL";
 
       $sqlUpdM = "UPDATE movimenti
@@ -491,7 +491,7 @@ if ($method === 'POST') {
                       quantita=$newQta,
                       prezzo=$prezzoE,
                       fornitore_id=$fornE,
-                      destinazione=$destE,
+                      id_destinazione=$destE,
                       note=$noteE,
                       doc_tipo=$docTipoE,
                       doc_numero=$docNumeroE,
