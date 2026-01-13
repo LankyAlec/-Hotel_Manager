@@ -60,7 +60,7 @@ $res = mysqli_query($conn, "SELECT id, nome, tipo FROM categorie WHERE attivo=1 
 while ($res && ($r = mysqli_fetch_assoc($res))) $cat[] = $r;
 
 $destinazioni = [];
-$res = mysqli_query($conn, "SELECT id, nome FROM destinazione ORDER BY nome ASC");
+$res = mysqli_query($conn, "SELECT id, nome FROM destinazioni ORDER BY nome ASC");
 while ($res && ($r = mysqli_fetch_assoc($res))) $destinazioni[] = $r;
 
 /* =========================

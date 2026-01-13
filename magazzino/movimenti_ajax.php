@@ -94,7 +94,7 @@ if ($method === 'POST' && $operatore_id <= 0) {
  * DESTINAZIONI (scarico)
  * ======================= */
 $DEST_MAP = [];
-$resDest = mysqli_query($conn, "SELECT id, nome FROM destinazione ORDER BY nome ASC");
+$resDest = mysqli_query($conn, "SELECT id, nome FROM destinazioni ORDER BY nome ASC");
 while ($resDest && ($r = mysqli_fetch_assoc($resDest))) {
   $DEST_MAP[(int)$r['id']] = (string)$r['nome'];
 }
@@ -134,7 +134,7 @@ $render_panel = function(int $pid, int $lid, int $page) use ($conn, $MOV_PER_PAG
            f.nome AS fornitore_nome,
            CONCAT(u.nome,' ',u.cognome) AS operatore_nome
     FROM movimenti mv
-    LEFT JOIN destinazione d ON d.id = mv.id_destinazione
+    LEFT JOIN destinazioni d ON d.id = mv.id_destinazione
     LEFT JOIN fornitori f ON f.id = mv.fornitore_id
     LEFT JOIN utenti u ON u.id = mv.operatore_id
     WHERE mv.prodotto_id = $pid AND mv.lotto_id = $lid
@@ -152,7 +152,7 @@ $render_panel = function(int $pid, int $lid, int $page) use ($conn, $MOV_PER_PAG
              d.nome AS destinazione_nome,
              f.nome AS fornitore_nome
       FROM movimenti mv
-      LEFT JOIN destinazione d ON d.id = mv.id_destinazione
+      LEFT JOIN destinazioni d ON d.id = mv.id_destinazione
       LEFT JOIN fornitori f ON f.id = mv.fornitore_id
       WHERE mv.prodotto_id = $pid AND mv.lotto_id = $lid
       ORDER BY mv.ts DESC, mv.id DESC

@@ -25,7 +25,7 @@ SELECT mv.ts, p.nome AS prodotto, mv.quantita, mv.note,
        CONCAT(u.nome,' ',u.cognome) AS operatore_nome, mv.operatore_id
 FROM movimenti mv
 JOIN prodotti p ON p.id = mv.prodotto_id
-LEFT JOIN destinazione d ON d.id = mv.id_destinazione
+LEFT JOIN destinazioni d ON d.id = mv.id_destinazione
 LEFT JOIN utenti u ON u.id = mv.operatore_id
 $w
 ORDER BY mv.ts DESC, mv.id DESC
@@ -39,7 +39,7 @@ if (!$res) {
          d.nome AS destinazione_nome
   FROM movimenti mv
   JOIN prodotti p ON p.id = mv.prodotto_id
-  LEFT JOIN destinazione d ON d.id = mv.id_destinazione
+  LEFT JOIN destinazioni d ON d.id = mv.id_destinazione
   $w
   ORDER BY mv.ts DESC, mv.id DESC
   ";

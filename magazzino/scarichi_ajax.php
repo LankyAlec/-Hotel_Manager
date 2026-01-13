@@ -29,7 +29,7 @@ SELECT mv.id, mv.ts, mv.quantita, mv.note, mv.operatore_id,
 FROM movimenti mv
 JOIN prodotti p ON p.id = mv.prodotto_id
 LEFT JOIN lotti l ON l.id = mv.lotto_id
-LEFT JOIN destinazione d ON d.id = mv.id_destinazione
+LEFT JOIN destinazioni d ON d.id = mv.id_destinazione
 LEFT JOIN utenti u ON u.id = mv.operatore_id
 $w
 ORDER BY mv.ts DESC, mv.id DESC
@@ -46,7 +46,7 @@ if (!$res) {
   FROM movimenti mv
   JOIN prodotti p ON p.id = mv.prodotto_id
   LEFT JOIN lotti l ON l.id = mv.lotto_id
-  LEFT JOIN destinazione d ON d.id = mv.id_destinazione
+  LEFT JOIN destinazioni d ON d.id = mv.id_destinazione
   $w
   ORDER BY mv.ts DESC, mv.id DESC
   LIMIT 500
