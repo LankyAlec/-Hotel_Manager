@@ -66,6 +66,7 @@ ob_start();
       <tr>
         <th>Data</th>
         <th>Prodotto</th>
+        <th>Scadenza</th>
         <th class="text-end">Qtà</th>
         <th>Destinazione</th>
         <th>Operatore</th>
@@ -74,15 +75,18 @@ ob_start();
     </thead>
     <tbody>
     <?php if (!$rows): ?>
-      <tr><td colspan="6" class="text-center text-secondary py-4">Nessuno scarico trovato</td></tr>
+      <tr><td colspan="7" class="text-center text-secondary py-4">Nessuno scarico trovato</td></tr>
     <?php else: foreach ($rows as $r):
       $opNome = trim((string)($r['operatore_nome'] ?? ''));
       $opId   = (int)($r['operatore_id'] ?? 0);
       $opLbl  = $opNome !== '' ? $opNome : ($opId > 0 ? ('ID '.$opId) : '—');
+      $scad = trim((string)($r['data_scadenza'] ?? ''));
+      $scadLbl = $scad !== '' ? date('d/m/Y', strtotime($scad)) : '—';
     ?>
       <tr>
         <td><?= h(date('d/m/Y H:i', strtotime((string)$r['ts']))) ?></td>
         <td><?= h($r['prodotto'] ?? '') ?></td>
+        <td><?= h($scadLbl) ?></td>
         <td class="text-end"><b><?= (int)($r['quantita'] ?? 0) ?></b></td>
         <td><?= h($r['destinazione_nome'] ?? '—') ?></td>
         <td><?= h($opLbl) ?></td>

@@ -168,28 +168,31 @@ if (($_POST['action'] ?? '') === 'add_lotto') {
 
   $scaff = trim((string)($_POST['lotto_scaffale'] ?? ''));
   $ripi  = trim((string)($_POST['lotto_ripiano'] ?? ''));
+  $magId = (int)($_POST['lotto_magazzino_id'] ?? 0);
 
   if ($pid <= 0) {
     $err = 'Salva prima il prodotto, poi aggiungi i lotti.';
   } elseif ($scad !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $scad)) {
     $err = 'Data scadenza lotto non valida.';
+  } elseif ($magId <= 0) {
+    $err = 'Seleziona un magazzino valido.';
   } else {
-    // magazzino lotto = magazzino del prodotto (coerenza)
-    $resP = mysqli_query($conn, "SELECT magazzino_id FROM prodotti WHERE id=$pid LIMIT 1");
-    $magId = 0;
-    if ($resP && ($pp = mysqli_fetch_assoc($resP))) $magId = (int)($pp['magazzino_id'] ?? 0);
+    $resM = mysqli_query($conn, "SELECT id FROM magazzini WHERE id=$magId LIMIT 1");
+    if (!$resM || mysqli_num_rows($resM) === 0) {
+      $err = 'Seleziona un magazzino valido.';
+    } else {
+      $annoE  = ($anno === null) ? "NULL" : (string)$anno;
+      $scadE  = ($scad !== '') ? ("'".esc($conn, $scad)."'") : "NULL";
+      $scaffE = ($scaff !== '') ? ("'".esc($conn,$scaff)."'") : "NULL";
+      $ripiE  = ($ripi  !== '') ? ("'".esc($conn,$ripi )."'") : "NULL";
+      $magE   = (string)$magId;
 
-    $annoE  = ($anno === null) ? "NULL" : (string)$anno;
-    $scadE  = ($scad !== '') ? ("'".esc($conn, $scad)."'") : "NULL";
-    $scaffE = ($scaff !== '') ? ("'".esc($conn,$scaff)."'") : "NULL";
-    $ripiE  = ($ripi  !== '') ? ("'".esc($conn,$ripi )."'") : "NULL";
-    $magE   = ($magId > 0) ? (string)$magId : "NULL";
-
-    $sql = "INSERT INTO lotti (prodotto_id, magazzino_id, anno_produzione, data_scadenza, scaffale, ripiano)
-            VALUES ($pid, $magE, $annoE, $scadE, $scaffE, $ripiE)";
-    $ok = mysqli_query($conn, $sql);
-    if ($ok) redirect('product_form.php?id='.$pid.'&msg='.urlencode('Lotto aggiunto').$filterSuffix);
-    $err = 'Errore inserimento lotto: ' . (mysqli_error($conn) ?: 'query failed');
+      $sql = "INSERT INTO lotti (prodotto_id, magazzino_id, anno_produzione, data_scadenza, scaffale, ripiano)
+              VALUES ($pid, $magE, $annoE, $scadE, $scaffE, $ripiE)";
+      $ok = mysqli_query($conn, $sql);
+      if ($ok) redirect('product_form.php?id='.$pid.'&msg='.urlencode('Lotto aggiunto').$filterSuffix);
+      $err = 'Errore inserimento lotto: ' . (mysqli_error($conn) ?: 'query failed');
+    }
   }
 }
 
@@ -204,27 +207,37 @@ if (($_POST['action'] ?? '') === 'edit_lotto') {
 
   $scaff = trim((string)($_POST['edit_scaffale'] ?? ''));
   $ripi  = trim((string)($_POST['edit_ripiano'] ?? ''));
+  $magId = (int)($_POST['edit_magazzino_id'] ?? 0);
 
   if ($pid <= 0 || $lid <= 0) {
     $err = 'Lotto non valido.';
   } elseif ($scad !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $scad)) {
     $err = 'Data scadenza non valida.';
+  } elseif ($magId <= 0) {
+    $err = 'Seleziona un magazzino valido.';
   } else {
-    $annoE  = ($anno === null) ? "NULL" : (string)$anno;
-    $scadE  = ($scad !== '') ? ("'".esc($conn, $scad)."'") : "NULL";
-    $scaffE = ($scaff !== '') ? ("'".esc($conn,$scaff)."'") : "NULL";
-    $ripiE  = ($ripi  !== '') ? ("'".esc($conn,$ripi )."'") : "NULL";
+    $resM = mysqli_query($conn, "SELECT id FROM magazzini WHERE id=$magId LIMIT 1");
+    if (!$resM || mysqli_num_rows($resM) === 0) {
+      $err = 'Seleziona un magazzino valido.';
+    } else {
+      $annoE  = ($anno === null) ? "NULL" : (string)$anno;
+      $scadE  = ($scad !== '') ? ("'".esc($conn, $scad)."'") : "NULL";
+      $scaffE = ($scaff !== '') ? ("'".esc($conn,$scaff)."'") : "NULL";
+      $ripiE  = ($ripi  !== '') ? ("'".esc($conn,$ripi )."'") : "NULL";
+      $magE   = (string)$magId;
 
-    $sql = "UPDATE lotti SET
-              anno_produzione=$annoE,
-              data_scadenza=$scadE,
-              scaffale=$scaffE,
-              ripiano=$ripiE
-            WHERE id=$lid AND prodotto_id=$pid
-            LIMIT 1";
-    $ok = mysqli_query($conn, $sql);
-    if ($ok) redirect('product_form.php?id='.$pid.'&msg='.urlencode('Lotto modificato').$filterSuffix);
-    $err = 'Errore modifica lotto: ' . (mysqli_error($conn) ?: 'query failed');
+      $sql = "UPDATE lotti SET
+                magazzino_id=$magE,
+                anno_produzione=$annoE,
+                data_scadenza=$scadE,
+                scaffale=$scaffE,
+                ripiano=$ripiE
+              WHERE id=$lid AND prodotto_id=$pid
+              LIMIT 1";
+      $ok = mysqli_query($conn, $sql);
+      if ($ok) redirect('product_form.php?id='.$pid.'&msg='.urlencode('Lotto modificato').$filterSuffix);
+      $err = 'Errore modifica lotto: ' . (mysqli_error($conn) ?: 'query failed');
+    }
   }
 }
 
@@ -296,7 +309,7 @@ if ($id > 0) {
   if ($resT && ($tt = mysqli_fetch_assoc($resT))) $tot_qta = (int)$tt['s'];
 
   // lotti paginati
-  $sqlL = "SELECT l.id, l.anno_produzione, l.data_scadenza, l.scaffale, l.ripiano,
+  $sqlL = "SELECT l.id, l.magazzino_id, l.anno_produzione, l.data_scadenza, l.scaffale, l.ripiano,
                   COALESCE(m.giacenza,0) AS giacenza
            FROM lotti l
            LEFT JOIN (
@@ -476,6 +489,7 @@ require __DIR__ . '/../includes/header.php';
                             data-lotto-id="<?= $lid ?>"
                             data-scad="<?= h((string)($l['data_scadenza'] ?? '')) ?>"
                             data-anno="<?= h((string)($l['anno_produzione'] ?? '')) ?>"
+                            data-magazzino-id="<?= (int)($l['magazzino_id'] ?? 0) ?>"
                             data-scaff="<?= h((string)($l['scaffale'] ?? '')) ?>"
                             data-ripi="<?= h((string)($l['ripiano'] ?? '')) ?>">
                       <i class="bi bi-pencil-square"></i>
@@ -589,8 +603,14 @@ require __DIR__ . '/../includes/header.php';
           </div>
           <div class="col-12 col-md-4">
             <label class="form-label">Magazzino</label>
-            <input class="form-control" value="<?= h((string)($row['magazzino_id'] ?? '')) ?>" disabled>
-            <div class="form-text">Il magazzino del lotto segue il magazzino del prodotto.</div>
+            <select class="form-select" name="lotto_magazzino_id" required>
+              <option value="0">Seleziona...</option>
+              <?php foreach ($mag as $m): ?>
+                <option value="<?= (int)$m['id'] ?>" <?= ((int)$row['magazzino_id'] === (int)$m['id'] ? 'selected' : '') ?>>
+                  <?= h((string)$m['nome']) ?>
+                </option>
+              <?php endforeach; ?>
+            </select>
           </div>
           <div class="col-12 col-md-6">
             <label class="form-label">Scaffale</label>
@@ -635,6 +655,15 @@ require __DIR__ . '/../includes/header.php';
           <div class="col-12 col-md-6">
             <label class="form-label">Scadenza</label>
             <input type="date" class="form-control" name="edit_scadenza" id="edit_scadenza">
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label">Magazzino *</label>
+            <select class="form-select" name="edit_magazzino_id" id="edit_magazzino_id" required>
+              <option value="0">Seleziona...</option>
+              <?php foreach ($mag as $m): ?>
+                <option value="<?= (int)$m['id'] ?>"><?= h((string)$m['nome']) ?></option>
+              <?php endforeach; ?>
+            </select>
           </div>
           <div class="col-12 col-md-6">
             <label class="form-label">Scaffale</label>
@@ -999,12 +1028,14 @@ require __DIR__ . '/../includes/header.php';
     const idEl = document.getElementById('edit_lotto_id');
     const scadEl = document.getElementById('edit_scadenza');
     const annoEl = document.getElementById('edit_anno');
+    const magEl = document.getElementById('edit_magazzino_id');
     const scaffEl = document.getElementById('edit_scaffale');
     const ripiEl = document.getElementById('edit_ripiano');
 
     if (idEl) idEl.value = btn.dataset.lottoId || '';
     if (scadEl) scadEl.value = btn.dataset.scad || '';
     if (annoEl) annoEl.value = btn.dataset.anno || '';
+    if (magEl) magEl.value = btn.dataset.magazzinoId || '0';
     if (scaffEl) scaffEl.value = btn.dataset.scaff || '';
     if (ripiEl) ripiEl.value = btn.dataset.ripi || '';
   });
