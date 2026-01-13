@@ -59,6 +59,10 @@ $cat = [];
 $res = mysqli_query($conn, "SELECT id, nome, tipo FROM categorie WHERE attivo=1 ORDER BY tipo ASC, nome ASC");
 while ($res && ($r = mysqli_fetch_assoc($res))) $cat[] = $r;
 
+$destinazioni = [];
+$res = mysqli_query($conn, "SELECT id, nome FROM destinazione ORDER BY nome ASC");
+while ($res && ($r = mysqli_fetch_assoc($res))) $destinazioni[] = $r;
+
 /* =========================
  * WHERE (prodotti + match su lotti)
  * ======================= */
@@ -505,17 +509,9 @@ require __DIR__ . '/../includes/header.php';
             <label class="form-label">Destinazione</label>
             <select class="form-select" id="sc_dest">
               <option value="">Tutte</option>
-              <option>Park Hotel Paradiso</option>
-              <option>Imperial</option>
-              <option>Villa delle meraviglie</option>
-              <option>Cunina 1</option>
-              <option>Cucina 2</option>
-              <option>Office/Sala 1</option>
-              <option>Office/Sala 2</option>
-              <option>Bar</option>
-              <option>Lavanderia</option>
-              <option>Piani</option>
-              <option>Accoglienza</option>
+              <?php foreach ($destinazioni as $d): ?>
+                <option value="<?= (int)$d['id'] ?>"><?= h((string)$d['nome']) ?></option>
+              <?php endforeach; ?>
             </select>
           </div>
           <div class="col-12 col-md-2 d-flex gap-2">

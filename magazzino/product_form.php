@@ -259,6 +259,10 @@ $fornitori = [];
 $res = mysqli_query($conn, "SELECT id, nome FROM fornitori WHERE attivo=1 ORDER BY nome ASC");
 while ($res && ($r = mysqli_fetch_assoc($res))) $fornitori[] = $r;
 
+$destinazioni = [];
+$res = mysqli_query($conn, "SELECT id, nome FROM destinazione ORDER BY nome ASC");
+while ($res && ($r = mysqli_fetch_assoc($res))) $destinazioni[] = $r;
+
 /* =========================
  * LOTTI + GIACENZA
  * ======================= */
@@ -691,17 +695,9 @@ require __DIR__ . '/../includes/header.php';
             <label class="form-label mb-1">Destinazione</label>
             <select class="form-select" name="mov_destinazione" id="new_mov_destinazione">
               <option value="">— Seleziona —</option>
-              <option>Park Hotel Paradiso</option>
-              <option>Imperial</option>
-              <option>Villa delle meraviglie</option>
-              <option>Cunina 1</option>
-              <option>Cucina 2</option>
-              <option>Office/Sala 1</option>
-              <option>Office/Sala 2</option>
-              <option>Bar</option>
-              <option>Lavanderia</option>
-              <option>Piani</option>
-              <option>Accoglienza</option>
+              <?php foreach ($destinazioni as $d): ?>
+                <option value="<?= (int)$d['id'] ?>"><?= h((string)$d['nome']) ?></option>
+              <?php endforeach; ?>
             </select>
           </div>
 
@@ -810,21 +806,13 @@ require __DIR__ . '/../includes/header.php';
             <input type="datetime-local" class="form-control" name="edit_ts" id="edit_ts" required>
           </div>
 
-          <div class="col-12 col-md-6 of-only-scarico-new d-none">
+          <div class="col-12 col-md-6 of-only-scarico-edit d-none">
             <label class="form-label mb-1">Destinazione</label>
             <select class="form-select of-only-scarico-edit d-none" name="edit_destinazione" id="edit_destinazione">
               <option value="">— Seleziona —</option>
-              <option>Park Hotel Paradiso</option>
-              <option>Imperial</option>
-              <option>Villa delle meraviglie</option>
-              <option>Cunina 1</option>
-              <option>Cucina 2</option>
-              <option>Office/Sala 1</option>
-              <option>Office/Sala 2</option>
-              <option>Bar</option>
-              <option>Lavanderia</option>
-              <option>Piani</option>
-              <option>Accoglienza</option>
+              <?php foreach ($destinazioni as $d): ?>
+                <option value="<?= (int)$d['id'] ?>"><?= h((string)$d['nome']) ?></option>
+              <?php endforeach; ?>
             </select>
           </div>
 
@@ -1319,7 +1307,7 @@ require __DIR__ . '/../includes/header.php';
     if (!btn) return;
 
     const op = (btn.dataset.movOperatore || '').trim();
-    const dest = (btn.dataset.movDestinazione || '').trim();
+    const dest = (btn.dataset.movDestinazioneLabel || '').trim();
 
     const ts   = btn.dataset.movTs || '—';
     const tipo = (btn.dataset.movTipo || '—').toUpperCase();
@@ -1396,7 +1384,7 @@ lines.push(`<div><b>Note:</b> ${showOrDash(note)}</div>`);
     if (!btnEdit) return;
 
     const ed = document.getElementById('edit_destinazione');
-    if (ed) ed.value = btnEdit.dataset.movDestinazione || '';
+    if (ed) ed.value = btnEdit.dataset.movDestinazioneId || '';
 
 
     document.getElementById('edit_mov_lid').value = String(currentLottoId || '0');

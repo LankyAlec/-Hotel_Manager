@@ -12,22 +12,24 @@ function out(array $p){ echo json_encode($p, JSON_UNESCAPED_UNICODE); exit; }
 
 $from = trim((string)($_GET['from'] ?? ''));
 $to   = trim((string)($_GET['to'] ?? ''));
-$dest = trim((string)($_GET['dest'] ?? ''));
+$dest = (int)($_GET['dest'] ?? 0);
 
 $where = ["mv.tipo='SCARICO'"];
 if ($from !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/',$from)) $where[] = "mv.ts >= '".esc($conn,$from)." 00:00:00'";
 if ($to   !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/',$to))   $where[] = "mv.ts <= '".esc($conn,$to)." 23:59:59'";
-if ($dest !== '') $where[] = "mv.destinazione = '".esc($conn,$dest)."'";
+if ($dest > 0) $where[] = "mv.id_destinazione = $dest";
 
 $w = "WHERE ".implode(" AND ",$where);
 
 $sql = "
-SELECT mv.id, mv.ts, mv.quantita, mv.destinazione, mv.note, mv.operatore_id,
+SELECT mv.id, mv.ts, mv.quantita, mv.note, mv.operatore_id,
        p.nome AS prodotto, l.data_scadenza,
+       d.nome AS destinazione_nome,
        CONCAT(u.nome,' ',u.cognome) AS operatore_nome
 FROM movimenti mv
 JOIN prodotti p ON p.id = mv.prodotto_id
 LEFT JOIN lotti l ON l.id = mv.lotto_id
+LEFT JOIN destinazione d ON d.id = mv.id_destinazione
 LEFT JOIN utenti u ON u.id = mv.operatore_id
 $w
 ORDER BY mv.ts DESC, mv.id DESC
@@ -38,11 +40,13 @@ $res = mysqli_query($conn,$sql);
 if (!$res) {
   // fallback senza utenti
   $sql = "
-  SELECT mv.id, mv.ts, mv.quantita, mv.destinazione, mv.note, mv.operatore_id,
-         p.nome AS prodotto, l.data_scadenza
+  SELECT mv.id, mv.ts, mv.quantita, mv.note, mv.operatore_id,
+         p.nome AS prodotto, l.data_scadenza,
+         d.nome AS destinazione_nome
   FROM movimenti mv
   JOIN prodotti p ON p.id = mv.prodotto_id
   LEFT JOIN lotti l ON l.id = mv.lotto_id
+  LEFT JOIN destinazione d ON d.id = mv.id_destinazione
   $w
   ORDER BY mv.ts DESC, mv.id DESC
   LIMIT 500
@@ -80,7 +84,7 @@ ob_start();
         <td><?= h(date('d/m/Y H:i', strtotime((string)$r['ts']))) ?></td>
         <td><?= h($r['prodotto'] ?? '') ?></td>
         <td class="text-end"><b><?= (int)($r['quantita'] ?? 0) ?></b></td>
-        <td><?= h($r['destinazione'] ?? '—') ?></td>
+        <td><?= h($r['destinazione_nome'] ?? '—') ?></td>
         <td><?= h($opLbl) ?></td>
         <td><?= h($r['note'] ?? '') ?></td>
       </tr>
