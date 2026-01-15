@@ -41,8 +41,10 @@ if ($pianoSel === 0 && $edificioSel > 0) {
   .legend .item{ display:inline-flex; align-items:center; gap:6px; font-size:.9rem; color:#555; }
   .legend .dot{ width:14px; height:14px; border-radius:50%; display:inline-block; box-shadow:0 0 0 1px rgba(0,0,0,.06) inset; }
 
-  .calendar-wrap{ border-radius:16px; border:1px solid rgba(0,0,0,.06); background:#fff; box-shadow:0 .35rem 1rem rgba(0,0,0,.08); }
+  .calendar-wrap{ border-radius:16px; border:1px solid rgba(0,0,0,.06); background:#fff; box-shadow:0 .35rem 1rem rgba(0,0,0,.08); overflow:hidden; }
   .calendar-wrap .table{ margin-bottom:0; }
+  .calendar-wrap .table-responsive{ border-radius:16px; overflow:hidden; }
+  .calendar-header{ padding:16px; border-bottom:1px solid rgba(0,0,0,.06); }
   .calendar-table th{ background:#f8f9fa; font-size:.85rem; text-transform:uppercase; letter-spacing:.03em; }
   .calendar-table th, .calendar-table td{ text-align:center; vertical-align:middle; padding:.55rem .35rem; }
   .calendar-table .room-col{ text-align:left; min-width:180px; font-weight:600; background:#fff; position:sticky; left:0; z-index:2; box-shadow:1px 0 0 rgba(0,0,0,.05); }
@@ -52,10 +54,13 @@ if ($pianoSel === 0 && $edificioSel > 0) {
   .cell{ min-width:80px; border-radius:8px; padding:.35rem .3rem; display:flex; flex-direction:column; gap:4px; align-items:center; justify-content:center; font-size:.78rem; cursor:pointer; }
   .cell-libera{ }
   .cell-libera .btn{ border-radius:999px; padding:.2rem .7rem; font-size:.72rem; font-weight:600; box-shadow:0 .2rem .5rem rgba(13,110,253,.25); }
-  .cell-occupata{ background:rgba(13,110,253,.18); color:#084298; font-weight:600; }
+  .cell-occupata{ background:rgba(13,110,253,.2); color:#084298; font-weight:600; }
   .cell-manutenzione{ background:rgba(220,53,69,.22); color:#842029; font-weight:600; }
   .cell-pulizia{ background:rgba(255,193,7,.35); color:#664d03; font-weight:600; }
   .cell-disattiva{ background:rgba(108,117,125,.2); color:#6c757d; font-weight:600; }
+  .cell-checkin:not(.cell-occupata):not(.cell-turnover){ background:linear-gradient(90deg, transparent 0 45%, rgba(25,135,84,.35) 45% 100%); }
+  .cell-checkout:not(.cell-occupata):not(.cell-turnover){ background:linear-gradient(90deg, rgba(220,53,69,.25) 0 55%, transparent 55% 100%); }
+  .cell-turnover{ background:rgba(111,66,193,.25); color:#3d2a6b; font-weight:600; }
   .cell .cell-label{ font-size:.85rem; font-weight:700; }
   .cell .cell-meta{ display:flex; gap:4px; flex-wrap:wrap; justify-content:center; }
   .cell .badge{ font-size:.62rem; }
@@ -107,7 +112,12 @@ if ($pianoSel === 0 && $edificioSel > 0) {
           </div>
         </div>
       </div>
-      <div class="calendar-toolbar mt-3">
+    </div>
+  </div>
+
+  <div class="calendar-wrap">
+    <div class="calendar-header">
+      <div class="calendar-toolbar">
         <div class="btn-group" role="group" aria-label="Navigazione calendario">
           <button class="btn btn-outline-secondary" type="button" id="btnPrev"><i class="bi bi-chevron-left"></i></button>
           <button class="btn btn-outline-secondary" type="button" id="btnToday">Oggi</button>
@@ -124,9 +134,6 @@ if ($pianoSel === 0 && $edificioSel > 0) {
         </div>
       </div>
     </div>
-  </div>
-
-  <div class="calendar-wrap">
     <div id="calendarContainer" class="table-responsive"></div>
   </div>
 </div>
@@ -572,50 +579,68 @@ if ($pianoSel === 0 && $edificioSel > 0) {
         days.forEach(day => {
           let status = 'libera';
           let label = statusInitial('Libera');
-          let tooltip = '';
+          const tooltipParts = [];
           let bookingId = '';
           let bookingPayload = null;
           let checkinMarkers = [];
           let checkoutMarkers = [];
           const occs = bookings.get(roomId) || [];
+          const manutList = manutenzioni.get(roomId) || [];
+          const puliziaList = pulizie.get(roomId) || [];
           const checkinEvents = occs.filter(b => b.checkin === day);
           const checkoutEvents = occs.filter(b => b.checkout === day);
+          const hasCheckin = checkinEvents.length > 0;
+          const hasCheckout = checkoutEvents.length > 0;
+          const hasTurnover = hasCheckin && hasCheckout;
           checkinMarkers = checkinEvents.map(() => 'CI');
           checkoutMarkers = checkoutEvents.map(() => 'CO');
           bookingPayload = checkinEvents[0] || checkoutEvents[0] || null;
-          if (!parseInt(room.attiva || 1, 10)) {
-            status = 'disattiva';
-            label = statusInitial('Disattiva');
-          } else if (manutenzioni.has(roomId)) {
-            status = 'manutenzione';
-            label = statusInitial('Manutenzione');
-            const info = manutenzioni.get(roomId)[0];
-            tooltip = info?.stato ? `Ticket: ${formatStatus(info.stato)}` : '';
-          } else if (pulizie.has(roomId)) {
-            status = 'pulizia';
-            label = statusInitial('Pulizia');
-            const info = pulizie.get(roomId)[0];
-            tooltip = info?.stato ? `Pulizia: ${formatStatus(info.stato)}` : '';
-          } else {
-            const dayDate = new Date(day + 'T00:00:00');
-            const match = occs.find(b => {
-              const start = new Date(b.checkin + 'T00:00:00');
-              const end = new Date(b.checkout + 'T00:00:00');
-              return dayDate >= start && dayDate < end;
-            });
-            bookingPayload = match || checkinEvents[0] || checkoutEvents[0] || null;
-            if (match) {
-              status = 'occupata';
-              label = match.stato ? statusInitial(match.stato) : statusInitial('Occupata');
-              tooltip = `Check-in ${match.checkin} · Check-out ${match.checkout}`;
-              bookingId = match.id;
-            } else if (bookingPayload) {
-              tooltip = `Check-in ${bookingPayload.checkin} · Check-out ${bookingPayload.checkout}`;
-              bookingId = bookingPayload.id;
-              label = statusInitial('Libera');
+
+          const dayDate = new Date(day + 'T00:00:00');
+          const match = occs.find(b => {
+            const start = new Date(b.checkin + 'T00:00:00');
+            const end = new Date(b.checkout + 'T00:00:00');
+            return dayDate >= start && dayDate < end;
+          });
+
+          const isDisattiva = !parseInt(room.attiva || 1, 10);
+          if (isDisattiva) {
+            tooltipParts.push('Camera disattivata');
+          }
+          if (manutList.length) {
+            const info = manutList[0];
+            tooltipParts.push(info?.stato ? `Manutenzione: ${formatStatus(info.stato)}` : 'Manutenzione');
+          }
+          if (puliziaList.length) {
+            const info = puliziaList[0];
+            tooltipParts.push(info?.stato ? `Pulizia: ${formatStatus(info.stato)}` : 'Pulizia');
+          }
+
+          if (match) {
+            status = 'occupata';
+            label = match.stato ? statusInitial(match.stato) : statusInitial('Occupata');
+            tooltipParts.push(`Soggiorno ${match.checkin} → ${match.checkout}`);
+            bookingId = match.id;
+            bookingPayload = match;
+          } else if (bookingPayload) {
+            tooltipParts.push(`Check-in ${bookingPayload.checkin} · Check-out ${bookingPayload.checkout}`);
+            bookingId = bookingPayload.id;
+          }
+
+          if (!match) {
+            if (isDisattiva) {
+              status = 'disattiva';
+              label = statusInitial('Disattiva');
+            } else if (manutList.length) {
+              status = 'manutenzione';
+              label = statusInitial('Manutenzione');
+            } else if (puliziaList.length) {
+              status = 'pulizia';
+              label = statusInitial('Pulizia');
             }
           }
 
+          const tooltip = tooltipParts.join(' · ');
           const tooltipAttr = tooltip ? ` data-bs-toggle="tooltip" title="${tooltip.replace(/"/g, '&quot;')}"` : '';
           const checkinDate = new Date(day + 'T00:00:00');
           const checkoutDate = new Date(day + 'T00:00:00');
@@ -623,19 +648,30 @@ if ($pianoSel === 0 && $edificioSel > 0) {
           const defaultCheckin = checkinDate.toISOString().slice(0, 10);
           const defaultCheckout = checkoutDate.toISOString().slice(0, 10);
           let metaTags = '';
-          if (checkinMarkers.length || checkoutMarkers.length) {
-            const tags = [
-              ...checkinMarkers.map(tag => `<span class="badge bg-success">${tag}</span>`),
-              ...checkoutMarkers.map(tag => `<span class="badge bg-danger">${tag}</span>`)
-            ].join('');
+          const statusBadges = [];
+          if (isDisattiva) statusBadges.push('<span class="badge bg-secondary">D</span>');
+          if (manutList.length) statusBadges.push('<span class="badge bg-danger">M</span>');
+          if (puliziaList.length) statusBadges.push('<span class="badge bg-warning text-dark">P</span>');
+          if (match) statusBadges.push('<span class="badge bg-primary">O</span>');
+
+          const tags = [
+            ...statusBadges,
+            ...checkinMarkers.map(tag => `<span class="badge bg-success">${tag}</span>`),
+            ...checkoutMarkers.map(tag => `<span class="badge bg-danger">${tag}</span>`)
+          ].join('');
+          if (tags) {
             metaTags = `<div class="cell-meta">${tags}</div>`;
           }
-          const disabledClass = status === 'disattiva' ? ' disabled' : '';
+
+          const disabledClass = isDisattiva ? ' disabled' : '';
           const bookingIdAttr = bookingId ? ` data-booking-id="${bookingId}"` : '';
+          const checkinClass = hasCheckin ? ' cell-checkin' : '';
+          const checkoutClass = hasCheckout ? ' cell-checkout' : '';
+          const turnoverClass = hasTurnover ? ' cell-turnover' : '';
           const labelHtml = status === 'libera'
             ? '<button class="btn btn-outline-primary btn-sm">Prenota</button>'
             : label;
-          html += `<td><div class="cell cell-${status}${disabledClass}" data-camera-id="${room.id}" data-checkin="${defaultCheckin}" data-checkout="${defaultCheckout}"${bookingIdAttr}${tooltipAttr}><div class="cell-label">${labelHtml}</div>${metaTags}</div></td>`;
+          html += `<td><div class="cell cell-${status}${checkinClass}${checkoutClass}${turnoverClass}${disabledClass}" data-camera-id="${room.id}" data-checkin="${defaultCheckin}" data-checkout="${defaultCheckout}"${bookingIdAttr}${tooltipAttr}><div class="cell-label">${labelHtml}</div>${metaTags}</div></td>`;
         });
 
         html += '</tr>';

@@ -44,6 +44,12 @@ function column_exists(mysqli $db, string $table, string $column): bool {
     return $exists;
 }
 
+function table_exists(mysqli $db, string $table): bool {
+    $tableEsc = $db->real_escape_string($table);
+    $res = $db->query("SHOW TABLES LIKE '{$tableEsc}'");
+    return $res && $res->num_rows > 0;
+}
+
 function get_action(): string {
     $input = json_decode(file_get_contents('php://input'), true);
     if (is_array($input)) {
@@ -85,7 +91,29 @@ function is_range_available(mysqli $db, int $cameraId, string $checkin, string $
 }
 
 function get_camere(mysqli $db): array {
-    $res = $db->query("SELECT id, codice, nome, capienza_base FROM camere WHERE attiva = 1 ORDER BY codice ASC");
+    if (table_exists($db, 'struttura_camere')) {
+        $hasNome = column_exists($db, 'struttura_camere', 'nome');
+        $hasAttiva = column_exists($db, 'struttura_camere', 'attiva');
+        $selectNome = $hasNome ? ', nome' : ', NULL AS nome';
+        $selectAttiva = $hasAttiva ? ', attiva' : ', 1 AS attiva';
+        $res = $db->query("SELECT id, codice{$selectNome}{$selectAttiva} FROM struttura_camere ORDER BY codice ASC");
+        if (!$res) {
+            return [];
+        }
+
+        $rows = [];
+        while ($r = $res->fetch_assoc()) {
+            $rows[] = [
+                'id' => (int)$r['id'],
+                'codice' => (string)$r['codice'],
+                'nome' => (string)($r['nome'] ?? ''),
+                'attiva' => (int)($r['attiva'] ?? 1),
+            ];
+        }
+        return $rows;
+    }
+
+    $res = $db->query("SELECT id, codice, nome, capienza_base FROM camere ORDER BY codice ASC");
     if (!$res) {
         return [];
     }
