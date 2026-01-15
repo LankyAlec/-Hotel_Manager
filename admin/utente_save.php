@@ -18,7 +18,10 @@ if ($azione === 'toggle_attivo') {
         exit;
     }
 
-    $stmt = $mysqli->prepare("UPDATE utenti SET attivo = IF(attivo=1,0,1) WHERE id=?");
+    $stmt = $mysqli->prepare("UPDATE utenti
+        SET attivo = IF(attivo=1,0,1),
+            richiesta_registrazione = IF(attivo=1, richiesta_registrazione, 0)
+        WHERE id=?");
     $stmt->bind_param("i", $id);
     $stmt->execute();
 
@@ -106,6 +109,10 @@ if ($azione === 'salva_utente') {
         }
 
         $mysqli->commit();
+
+        if ((int)$_SESSION['utente_id'] === $id) {
+            unset($_SESSION['gruppi']);
+        }
     } catch (Throwable $e) {
         $mysqli->rollback();
         die("Errore salvataggio: " . $e->getMessage());
