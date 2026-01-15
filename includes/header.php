@@ -14,9 +14,9 @@ if (!isset($_SESSION['gruppi'])) {
     $_SESSION['gruppi'] = [];
     $stmt = $mysqli->prepare("
         SELECT g.codice
-        FROM gruppi g
-        JOIN utenti_gruppi ug ON ug.gruppo_id = g.id
-        WHERE ug.utente_id = ?
+        FROM utenti_gruppi g
+        JOIN utenti_privilegi up ON up.gruppo_id = g.id
+        WHERE up.utente_id = ?
     ");
     $stmt->bind_param("i", $_SESSION['utente_id']);
     $stmt->execute();
