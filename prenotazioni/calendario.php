@@ -46,20 +46,30 @@ if ($pianoSel === 0 && $edificioSel > 0) {
   .calendar-table th{ background:#f8f9fa; font-size:.85rem; text-transform:uppercase; letter-spacing:.03em; }
   .calendar-table th, .calendar-table td{ text-align:center; vertical-align:middle; padding:.55rem .35rem; }
   .calendar-table .room-col{ text-align:left; min-width:180px; font-weight:600; background:#fff; position:sticky; left:0; z-index:2; box-shadow:1px 0 0 rgba(0,0,0,.05); }
-  .calendar-table .room-sub{ font-weight:400; color:#6c757d; font-size:.82rem; }
+  .calendar-table .room-sub{ font-weight:400; color:#6c757d; font-size:.82rem; display:flex; flex-direction:column; gap:2px; }
+  .calendar-table .room-note{ font-size:.78rem; color:#495057; }
 
-  .cell{ min-width:80px; border-radius:8px; padding:.35rem .3rem; display:flex; flex-direction:column; gap:2px; align-items:center; justify-content:center; font-size:.78rem; }
+  .cell{ min-width:80px; border-radius:8px; padding:.35rem .3rem; display:flex; flex-direction:column; gap:4px; align-items:center; justify-content:center; font-size:.78rem; cursor:pointer; }
   .cell-libera{ background:#f8f9fa; color:#6c757d; }
   .cell-occupata{ background:rgba(13,110,253,.18); color:#084298; font-weight:600; }
   .cell-manutenzione{ background:rgba(220,53,69,.22); color:#842029; font-weight:600; }
   .cell-pulizia{ background:rgba(255,193,7,.35); color:#664d03; font-weight:600; }
   .cell-disattiva{ background:rgba(108,117,125,.2); color:#6c757d; font-weight:600; }
-  .cell .btn-book{ font-size:.7rem; padding:.1rem .35rem; line-height:1.2; }
+  .cell .cell-label{ font-size:.85rem; font-weight:700; }
+  .cell .cell-meta{ display:flex; gap:4px; flex-wrap:wrap; justify-content:center; }
+  .cell .badge{ font-size:.62rem; }
+  .cell.disabled{ cursor:not-allowed; opacity:.7; }
 
   .calendar-empty{ padding:24px; text-align:center; color:#6c757d; }
   .calendar-toolbar{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; justify-content:space-between; }
   .calendar-toolbar .btn-group{ box-shadow:0 .2rem .6rem rgba(0,0,0,.08); border-radius:10px; }
   .calendar-toolbar .form-control{ max-width:170px; }
+
+  .booking-modal .form-label span.required{ color:#dc3545; }
+  .guest-card{ border:1px solid rgba(0,0,0,.08); border-radius:12px; padding:12px; margin-bottom:12px; }
+  .guest-card .guest-title{ font-weight:600; }
+  .guest-card .guest-actions{ display:flex; justify-content:flex-end; }
+  .guest-search-results{ max-height:200px; overflow:auto; border:1px solid rgba(0,0,0,.08); border-radius:8px; }
 </style>
 
 <div class="container-fluid">
@@ -68,9 +78,6 @@ if ($pianoSel === 0 && $edificioSel > 0) {
       <h3 class="mb-1"><i class="bi bi-calendar-check"></i> Calendario prenotazioni</h3>
       <div class="text-muted small">Seleziona edificio e piano per vedere la disponibilità camere nel calendario.</div>
     </div>
-    <a class="btn btn-outline-primary" href="<?= BASE_URL ?>/prenotazioni/lista.php">
-      <i class="bi bi-list"></i> Vai all'elenco
-    </a>
   </div>
 
   <div class="card filters-card mb-3">
@@ -123,6 +130,70 @@ if ($pianoSel === 0 && $edificioSel > 0) {
   </div>
 </div>
 
+<div class="modal fade booking-modal" id="bookingModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Dettagli prenotazione</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <form id="bookingForm" class="row g-3">
+          <input type="hidden" name="id" id="bookingId">
+          <div class="col-12 col-md-4">
+            <label class="form-label small">Camera</label>
+            <select class="form-select" name="camera_id" id="bookingCamera" required></select>
+          </div>
+          <div class="col-6 col-md-4">
+            <label class="form-label small">Check-in</label>
+            <input type="date" class="form-control" name="data_checkin" id="bookingCheckin" required>
+          </div>
+          <div class="col-6 col-md-4">
+            <label class="form-label small">Check-out</label>
+            <input type="date" class="form-control" name="data_checkout" id="bookingCheckout" required>
+          </div>
+        </form>
+
+        <div class="border-top pt-3 mt-3">
+          <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+            <div>
+              <h6 class="mb-1">Ospiti</h6>
+              <div class="text-muted small">Compila i dati richiesti per ogni ospite della camera.</div>
+            </div>
+            <div class="d-flex gap-2">
+              <button class="btn btn-outline-secondary btn-sm" type="button" id="addGuestBtn">
+                <i class="bi bi-person-plus"></i> Aggiungi ospite
+              </button>
+            </div>
+          </div>
+
+          <div class="row g-2 align-items-end mb-3">
+            <div class="col-12 col-md-6">
+              <label class="form-label small">Ricerca ospite già registrato</label>
+              <input class="form-control form-control-sm" id="guestSearchInput" placeholder="Nome, cognome, documento o email">
+            </div>
+            <div class="col-12 col-md-3">
+              <button class="btn btn-outline-primary btn-sm w-100" type="button" id="guestSearchBtn">
+                <i class="bi bi-search"></i> Cerca
+              </button>
+            </div>
+          </div>
+
+          <div id="guestSearchResults" class="guest-search-results mb-3 d-none"></div>
+          <div id="guestsContainer"></div>
+          <div id="guestsEmpty" class="text-muted small d-none">Salva la prenotazione per associare ospiti.</div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline-secondary" data-bs-dismiss="modal">Chiudi</button>
+        <button class="btn btn-primary" id="saveBookingBtn"><i class="bi bi-save"></i> Salva prenotazione</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast-container position-fixed top-0 end-0 p-3" id="toastArea" style="z-index: 1080;"></div>
+
 <script>
   (function(){
     const edifici = <?= json_encode($edifici, JSON_UNESCAPED_UNICODE) ?>;
@@ -136,9 +207,25 @@ if ($pianoSel === 0 && $edificioSel > 0) {
     const btnPrev = document.getElementById('btnPrev');
     const btnNext = document.getElementById('btnNext');
     const btnToday = document.getElementById('btnToday');
+    const bookingModalEl = document.getElementById('bookingModal');
+    const bookingForm = document.getElementById('bookingForm');
+    const bookingIdInput = document.getElementById('bookingId');
+    const bookingCamera = document.getElementById('bookingCamera');
+    const bookingCheckin = document.getElementById('bookingCheckin');
+    const bookingCheckout = document.getElementById('bookingCheckout');
+    const saveBookingBtn = document.getElementById('saveBookingBtn');
+    const guestsContainer = document.getElementById('guestsContainer');
+    const guestsEmpty = document.getElementById('guestsEmpty');
+    const addGuestBtn = document.getElementById('addGuestBtn');
+    const guestSearchInput = document.getElementById('guestSearchInput');
+    const guestSearchBtn = document.getElementById('guestSearchBtn');
+    const guestSearchResults = document.getElementById('guestSearchResults');
+    const toastArea = document.getElementById('toastArea');
 
     let edificioSel = <?= (int)$edificioSel ?>;
     let pianoSel = <?= (int)$pianoSel ?>;
+    let meta = { camere: [] };
+    let currentBookingId = null;
 
     function renderPianiOptions() {
       const options = piani.filter(p => String(p.edificio_id) === String(edificioSel));
@@ -188,6 +275,17 @@ if ($pianoSel === 0 && $edificioSel > 0) {
         .replace(/\b\w/g, (match) => match.toUpperCase());
     }
 
+    function escapeHtml(value) {
+      const div = document.createElement('div');
+      div.textContent = value ?? '';
+      return div.innerHTML;
+    }
+
+    function statusInitial(label) {
+      if (!label) return '';
+      return label.trim().charAt(0).toUpperCase();
+    }
+
     function dateLabel(dateStr) {
       const d = new Date(dateStr + 'T00:00:00');
       const formatter = new Intl.DateTimeFormat('it-IT', {
@@ -205,6 +303,233 @@ if ($pianoSel === 0 && $edificioSel > 0) {
       return `${weekday}<br><span class="text-muted">${day} ${month}</span>`;
     }
 
+    function showToast(message, variant = 'primary') {
+      const wrapper = document.createElement('div');
+      wrapper.innerHTML = `
+        <div class="toast align-items-center text-bg-${variant} border-0" role="alert" aria-live="assertive" aria-atomic="true">
+          <div class="d-flex">
+            <div class="toast-body">${message}</div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+          </div>
+        </div>
+      `;
+      const toastEl = wrapper.firstElementChild;
+      toastArea.appendChild(toastEl);
+      const toast = new bootstrap.Toast(toastEl, { delay: 4000 });
+      toast.show();
+      toastEl.addEventListener('hidden.bs.toast', () => toastEl.remove());
+    }
+
+    async function fetchJson(url, options = {}) {
+      const res = await fetch(url, Object.assign({
+        headers: { 'Content-Type': 'application/json' }
+      }, options));
+      return res.json();
+    }
+
+    function populateCamereSelect() {
+      bookingCamera.innerHTML = '';
+      meta.camere.forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c.id;
+        opt.textContent = `${c.codice}${c.nome ? ' — ' + c.nome : ''}`;
+        bookingCamera.appendChild(opt);
+      });
+    }
+
+    async function loadMeta() {
+      const data = await fetchJson('prenotazioni_ajax.php?action=metadata');
+      if (data.ok) {
+        meta = data;
+        populateCamereSelect();
+      }
+    }
+
+    function openBookingModal({ bookingId = null, cameraId, checkin, checkout } = {}) {
+      currentBookingId = bookingId;
+      bookingIdInput.value = bookingId || '';
+      if (cameraId) bookingCamera.value = cameraId;
+      if (checkin) bookingCheckin.value = checkin;
+      if (checkout) bookingCheckout.value = checkout;
+      if (currentBookingId) {
+        loadGuests(currentBookingId);
+      } else {
+        guestsContainer.innerHTML = '';
+        guestsEmpty.classList.remove('d-none');
+      }
+      guestSearchResults.classList.add('d-none');
+      const modal = new bootstrap.Modal(bookingModalEl);
+      modal.show();
+    }
+
+    function renderGuestCard(guest, isNew = false) {
+      const idAttr = guest.id ? `data-cliente="${guest.id}"` : '';
+      const card = document.createElement('div');
+      card.className = 'guest-card';
+      card.dataset.new = isNew ? '1' : '0';
+      card.innerHTML = `
+        <div class="guest-title mb-2">${escapeHtml(guest.nome || '')} ${escapeHtml(guest.cognome || '')}</div>
+        <div class="row g-2">
+          <div class="col-6 col-md-3">
+            <label class="form-label small">Nome <span class="required">*</span></label>
+            <input class="form-control form-control-sm" name="nome" value="${escapeHtml(guest.nome ?? '')}" required>
+          </div>
+          <div class="col-6 col-md-3">
+            <label class="form-label small">Cognome <span class="required">*</span></label>
+            <input class="form-control form-control-sm" name="cognome" value="${escapeHtml(guest.cognome ?? '')}" required>
+          </div>
+          <div class="col-6 col-md-3">
+            <label class="form-label small">Data nascita <span class="required">*</span></label>
+            <input type="date" class="form-control form-control-sm" name="data_nascita" value="${escapeHtml(guest.data_nascita ?? '')}" required>
+          </div>
+          <div class="col-6 col-md-3">
+            <label class="form-label small">Nazionalità <span class="required">*</span></label>
+            <input class="form-control form-control-sm" name="nazionalita" value="${escapeHtml(guest.nazionalita ?? '')}" required>
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label small">Indirizzo di residenza <span class="required">*</span></label>
+            <input class="form-control form-control-sm" name="indirizzo" value="${escapeHtml(guest.indirizzo ?? '')}" required>
+          </div>
+          <div class="col-6 col-md-3">
+            <label class="form-label small">Tipo documento <span class="required">*</span></label>
+            <input class="form-control form-control-sm" name="documento_tipo" value="${escapeHtml(guest.documento_tipo ?? '')}" required>
+          </div>
+          <div class="col-6 col-md-3">
+            <label class="form-label small">N° Documento <span class="required">*</span></label>
+            <input class="form-control form-control-sm" name="documento_numero" value="${escapeHtml(guest.documento_numero ?? '')}" required>
+          </div>
+          <div class="col-6 col-md-3">
+            <label class="form-label small">Email</label>
+            <input class="form-control form-control-sm" name="email" value="${escapeHtml(guest.email ?? '')}">
+          </div>
+          <div class="col-6 col-md-3">
+            <label class="form-label small">Telefono</label>
+            <input class="form-control form-control-sm" name="telefono" value="${escapeHtml(guest.telefono ?? '')}">
+          </div>
+          <div class="col-12">
+            <label class="form-label small">Note</label>
+            <input class="form-control form-control-sm" name="note" value="${escapeHtml(guest.note ?? '')}">
+          </div>
+        </div>
+        <div class="guest-actions mt-2">
+          <button class="btn btn-outline-primary btn-sm js-save-guest" ${idAttr}>
+            <i class="bi bi-save"></i> ${isNew ? 'Crea ospite' : 'Salva ospite'}
+          </button>
+        </div>
+      `;
+      guestsContainer.appendChild(card);
+    }
+
+    async function loadGuests(bookingId) {
+      guestsEmpty.classList.add('d-none');
+      guestsContainer.innerHTML = '<div class="text-center py-4 text-muted">Caricamento...</div>';
+      const res = await fetchJson('ospiti_ajax.php', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'list', soggiorno_id: bookingId })
+      });
+      if (!res.ok) {
+        guestsContainer.innerHTML = `<div class="alert alert-danger">${res.message || 'Errore'}</div>`;
+        return;
+      }
+
+      guestsContainer.innerHTML = '';
+      if (!res.ospiti || res.ospiti.length === 0) {
+        guestsContainer.innerHTML = '<div class="alert alert-info">Nessun ospite associato.</div>';
+        return;
+      }
+
+      res.ospiti.forEach(o => renderGuestCard(o));
+    }
+
+    async function saveBooking() {
+      const data = new FormData(bookingForm);
+      const payload = Object.fromEntries(data.entries());
+      payload.action = 'save_booking';
+      if (currentBookingId) {
+        payload.id = currentBookingId;
+      }
+      const res = await fetchJson('prenotazioni_ajax.php', {
+        method: 'POST',
+        body: JSON.stringify(payload)
+      });
+      showToast(res.message || 'Salvataggio completato', res.toast?.variant || (res.ok ? 'success' : 'danger'));
+      if (res.ok) {
+        currentBookingId = res.id || currentBookingId;
+        bookingIdInput.value = currentBookingId || '';
+        loadCalendar();
+        if (currentBookingId) {
+          loadGuests(currentBookingId);
+        }
+      }
+    }
+
+    async function saveGuest(card) {
+      if (!currentBookingId) {
+        showToast('Salva prima la prenotazione', 'warning');
+        return;
+      }
+      const inputs = card.querySelectorAll('input[name]');
+      const payload = { action: 'save_guest', soggiorno_id: currentBookingId };
+      const clienteId = card.querySelector('.js-save-guest')?.getAttribute('data-cliente');
+      if (clienteId) payload.cliente_id = parseInt(clienteId, 10);
+      inputs.forEach(i => payload[i.name] = i.value);
+      const res = await fetchJson('ospiti_ajax.php', {
+        method: 'POST',
+        body: JSON.stringify(payload)
+      });
+      showToast(res.message || 'Ospite aggiornato', res.toast?.variant || (res.ok ? 'success' : 'danger'));
+      if (res.ok) {
+        loadGuests(currentBookingId);
+      }
+    }
+
+    async function searchGuests() {
+      const query = guestSearchInput.value.trim();
+      if (!query) {
+        guestSearchResults.classList.add('d-none');
+        guestSearchResults.innerHTML = '';
+        return;
+      }
+      const res = await fetchJson('ospiti_ajax.php', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'search', query })
+      });
+      if (!res.ok) {
+        showToast(res.message || 'Errore ricerca', 'danger');
+        return;
+      }
+      if (!res.results || res.results.length === 0) {
+        guestSearchResults.innerHTML = '<div class="p-2 text-muted small">Nessun ospite trovato.</div>';
+        guestSearchResults.classList.remove('d-none');
+        return;
+      }
+      guestSearchResults.innerHTML = res.results.map(r => `
+        <div class="d-flex justify-content-between align-items-center px-2 py-2 border-bottom" data-cliente="${r.id}">
+          <div>
+            <div class="fw-semibold">${escapeHtml(r.nome ?? '')} ${escapeHtml(r.cognome ?? '')}</div>
+            <div class="small text-muted">${escapeHtml(r.data_nascita ?? '')} ${r.documento_numero ? '· ' + escapeHtml(r.documento_numero) : ''}</div>
+          </div>
+          <button class="btn btn-outline-primary btn-sm js-attach-guest">Aggiungi</button>
+        </div>
+      `).join('');
+      guestSearchResults.classList.remove('d-none');
+    }
+
+    async function attachGuest(clienteId) {
+      if (!currentBookingId) {
+        showToast('Salva prima la prenotazione', 'warning');
+        return;
+      }
+      const res = await fetchJson('ospiti_ajax.php', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'attach_guest', soggiorno_id: currentBookingId, cliente_id: clienteId })
+      });
+      showToast(res.message || 'Ospite associato', res.toast?.variant || (res.ok ? 'success' : 'danger'));
+      if (res.ok) {
+        loadGuests(currentBookingId);
+      }
+    }
+
     function renderCalendar(data) {
       const rooms = data.rooms || [];
       if (!rooms.length) {
@@ -216,6 +541,7 @@ if ($pianoSel === 0 && $edificioSel > 0) {
       const manutenzioni = mapSet(data.manutenzioni || []);
       const pulizie = mapSet(data.pulizie || []);
       const bookings = mapSet(data.bookings || []);
+      window.currentCalendarBookings = data.bookings || [];
 
       let html = '<table class="table table-bordered calendar-table">';
       html += '<thead><tr><th class="room-col">Camera</th>';
@@ -229,51 +555,77 @@ if ($pianoSel === 0 && $edificioSel > 0) {
         html += '<tr>';
         const disabili = parseInt(room.accessibile_disabili || 0, 10) > 0;
         const accessibileHtml = disabili ? '<i class="bi bi-person-wheelchair"></i> Accessibile' : '';
-        html += `<td class="room-col">${room.codice || ''}<div class="room-sub">${accessibileHtml}</div></td>`;
+        const noteHtml = room.note ? `<div class="room-note">${escapeHtml(room.note)}</div>` : '';
+        html += `<td class="room-col">${escapeHtml(room.codice || '')}<div class="room-sub">${noteHtml}${accessibileHtml ? `<div>${accessibileHtml}</div>` : ''}</div></td>`;
 
         days.forEach(day => {
           let status = 'libera';
-          let label = 'Libera';
+          let label = statusInitial('Libera');
           let tooltip = '';
+          let bookingId = '';
+          let bookingPayload = null;
+          let checkinMarkers = [];
+          let checkoutMarkers = [];
+          const occs = bookings.get(roomId) || [];
+          const checkinEvents = occs.filter(b => b.checkin === day);
+          const checkoutEvents = occs.filter(b => b.checkout === day);
+          checkinMarkers = checkinEvents.map(() => 'CI');
+          checkoutMarkers = checkoutEvents.map(() => 'CO');
+          bookingPayload = checkinEvents[0] || checkoutEvents[0] || null;
           if (!parseInt(room.attiva || 1, 10)) {
             status = 'disattiva';
-            label = 'Disattiva';
+            label = statusInitial('Disattiva');
           } else if (manutenzioni.has(roomId)) {
             status = 'manutenzione';
-            label = 'Manutenzione';
+            label = statusInitial('Manutenzione');
             const info = manutenzioni.get(roomId)[0];
             tooltip = info?.stato ? `Ticket: ${formatStatus(info.stato)}` : '';
           } else if (pulizie.has(roomId)) {
             status = 'pulizia';
-            label = 'Pulizia';
+            label = statusInitial('Pulizia');
             const info = pulizie.get(roomId)[0];
             tooltip = info?.stato ? `Pulizia: ${formatStatus(info.stato)}` : '';
           } else {
-            const occs = bookings.get(roomId) || [];
             const dayDate = new Date(day + 'T00:00:00');
             const match = occs.find(b => {
               const start = new Date(b.checkin + 'T00:00:00');
               const end = new Date(b.checkout + 'T00:00:00');
               return dayDate >= start && dayDate < end;
             });
+            bookingPayload = match || checkinEvents[0] || checkoutEvents[0] || null;
             if (match) {
               status = 'occupata';
-              label = match.codice ? `Pren. ${match.codice}` : 'Occupata';
+              label = match.stato ? statusInitial(match.stato) : statusInitial('Occupata');
               tooltip = `Check-in ${match.checkin} · Check-out ${match.checkout}`;
+              bookingId = match.id;
+            } else if (bookingPayload) {
+              tooltip = `Check-in ${bookingPayload.checkin} · Check-out ${bookingPayload.checkout}`;
+              bookingId = bookingPayload.id;
+              label = statusInitial('Libera');
             }
           }
 
           const tooltipAttr = tooltip ? ` data-bs-toggle="tooltip" title="${tooltip.replace(/"/g, '&quot;')}"` : '';
-          let action = '';
-          if (status === 'libera') {
-            const checkinDate = new Date(day + 'T00:00:00');
-            const checkoutDate = new Date(day + 'T00:00:00');
-            checkoutDate.setDate(checkoutDate.getDate() + 1);
-            const checkin = checkinDate.toISOString().slice(0, 10);
-            const checkout = checkoutDate.toISOString().slice(0, 10);
-            action = `<a class="btn btn-sm btn-outline-primary btn-book" href="<?= BASE_URL ?>/prenotazioni/lista.php?prenota=1&camera_id=${room.id}&data_checkin=${checkin}&data_checkout=${checkout}">Prenota</a>`;
+          const checkinDate = new Date(day + 'T00:00:00');
+          const checkoutDate = new Date(day + 'T00:00:00');
+          checkoutDate.setDate(checkoutDate.getDate() + 1);
+          let defaultCheckin = checkinDate.toISOString().slice(0, 10);
+          let defaultCheckout = checkoutDate.toISOString().slice(0, 10);
+          if (bookingPayload) {
+            defaultCheckin = bookingPayload.checkin || defaultCheckin;
+            defaultCheckout = bookingPayload.checkout || defaultCheckout;
           }
-          html += `<td><div class="cell cell-${status}"${tooltipAttr}>${label}${action ? `<div>${action}</div>` : ''}</div></td>`;
+          let metaTags = '';
+          if (checkinMarkers.length || checkoutMarkers.length) {
+            const tags = [
+              ...checkinMarkers.map(tag => `<span class="badge bg-success">${tag}</span>`),
+              ...checkoutMarkers.map(tag => `<span class="badge bg-danger">${tag}</span>`)
+            ].join('');
+            metaTags = `<div class="cell-meta">${tags}</div>`;
+          }
+          const disabledClass = status === 'disattiva' ? ' disabled' : '';
+          const bookingIdAttr = bookingId ? ` data-booking-id="${bookingId}"` : '';
+          html += `<td><div class="cell cell-${status}${disabledClass}" data-camera-id="${room.id}" data-checkin="${defaultCheckin}" data-checkout="${defaultCheckout}"${bookingIdAttr}${tooltipAttr}><div class="cell-label">${label}</div>${metaTags}</div></td>`;
         });
 
         html += '</tr>';
@@ -306,6 +658,7 @@ if ($pianoSel === 0 && $edificioSel > 0) {
       const data = await res.json();
       if (!data.ok) {
         calendarContainer.innerHTML = `<div class="calendar-empty">${data.message || 'Errore nel caricamento del calendario.'}</div>`;
+        window.currentCalendarBookings = [];
         return;
       }
       renderCalendar(data);
@@ -340,7 +693,71 @@ if ($pianoSel === 0 && $edificioSel > 0) {
       loadCalendar();
     });
 
+    calendarContainer.addEventListener('click', (ev) => {
+      const cell = ev.target.closest('.cell');
+      if (!cell || cell.classList.contains('disabled')) return;
+      const bookingId = cell.dataset.bookingId ? parseInt(cell.dataset.bookingId, 10) : null;
+      const cameraId = parseInt(cell.dataset.cameraId, 10);
+      const checkin = cell.dataset.checkin;
+      const checkout = cell.dataset.checkout;
+      if (bookingId) {
+        const booking = (window.currentCalendarBookings || []).find(b => parseInt(b.id, 10) === bookingId);
+        openBookingModal({
+          bookingId,
+          cameraId: booking?.camera_id || cameraId,
+          checkin: booking?.checkin || checkin,
+          checkout: booking?.checkout || checkout
+        });
+      } else {
+        openBookingModal({ bookingId: null, cameraId, checkin, checkout });
+      }
+    });
+
+    saveBookingBtn?.addEventListener('click', saveBooking);
+
+    guestsContainer.addEventListener('click', (ev) => {
+      const btn = ev.target.closest('.js-save-guest');
+      if (!btn) return;
+      const card = btn.closest('.guest-card');
+      saveGuest(card);
+    });
+
+    addGuestBtn?.addEventListener('click', () => {
+      if (!currentBookingId) {
+        showToast('Salva prima la prenotazione', 'warning');
+        return;
+      }
+      renderGuestCard({}, true);
+    });
+
+    guestSearchBtn?.addEventListener('click', searchGuests);
+    guestSearchInput?.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter') {
+        ev.preventDefault();
+        searchGuests();
+      }
+    });
+
+    guestSearchResults.addEventListener('click', (ev) => {
+      const btn = ev.target.closest('.js-attach-guest');
+      if (!btn) return;
+      const row = btn.closest('[data-cliente]');
+      const clienteId = parseInt(row.dataset.cliente, 10);
+      attachGuest(clienteId);
+    });
+
+    bookingModalEl.addEventListener('hidden.bs.modal', () => {
+      bookingForm.reset();
+      guestsContainer.innerHTML = '';
+      guestsEmpty.classList.add('d-none');
+      currentBookingId = null;
+      guestSearchInput.value = '';
+      guestSearchResults.classList.add('d-none');
+      guestSearchResults.innerHTML = '';
+    });
+
     renderPianiOptions();
+    loadMeta();
     loadCalendar();
   })();
 </script>
