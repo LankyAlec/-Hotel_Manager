@@ -27,7 +27,7 @@ $mysqli->begin_transaction();
 try {
 
   if ($tipo === 'camera') {
-    $st = $mysqli->prepare("DELETE FROM camere WHERE id=?");
+    $st = $mysqli->prepare("DELETE FROM struttura_camere WHERE id=?");
     $st->bind_param("i", $id);
     $st->execute();
     $aff = $st->affected_rows;
@@ -41,12 +41,12 @@ try {
 
   if ($tipo === 'piano') {
     // Cancella camere del piano, poi il piano
-    $st = $mysqli->prepare("DELETE FROM camere WHERE piano_id=?");
+    $st = $mysqli->prepare("DELETE FROM struttura_camere WHERE piano_id=?");
     $st->bind_param("i", $id);
     $st->execute();
     $st->close();
 
-    $st = $mysqli->prepare("DELETE FROM piani WHERE id=?");
+    $st = $mysqli->prepare("DELETE FROM struttura_piani WHERE id=?");
     $st->bind_param("i", $id);
     $st->execute();
     $aff = $st->affected_rows;
@@ -61,7 +61,7 @@ try {
   if ($tipo === 'edificio') {
     // Cancella camere dei piani dell'edificio
     $sql = "DELETE c
-            FROM camere c
+            FROM struttura_camere c
             JOIN piani p ON p.id = c.piano_id
             WHERE p.edificio_id = ?";
     $st = $mysqli->prepare($sql);
@@ -70,13 +70,13 @@ try {
     $st->close();
 
     // Cancella piani dell'edificio
-    $st = $mysqli->prepare("DELETE FROM piani WHERE edificio_id=?");
+    $st = $mysqli->prepare("DELETE FROM struttura_piani WHERE edificio_id=?");
     $st->bind_param("i", $id);
     $st->execute();
     $st->close();
 
     // Cancella edificio
-    $st = $mysqli->prepare("DELETE FROM edifici WHERE id=?");
+    $st = $mysqli->prepare("DELETE FROM struttura_edifici WHERE id=?");
     $st->bind_param("i", $id);
     $st->execute();
     $aff = $st->affected_rows;

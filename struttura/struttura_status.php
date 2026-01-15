@@ -13,9 +13,9 @@ function struttura_get_current_state(mysqli $mysqli, string $tipo, int $id): int
     }
 
     $sql = [
-        'edificio' => 'SELECT attivo AS stato FROM edifici WHERE id=?',
-        'piano'    => 'SELECT attivo AS stato FROM piani WHERE id=?',
-        'camera'   => 'SELECT attiva AS stato FROM camere WHERE id=?'
+        'edificio' => 'SELECT attivo AS stato FROM struttura_edifici WHERE id=?',
+        'piano'    => 'SELECT attivo AS stato FROM struttura_piani WHERE id=?',
+        'camera'   => 'SELECT attiva AS stato FROM struttura_camere WHERE id=?'
     ][$tipo];
 
     $stmt = $mysqli->prepare($sql);
@@ -55,7 +55,7 @@ function struttura_apply_toggle(mysqli $mysqli, string $tipo, int $id, int $val,
     $mysqli->begin_transaction();
     try {
         if ($tipo === 'edificio') {
-            $stmt = $mysqli->prepare('UPDATE edifici SET attivo=? WHERE id=?');
+            $stmt = $mysqli->prepare('UPDATE struttura_edifici SET attivo=? WHERE id=?');
             if (!$stmt) {
                 throw new RuntimeException('Errore DB: ' . $mysqli->error);
             }
@@ -64,7 +64,7 @@ function struttura_apply_toggle(mysqli $mysqli, string $tipo, int $id, int $val,
             $stmt->close();
 
             if ($doCascade) {
-                $stmt = $mysqli->prepare('UPDATE piani SET attivo=? WHERE edificio_id=?');
+                $stmt = $mysqli->prepare('UPDATE struttura_piani SET attivo=? WHERE edificio_id=?');
                 if (!$stmt) {
                     throw new RuntimeException('Errore DB: ' . $mysqli->error);
                 }
@@ -72,7 +72,7 @@ function struttura_apply_toggle(mysqli $mysqli, string $tipo, int $id, int $val,
                 $stmt->execute();
                 $stmt->close();
 
-                $stmt = $mysqli->prepare('UPDATE camere c JOIN piani p ON p.id = c.piano_id SET c.attiva=? WHERE p.edificio_id=?');
+                $stmt = $mysqli->prepare('UPDATE struttura_camere c JOIN piani p ON p.id = c.piano_id SET c.attiva=? WHERE p.edificio_id=?');
                 if (!$stmt) {
                     throw new RuntimeException('Errore DB: ' . $mysqli->error);
                 }
@@ -81,7 +81,7 @@ function struttura_apply_toggle(mysqli $mysqli, string $tipo, int $id, int $val,
                 $stmt->close();
             }
         } elseif ($tipo === 'piano') {
-            $stmt = $mysqli->prepare('UPDATE piani SET attivo=? WHERE id=?');
+            $stmt = $mysqli->prepare('UPDATE struttura_piani SET attivo=? WHERE id=?');
             if (!$stmt) {
                 throw new RuntimeException('Errore DB: ' . $mysqli->error);
             }
@@ -90,7 +90,7 @@ function struttura_apply_toggle(mysqli $mysqli, string $tipo, int $id, int $val,
             $stmt->close();
 
             if ($doCascade) {
-                $stmt = $mysqli->prepare('UPDATE camere SET attiva=? WHERE piano_id=?');
+                $stmt = $mysqli->prepare('UPDATE struttura_camere SET attiva=? WHERE piano_id=?');
                 if (!$stmt) {
                     throw new RuntimeException('Errore DB: ' . $mysqli->error);
                 }
@@ -99,7 +99,7 @@ function struttura_apply_toggle(mysqli $mysqli, string $tipo, int $id, int $val,
                 $stmt->close();
             }
         } else {
-            $stmt = $mysqli->prepare('UPDATE camere SET attiva=? WHERE id=?');
+            $stmt = $mysqli->prepare('UPDATE struttura_camere SET attiva=? WHERE id=?');
             if (!$stmt) {
                 throw new RuntimeException('Errore DB: ' . $mysqli->error);
             }

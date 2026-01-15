@@ -17,14 +17,15 @@ function out(array $p, int $code = 200): void {
    ======================= */
 $tipo = (string)($_POST['tipo'] ?? '');
 $id   = (int)($_POST['id'] ?? 0);
-$nome = trim((string)($_POST['nome'] ?? ''));
 
 if ($id <= 0 || !in_array($tipo, ['edificio','piano','camera'], true)) {
   out(['ok'=>false,'msg'=>'Parametri non validi'], 400);
 }
 
-if (mb_strlen($nome) > 120) {
-  out(['ok'=>false,'msg'=>'Nome troppo lungo'], 400);
+/* note comune (per tutti) */
+$note = trim((string)($_POST['note'] ?? ''));
+if (mb_strlen($note) > 2000) {
+  out(['ok'=>false,'msg'=>'Note troppo lunghe'], 400);
 }
 
 /* =======================
@@ -32,11 +33,20 @@ if (mb_strlen($nome) > 120) {
    ======================= */
 if ($tipo === 'edificio') {
 
-  $sql = "UPDATE edifici SET nome=? WHERE id=? LIMIT 1";
+  $nome = trim((string)($_POST['nome'] ?? ''));
+  if ($nome === '' || mb_strlen($nome) > 120) {
+    out(['ok'=>false,'msg'=>'Nome edificio non valido'], 400);
+  }
+
+  $sql = "UPDATE struttura_edifici
+          SET nome = ?,
+              note = ?
+          WHERE id = ?
+          LIMIT 1";
   $st = $mysqli->prepare($sql);
   if (!$st) out(['ok'=>false,'msg'=>'Errore DB (prepare edificio)'], 500);
 
-  $st->bind_param("si", $nome, $id);
+  $st->bind_param("ssi", $nome, $note, $id);
 }
 
 /* =======================
@@ -44,21 +54,32 @@ if ($tipo === 'edificio') {
    ======================= */
 elseif ($tipo === 'piano') {
 
-  $sql = "UPDATE piani SET nome=? WHERE id=? LIMIT 1";
+  $nome = trim((string)($_POST['nome'] ?? ''));
+  if ($nome === '' || mb_strlen($nome) > 120) {
+    out(['ok'=>false,'msg'=>'Nome piano non valido'], 400);
+  }
+
+  $sql = "UPDATE struttura_piani
+          SET nome = ?,
+              note = ?
+          WHERE id = ?
+          LIMIT 1";
   $st = $mysqli->prepare($sql);
   if (!$st) out(['ok'=>false,'msg'=>'Errore DB (prepare piano)'], 500);
 
-  $st->bind_param("si", $nome, $id);
+  $st->bind_param("ssi", $nome, $note, $id);
 }
 
 /* =======================
-   CAMERA (CON CONTROLLO)
+   CAMERA (SOLO CODICE + NOTE)
    ======================= */
 else {
 
   $codice   = trim((string)($_POST['codice'] ?? ''));
   $capienza = (int)($_POST['capienza_base'] ?? 2);
-  $disVal   = (int)($_POST['accessibile_disabili'] ?? 0);
+
+  // compatibilità: se arriva disabili invece di accessibile_disabili
+  $disVal   = (int)($_POST['accessibile_disabili'] ?? ($_POST['disabili'] ?? 0));
 
   if ($codice === '' || mb_strlen($codice) > 30) {
     out(['ok'=>false,'msg'=>'Numero camera non valido'], 400);
@@ -66,20 +87,19 @@ else {
   if ($capienza < 1 || $capienza > 10) {
     out(['ok'=>false,'msg'=>'Capienza non valida'], 400);
   }
-
   $disVal = $disVal > 0 ? 1 : 0;
 
   /* =========
-     CONTROLLO UNICITÀ NUMERO CAMERA (STESSO EDIFICIO, ESCLUDENDO SE STESSA)
+     CONTROLLO UNICITÀ CODICE NELLO STESSO EDIFICIO (ESCLUDENDO SE STESSA)
      ========= */
   $sqlChk = "
     SELECT 1
-    FROM camere c
-    JOIN piani p ON p.id = c.piano_id
+    FROM struttura_camere c
+    JOIN struttura_piani p ON p.id = c.piano_id
     WHERE p.edificio_id = (
       SELECT p2.edificio_id
-      FROM camere c2
-      JOIN piani p2 ON p2.id = c2.piano_id
+      FROM struttura_camere c2
+      JOIN struttura_piani p2 ON p2.id = c2.piano_id
       WHERE c2.id = ?
     )
     AND c.codice = ?
@@ -104,27 +124,21 @@ else {
   $chk->close();
 
   /* =========
-     UPDATE CAMERA
+     UPDATE CAMERA (NO nome) + NOTE
      ========= */
-  $sql = "UPDATE camere
+  $sql = "UPDATE struttura_camere
           SET codice = ?,
-              nome = ?,
               capienza_base = ?,
-              accessibile_disabili = ?
+              accessibile_disabili = ?,
+              note = ?
           WHERE id = ?
           LIMIT 1";
 
   $st = $mysqli->prepare($sql);
   if (!$st) out(['ok'=>false,'msg'=>'Errore DB (prepare camera)'], 500);
 
-  $st->bind_param(
-    "ssiii",
-    $codice,
-    $nome,
-    $capienza,
-    $disVal,
-    $id
-  );
+  // tipi: s i i s i
+  $st->bind_param("siisi", $codice, $capienza, $disVal, $note, $id);
 }
 
 /* =======================

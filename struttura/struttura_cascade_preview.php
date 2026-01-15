@@ -69,20 +69,20 @@ $out = [
 
 try {
   if ($tipo === 'edificio') {
-    $stmt = $mysqli->prepare("SELECT COUNT(*) AS n FROM piani WHERE edificio_id=?");
+    $stmt = $mysqli->prepare("SELECT COUNT(*) AS n FROM struttura_piani WHERE edificio_id=?");
     if (!$stmt) throw new Exception($mysqli->error);
     $stmt->bind_param("i", $id);
     $stmt->execute();
     $out['counts']['piani'] = (int)($stmt->get_result()->fetch_assoc()['n'] ?? 0);
 
-    $stmt = $mysqli->prepare("SELECT COUNT(*) AS n FROM camere c JOIN piani p ON p.id=c.piano_id WHERE p.edificio_id=?");
+    $stmt = $mysqli->prepare("SELECT COUNT(*) AS n FROM struttura_camere c JOIN piani p ON p.id=c.piano_id WHERE p.edificio_id=?");
     if (!$stmt) throw new Exception($mysqli->error);
     $stmt->bind_param("i", $id);
     $stmt->execute();
     $out['counts']['camere'] = (int)($stmt->get_result()->fetch_assoc()['n'] ?? 0);
 
   } elseif ($tipo === 'piano') {
-    $stmt = $mysqli->prepare("SELECT COUNT(*) AS n FROM camere WHERE piano_id=?");
+    $stmt = $mysqli->prepare("SELECT COUNT(*) AS n FROM struttura_camere WHERE piano_id=?");
     if (!$stmt) throw new Exception($mysqli->error);
     $stmt->bind_param("i", $id);
     $stmt->execute();

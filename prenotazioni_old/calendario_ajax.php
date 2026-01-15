@@ -61,20 +61,18 @@ for ($i = 0; $i < $days; $i++) {
 
 $hasAccessibile = column_exists($mysqli, 'camere', 'accessibile_disabili');
 $hasAttiva = column_exists($mysqli, 'camere', 'attiva');
-$hasNote = column_exists($mysqli, 'camere', 'note');
 
 $selectAccessibile = $hasAccessibile ? ', c.accessibile_disabili' : ', 0 AS accessibile_disabili';
 $selectAttiva = $hasAttiva ? ', c.attiva' : ', 1 AS attiva';
-$selectNote = $hasNote ? ', c.note' : ', NULL AS note';
 
 $sqlRooms = "
     SELECT
-        c.id, c.codice{$selectAttiva}{$selectAccessibile}{$selectNote},
+        c.id, c.codice{$selectAttiva}{$selectAccessibile},
         p.id AS piano_id, p.nome AS piano_nome, p.livello,
         e.id AS edificio_id, e.nome AS edificio_nome
-    FROM struttura_camere c
-    JOIN struttura_piani p ON p.id = c.piano_id AND p.attivo = 1
-    JOIN struttura_edifici e ON e.id = p.edificio_id AND e.attivo = 1
+    FROM camere c
+    JOIN piani p ON p.id = c.piano_id AND p.attivo = 1
+    JOIN edifici e ON e.id = p.edificio_id AND e.attivo = 1
     WHERE 1=1
 ";
 
@@ -137,10 +135,10 @@ if ($roomIds) {
         }
     }
 
-    if (table_exists($mysqli, 'pulizie_task') && column_exists($mysqli, 'pulizie_task', 'stato')) {
+    if (table_exists($mysqli, 'task_pulizie') && column_exists($mysqli, 'task_pulizie', 'stato')) {
         $sqlPul = "
             SELECT camera_id, stato
-            FROM pulizie_task
+            FROM task_pulizie
             WHERE camera_id IN ({$ph})
               AND stato <> 'RISOLTO'
         ";

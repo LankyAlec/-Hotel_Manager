@@ -6,7 +6,7 @@ $oggi = date('Y-m-d');
 /* ================== CAMERE OCCUPATE vs DISPONIBILI (oggi) ================== */
 
 /* Tot camere attive */
-$stmt = $mysqli->prepare("SELECT COUNT(*) AS tot FROM camere WHERE attiva = 1");
+$stmt = $mysqli->prepare("SELECT COUNT(*) AS tot FROM struttura_camere WHERE attiva = 1");
 $stmt->execute();
 $camere_attive = (int)($stmt->get_result()->fetch_assoc()['tot'] ?? 0);
 
@@ -14,7 +14,7 @@ $camere_attive = (int)($stmt->get_result()->fetch_assoc()['tot'] ?? 0);
 $sql_camere_occupate = "
     SELECT COUNT(DISTINCT s.camera_id) AS tot
     FROM soggiorni s
-    JOIN camere c ON c.id = s.camera_id
+    JOIN struttura_camere c ON c.id = s.camera_id
     WHERE c.attiva = 1
       AND s.stato = 'occupato'
       AND ? >= s.data_checkin
@@ -33,7 +33,7 @@ $camere_occupate = (int)($stmt->get_result()->fetch_assoc()['tot'] ?? 0);
 */
 $sql_camere_disponibili = "
     SELECT COUNT(*) AS tot
-    FROM camere c
+    FROM struttura_camere c
     LEFT JOIN (
         SELECT DISTINCT camera_id
         FROM soggiorni
@@ -43,7 +43,7 @@ $sql_camere_disponibili = "
     ) occ ON occ.camera_id = c.id
     LEFT JOIN (
         SELECT DISTINCT camera_id
-        FROM task_pulizie
+        FROM pulizie_task
         WHERE data = ?
           AND stato IN ('DA_FARE','IN_CORSO')
     ) pul ON pul.camera_id = c.id
@@ -78,7 +78,7 @@ $camere_non_disponibili = max(0, $camere_attive - $camere_disponibili);
 
 /* ================== 1) Tot clienti presenti ================== */
 $sql_presenti = "
-    SELECT COUNT(DISTINCT sc.cliente_id) AS tot
+    SELECT COUNT(DISTINCT sc.id) AS tot
     FROM soggiorni s
     JOIN soggiorni_clienti sc ON sc.soggiorno_id = s.id
     WHERE s.stato = 'occupato'
@@ -86,9 +86,11 @@ $sql_presenti = "
       AND ? <  s.data_checkout
 ";
 $stmt = $mysqli->prepare($sql_presenti);
+if (!$stmt) { die("prepare presenti failed: " . $mysqli->error); }
 $stmt->bind_param("ss", $oggi, $oggi);
 $stmt->execute();
 $presenti = (int)($stmt->get_result()->fetch_assoc()['tot'] ?? 0);
+
 
 /* ================== 2) Checkin attesi (oggi) ================== */
 $sql_checkin = "
@@ -117,7 +119,7 @@ $checkout_attesi = (int)($stmt->get_result()->fetch_assoc()['tot'] ?? 0);
 /* ================== 4) Camere da rifare (oggi) ================== */
 $sql_camere_rifare = "
     SELECT COUNT(DISTINCT camera_id) AS tot
-    FROM task_pulizie
+    FROM pulizie_task
     WHERE data = ?
       AND stato IN ('DA_FARE','IN_CORSO')
 ";
@@ -143,7 +145,7 @@ $sql_ristorante = "
     SELECT
       s.piano_pasto_sigla,
       COALESCE(s.hb_servizio,'CENA') AS hb_servizio,
-      COUNT(DISTINCT sc.cliente_id) AS persone
+      COUNT(DISTINCT sc.id) AS persone
     FROM soggiorni s
     JOIN soggiorni_clienti sc ON sc.soggiorno_id = s.id
     WHERE s.stato = 'occupato'
@@ -202,17 +204,17 @@ $sql_magazzino = "
                 SELECT SUM(
                     CASE WHEN mv.tipo='CARICO' THEN mv.quantita ELSE -mv.quantita END
                 )
-                FROM movimenti mv
+                FROM magazzino_movimenti mv
                 WHERE mv.prodotto_id = p.id
             ), 0) AS stock,
             (
                 SELECT COUNT(1)
-                FROM lotti l
+                FROM magazzino_lotti l
                 WHERE l.prodotto_id = p.id
                   AND l.data_scadenza IS NOT NULL
                   AND l.data_scadenza <= DATE_ADD(CURDATE(), INTERVAL ? DAY)
             ) AS expiring
-        FROM prodotti p
+        FROM magazzino_prodotti p
         WHERE p.attivo = 1
     ) AS t
 ";

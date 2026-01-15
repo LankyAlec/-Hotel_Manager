@@ -21,6 +21,12 @@ if (!in_array($tipo, ['edificio','piano','camera'], true)) {
   out(['ok'=>false,'msg'=>'Tipo non valido'], 400);
 }
 
+/* note comune (per tutti) */
+$note = trim((string)($_POST['note'] ?? ''));
+if (mb_strlen($note) > 2000) {
+  out(['ok'=>false,'msg'=>'Note troppo lunghe'], 400);
+}
+
 /* =======================
    EDIFICIO
    ======================= */
@@ -31,11 +37,11 @@ if ($tipo === 'edificio') {
     out(['ok'=>false,'msg'=>'Nome edificio non valido'], 400);
   }
 
-  $sql = "INSERT INTO edifici (nome, attivo) VALUES (?, 1)";
+  $sql = "INSERT INTO struttura_edifici (nome, note, attivo) VALUES (?, ?, 1)";
   $st = $mysqli->prepare($sql);
   if (!$st) out(['ok'=>false,'msg'=>'Errore DB (prepare edificio)'], 500);
 
-  $st->bind_param("s", $nome);
+  $st->bind_param("ss", $nome, $note);
 }
 
 /* =======================
@@ -49,27 +55,27 @@ elseif ($tipo === 'piano') {
   if ($edificio_id <= 0) out(['ok'=>false,'msg'=>'Edificio non valido'], 400);
   if ($nome === '' || mb_strlen($nome) > 120) out(['ok'=>false,'msg'=>'Nome piano non valido'], 400);
 
-  $sql = "INSERT INTO piani (edificio_id, nome, attivo) VALUES (?, ?, 1)";
+  $sql = "INSERT INTO struttura_piani (edificio_id, nome, note, attivo) VALUES (?, ?, ?, 1)";
   $st = $mysqli->prepare($sql);
   if (!$st) out(['ok'=>false,'msg'=>'Errore DB (prepare piano)'], 500);
 
-  $st->bind_param("is", $edificio_id, $nome);
+  $st->bind_param("iss", $edificio_id, $nome, $note);
 }
 
 /* =======================
-   CAMERA (CON CONTROLLO)
+   CAMERA (SOLO CODICE + NOTE)
    ======================= */
 else {
 
   $piano_id = (int)($_POST['piano_id'] ?? 0);
   $codice   = trim((string)($_POST['codice'] ?? ''));
-  $nomeCam  = trim((string)($_POST['nome'] ?? ''));
   $capienza = (int)($_POST['capienza_base'] ?? 2);
-  $disVal   = (int)($_POST['accessibile_disabili'] ?? 0);
+
+  // compatibilità: se in alcuni punti invii disabili invece di accessibile_disabili
+  $disVal   = (int)($_POST['accessibile_disabili'] ?? ($_POST['disabili'] ?? 0));
 
   if ($piano_id <= 0) out(['ok'=>false,'msg'=>'Piano non valido'], 400);
   if ($codice === '' || mb_strlen($codice) > 30) out(['ok'=>false,'msg'=>'Numero camera non valido'], 400);
-  if (mb_strlen($nomeCam) > 120) out(['ok'=>false,'msg'=>'Nome camera troppo lungo'], 400);
   if ($capienza < 1 || $capienza > 10) out(['ok'=>false,'msg'=>'Capienza non valida'], 400);
 
   $disVal = $disVal > 0 ? 1 : 0;
@@ -79,8 +85,8 @@ else {
      ========= */
   $sqlChk = "
     SELECT 1
-    FROM camere c
-    JOIN piani p ON p.id = c.piano_id
+    FROM struttura_camere c
+    JOIN struttura_piani p ON p.id = c.piano_id
     WHERE p.edificio_id = (
       SELECT edificio_id FROM piani WHERE id = ?
     )
@@ -105,23 +111,17 @@ else {
   $chk->close();
 
   /* =========
-     INSERT CAMERA
+     INSERT CAMERA (NO nome) + NOTE
      ========= */
-  $sql = "INSERT INTO camere
-          (piano_id, codice, nome, capienza_base, accessibile_disabili, attiva)
+  $sql = "INSERT INTO struttura_camere
+          (piano_id, codice, capienza_base, accessibile_disabili, note, attiva)
           VALUES (?, ?, ?, ?, ?, 1)";
 
   $st = $mysqli->prepare($sql);
   if (!$st) out(['ok'=>false,'msg'=>'Errore DB (prepare camera)'], 500);
 
-  $st->bind_param(
-    "issii",
-    $piano_id,
-    $codice,
-    $nomeCam,
-    $capienza,
-    $disVal
-  );
+  // tipi: i s i i s
+  $st->bind_param("isiis", $piano_id, $codice, $capienza, $disVal, $note);
 }
 
 /* =======================

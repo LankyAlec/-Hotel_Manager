@@ -10,12 +10,12 @@ if (!$isRoot && !in_gruppo('Reception')) {
 $edifici = [];
 $piani = [];
 
-$resE = $mysqli->query("SELECT id, nome FROM edifici WHERE attivo = 1 ORDER BY nome ASC");
+$resE = $mysqli->query("SELECT id, nome FROM struttura_edifici WHERE attivo = 1 ORDER BY nome ASC");
 if ($resE) {
     $edifici = $resE->fetch_all(MYSQLI_ASSOC);
 }
 
-$resP = $mysqli->query("SELECT id, edificio_id, nome, livello FROM piani WHERE attivo = 1 ORDER BY livello ASC, nome ASC");
+$resP = $mysqli->query("SELECT id, edificio_id, nome, livello FROM struttura_piani WHERE attivo = 1 ORDER BY livello ASC, nome ASC");
 if ($resP) {
     $piani = $resP->fetch_all(MYSQLI_ASSOC);
 }
@@ -633,7 +633,7 @@ if ($pianoSel === 0 && $edificioSel > 0) {
           const disabledClass = status === 'disattiva' ? ' disabled' : '';
           const bookingIdAttr = bookingId ? ` data-booking-id="${bookingId}"` : '';
           const labelHtml = status === 'libera'
-            ? '<button class="btn btn-primary btn-sm">Prenota</button>'
+            ? '<button class="btn btn-outline-primary btn-sm">Prenota</button>'
             : label;
           html += `<td><div class="cell cell-${status}${disabledClass}" data-camera-id="${room.id}" data-checkin="${defaultCheckin}" data-checkout="${defaultCheckout}"${bookingIdAttr}${tooltipAttr}><div class="cell-label">${labelHtml}</div>${metaTags}</div></td>`;
         });

@@ -14,7 +14,13 @@ if ($edificio_id <= 0) {
   exit;
 }
 
-$stmt = $mysqli->prepare("SELECT id, nome, attivo FROM piani WHERE edificio_id=? ORDER BY nome ASC");
+/* aggiungo note */
+$stmt = $mysqli->prepare("SELECT id, nome, note, attivo FROM struttura_piani WHERE edificio_id=? ORDER BY nome ASC");
+if (!$stmt) {
+  echo '<div class="alert alert-danger m-3">Errore DB (prepare piani)</div>';
+  exit;
+}
+
 $stmt->bind_param("i", $edificio_id);
 $stmt->execute();
 $res = $stmt->get_result();
@@ -31,11 +37,12 @@ if ($res->num_rows === 0) {
 }
 
 while ($r = $res->fetch_assoc()) {
-  $id = (int)$r['id'];
-  $nome = (string)($r['nome'] ?? '');
+  $id     = (int)$r['id'];
+  $nome   = (string)($r['nome'] ?? '');
+  $note   = (string)($r['note'] ?? '');
   $attivo = (int)($r['attivo'] ?? 0);
 
-  $on = $attivo === 1;
+  $on = ($attivo === 1);
   $badge = $on
     ? '<span class="badge text-bg-success badge-stato">Attivo</span>'
     : '<span class="badge text-bg-secondary badge-stato">Disattivo</span>';
@@ -43,20 +50,39 @@ while ($r = $res->fetch_assoc()) {
 
   $rowClass = 'item' . (($selected === $id) ? ' active' : '');
 
-  echo '<div class="'.h($rowClass).'" data-id="'.$id.'" data-nome="'.h($nome).'">';
+  // (opzionale) mini badge se note presenti
+  $noteBadge = (trim($note) !== '')
+    ? '<span class="badge bg-light text-dark border"><i class="bi bi-journal-text"></i> Note</span>'
+    : '';
+
+  echo '<div class="'.h($rowClass).'"
+              data-id="'.$id.'"
+              data-nome="'.h($nome).'"
+              data-note="'.h($note).'">';
+
   echo '  <div class="main">';
   echo '    <div class="name">'.h($nome).'</div>';
-  echo '    <div class="meta">'.$badge.'</div>';
+  echo '    <div class="meta d-flex flex-wrap gap-2 align-items-center">'.$badge.' '.$noteBadge.'</div>';
   echo '  </div>';
 
   echo '  <div class="acts">';
+
   echo '    <button type="button" class="btn btn-outline-primary btn-mini js-edit" title="Modifica"'
-      .' data-tipo="piano" data-id="'.$id.'" data-label="'.h($nome).'" data-nome="'.h($nome).'"><i class="bi bi-pencil"></i></button>';
+      .' data-tipo="piano"'
+      .' data-id="'.$id.'"'
+      .' data-label="'.h($nome).'"'
+      .' data-nome="'.h($nome).'"'
+      .' data-note="'.h($note).'"'
+      .'><i class="bi bi-pencil"></i></button>';
+
   echo '    <button type="button" class="btn btn-outline-danger btn-mini js-delete" title="Elimina"'
-      .' data-tipo="piano" data-id="'.$id.'" data-label="'.h($nome).'"><i class="bi bi-trash"></i></button>';
+      .' data-tipo="piano" data-id="'.$id.'" data-label="'.h($nome).'"'
+      .'><i class="bi bi-trash"></i></button>';
+
   echo '    <div class="form-check form-switch m-0">';
   echo '      <input class="form-check-input js-toggle-attivo" type="checkbox" data-tipo="piano" data-id="'.$id.'" '.$checked.'>';
   echo '    </div>';
+
   echo '  </div>';
   echo '</div>';
 }

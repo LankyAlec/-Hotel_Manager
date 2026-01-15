@@ -17,8 +17,6 @@ $piano_id    = (int)($_GET['piano_id'] ?? 0);
   .structure-grid{ display:grid; grid-template-columns: 1fr 1fr 1.35fr; gap:16px; }
   @media (max-width: 992px){ .structure-grid{ grid-template-columns: 1fr; } }
 
-  /* FIX angoli “strani”: niente overflow hidden sul contenitore,
-     lo scroll resta solo su .list */
   .box-card{
     border:0; border-radius:16px;
     box-shadow:0 .35rem 1rem rgba(0,0,0,.08);
@@ -192,19 +190,19 @@ $piano_id    = (int)($_GET['piano_id'] ?? 0);
         <input type="hidden" name="edificio_id" id="editEdificioId" value="">
         <input type="hidden" name="piano_id" id="editPianoId" value="">
 
-        <!-- comune -->
+        <!-- comune (solo edificio/piano) -->
         <div class="mb-3" id="groupNome">
           <label class="form-label">Nome</label>
-          <input type="text" class="form-control" name="nome" id="editNome" maxlength="100" required>
-          <div class="form-hint">Esempio: Depandance, Piano 1, Camera Deluxe…</div>
+          <input type="text" class="form-control" name="nome" id="editNome" maxlength="120" required>
+          <div class="form-hint">Esempio: Depandance, Piano 1…</div>
         </div>
 
-        <!-- CAMERA fields -->
+        <!-- CAMERA fields (solo codice) -->
         <div id="cameraFields" style="display:none">
           <div class="mb-3">
             <label class="form-label">Numero / Codice camera</label>
-            <input type="text" class="form-control" name="codice" id="editCodice" maxlength="20">
-            <div class="form-hint">Esempio: 401</div>
+            <input type="text" class="form-control" name="codice" id="editCodice" maxlength="30">
+            <div class="form-hint">Esempio: 401 (oppure A12)</div>
           </div>
 
           <div class="mb-3">
@@ -216,12 +214,19 @@ $piano_id    = (int)($_GET['piano_id'] ?? 0);
             <input class="form-check-input" type="checkbox" id="editDisabili" name="accessibile_disabili" value="1">
             <label class="form-check-label" for="editDisabili">Accessibile disabili</label>
           </div>
-
-          <div class="form-hint">Se “Nome” è vuoto, verrà mostrato il numero camera.</div>
         </div>
 
         <div class="alert alert-danger d-none" id="editErr"></div>
         <div class="alert alert-success d-none" id="editOk"></div>
+
+        <!-- NOTE (per tutti) -->
+        <div class="mb-3" id="groupNote">
+          <label class="form-label">Note</label>
+          <textarea class="form-control" name="note" id="editNote" rows="3" maxlength="2000"
+            placeholder="Note interne…"></textarea>
+          <div class="form-hint">Note interne (non visibili all’ospite).</div>
+        </div>
+
       </div>
 
       <div class="modal-footer">
@@ -406,7 +411,6 @@ $piano_id    = (int)($_GET['piano_id'] ?? 0);
   window.loadPiani   = loadPiani;
   window.loadCamere  = loadCamere;
 
-  // I pulsanti "+" ora aprono il modale (NO redirect)
   btnNewEdificio.addEventListener('click', () => window.openCreateModal('edificio'));
   btnNewPiano.addEventListener('click', () => { if(window.edificioSel) window.openCreateModal('piano'); });
   btnNewCamera.addEventListener('click', () => { if(window.pianoSel) window.openCreateModal('camera'); });
@@ -423,7 +427,6 @@ $piano_id    = (int)($_GET['piano_id'] ?? 0);
 (function(){
   const root = document;
 
-  // --- HARDENING ANTI-ESTENSIONI ---
   const nativeFetch = (typeof window.fetch === 'function') ? window.fetch.bind(window) : null;
   async function safeFetch(url, opts){
     if (!nativeFetch) throw new Error('fetch non disponibile');
@@ -438,13 +441,11 @@ $piano_id    = (int)($_GET['piano_id'] ?? 0);
 
   const CASCADE = 'always';
 
-  // Modale cascata toggle
   const modalEl = document.getElementById('modalCascade');
   const msgEl   = document.getElementById('cascadeMsg');
   const hintEl  = document.getElementById('cascadeHint');
   const btnOk   = document.getElementById('btnCascadeConfirm');
 
-  // Modali edit/create + delete
   const modalEditEl = document.getElementById('modalEdit');
   const formEdit    = document.getElementById('formEdit');
   const editTitle   = document.getElementById('editTitle');
@@ -462,6 +463,9 @@ $piano_id    = (int)($_GET['piano_id'] ?? 0);
   const groupNome    = document.getElementById('groupNome');
   const editNome     = document.getElementById('editNome');
 
+  const groupNote    = document.getElementById('groupNote');
+  const editNote     = document.getElementById('editNote');
+
   const cameraFields = document.getElementById('cameraFields');
   const editCodice   = document.getElementById('editCodice');
   const editPosti    = document.getElementById('editPosti');
@@ -478,7 +482,7 @@ $piano_id    = (int)($_GET['piano_id'] ?? 0);
   let modal = null;
   let modalEdit = null;
   let modalDelete = null;
-  let pending = null; // { sw, tipo, id, val }
+  let pending = null;
 
   function showErr(msg){
     editErr.textContent = msg || 'Errore';
@@ -667,15 +671,19 @@ $piano_id    = (int)($_GET['piano_id'] ?? 0);
     clearMsgs();
     editTipo.value = tipo;
 
-    // reset fields
     editNome.value = '';
     editCodice.value = '';
     editPosti.value = '';
     editDisabili.checked = false;
+    editNote.value = '';
 
-    cameraFields.style.display = (tipo === 'camera') ? '' : 'none';
-    groupNome.querySelector('label').textContent = (tipo === 'camera') ? 'Nome camera (facoltativo)' : 'Nome';
-    editNome.required = (tipo !== 'camera'); // camera: nome può essere vuoto
+    const isCamera = (tipo === 'camera');
+
+    cameraFields.style.display = isCamera ? '' : 'none';
+    groupNome.style.display = isCamera ? 'none' : '';   // camera NO nome
+    groupNote.style.display = ''; // note SEMPRE visibile
+
+    editNome.required = !isCamera;
 
     if (tipo === 'piano') {
       editEdificio.value = String(window.edificioSel || '');
@@ -684,7 +692,6 @@ $piano_id    = (int)($_GET['piano_id'] ?? 0);
     }
   }
 
-  // funzioni globali chiamate dai pulsanti "+"
   window.openCreateModal = function(tipo){
     configureEditModal(tipo);
     editMode.value = 'create';
@@ -701,19 +708,27 @@ $piano_id    = (int)($_GET['piano_id'] ?? 0);
     const tipo = btn.dataset.tipo || '';
     const id   = parseInt(btn.dataset.id || '0', 10);
 
+    // prendiamo NOTE (e anche NOME) dal container .item: più robusto
+    const item = btn.closest('.item');
+
     configureEditModal(tipo);
     editMode.value = 'edit';
     editId.value = String(id);
 
     editTitle.innerHTML = '<i class="bi bi-pencil-square"></i> Modifica ' + (tipo === 'edificio' ? 'edificio' : (tipo === 'piano' ? 'piano' : 'camera'));
 
-    // dataset standard (dai tuoi ajax)
-    editNome.value = (btn.dataset.nome || btn.dataset.label || '').trim();
+    // note sempre
+    editNote.value = (item?.dataset.note || btn.dataset.note || '').trim();
+
+    // nome solo edificio/piano
+    if (tipo !== 'camera') {
+      editNome.value = (item?.dataset.nome || btn.dataset.nome || btn.dataset.label || '').trim();
+    }
 
     if (tipo === 'camera') {
-      editCodice.value = (btn.dataset.codice || '').trim();
-      editPosti.value  = (btn.dataset.capienza || btn.dataset.posti || '').trim();
-      editDisabili.checked = (String(btn.dataset.disabili || '0') === '1');
+      editCodice.value = (item?.dataset.codice || btn.dataset.codice || '').trim();
+      editPosti.value  = (item?.dataset.capienza || btn.dataset.capienza || btn.dataset.posti || '').trim();
+      editDisabili.checked = (String(item?.dataset.disabili || btn.dataset.disabili || '0') === '1');
     }
 
     modalEdit?.show();
@@ -736,7 +751,6 @@ $piano_id    = (int)($_GET['piano_id'] ?? 0);
   }
 
   function initInteractions(){
-    // Toggle attivo/disattivo
     root.addEventListener('change', async (e) => {
       const sw = e.target.closest('.js-toggle-attivo');
       if (!sw) return;
@@ -787,7 +801,6 @@ $piano_id    = (int)($_GET['piano_id'] ?? 0);
       }
     });
 
-    // Click: edit/delete buttons
     root.addEventListener('click', guard(async (e) => {
       const editBtn = e.target.closest('.js-edit');
       if (editBtn) {
@@ -804,7 +817,6 @@ $piano_id    = (int)($_GET['piano_id'] ?? 0);
       }
     }));
 
-    // Salva modale edit/create
     formEdit.addEventListener('submit', guard(async (e) => {
       e.preventDefault();
       clearMsgs();
@@ -815,31 +827,32 @@ $piano_id    = (int)($_GET['piano_id'] ?? 0);
       const payload = {
         tipo,
         id: editId.value,
-        nome: editNome.value.trim(),
         edificio_id: editEdificio.value,
-        piano_id: editPiano.value
+        piano_id: editPiano.value,
+        note: editNote.value.trim()
       };
+
+      if (tipo !== 'camera') {
+        payload.nome = editNome.value.trim();
+      }
 
       if (tipo === 'camera') {
         payload.codice = editCodice.value.trim();
         payload.capienza_base = editPosti.value ? parseInt(editPosti.value,10) : '';
         const disVal = editDisabili.checked ? 1 : 0;
-        // invio doppio nome campo per compatibilità (DB/colonne diverse)
         payload.accessibile_disabili = disVal;
         payload.disabili = disVal;
-
-        // Nome camera facoltativo: ok anche vuoto
       }
 
-      // validazioni leggere
       if ((tipo === 'edificio' || tipo === 'piano') && !payload.nome) {
         showErr('Il nome è obbligatorio.');
         return;
       }
-      if (tipo === 'camera' && !payload.codice && !payload.nome) {
-        showErr('Inserisci almeno il numero/codice oppure un nome.');
+      if (tipo === 'camera' && !payload.codice) {
+        showErr('Inserisci il numero/codice della camera.');
         return;
       }
+
       if (mode === 'create') {
         if (tipo === 'piano' && !payload.edificio_id) { showErr('Seleziona un edificio.'); return; }
         if (tipo === 'camera' && !payload.piano_id) { showErr('Seleziona un piano.'); return; }
@@ -867,7 +880,6 @@ $piano_id    = (int)($_GET['piano_id'] ?? 0);
       }
     }));
 
-    // Conferma delete
     btnDel.addEventListener('click', guard(async () => {
       const tipo = delTipo.value;
       const id   = parseInt(delId.value || '0', 10);
@@ -891,7 +903,6 @@ $piano_id    = (int)($_GET['piano_id'] ?? 0);
       }
     }));
 
-    // Conferma modale cascata
     btnOk.addEventListener('click', guard(async () => {
       if (!pending) return;
       const { sw, tipo, id, val } = pending;
@@ -909,7 +920,6 @@ $piano_id    = (int)($_GET['piano_id'] ?? 0);
       }
     }));
 
-    // Annullo modale cascata → rollback
     modalEl?.addEventListener('hidden.bs.modal', () => {
       if (!pending) return;
       const { sw } = pending;

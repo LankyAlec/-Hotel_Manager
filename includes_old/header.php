@@ -14,9 +14,9 @@ if (!isset($_SESSION['gruppi'])) {
     $_SESSION['gruppi'] = [];
     $stmt = $mysqli->prepare("
         SELECT g.codice
-        FROM utenti_gruppi g
-        JOIN utenti_privilegi up ON up.gruppo_id = g.id
-        WHERE up.utente_id = ?
+        FROM gruppi g
+        JOIN utenti_gruppi ug ON ug.gruppo_id = g.id
+        WHERE ug.utente_id = ?
     ");
     $stmt->bind_param("i", $_SESSION['utente_id']);
     $stmt->execute();
@@ -42,6 +42,7 @@ function in_gruppo($codice){
 
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
+    <link rel="icon" type="image/x-icon" href="../img/hotel.png">
 
     <style>
         body { background-color:#f8f9fa; }
@@ -108,7 +109,7 @@ function in_gruppo($codice){
                         <i class="bi bi-calendar-check"></i> Prenotazioni
                     </a>
                     <ul class="dropdown-menu">
-                        <li><a class="dropdown-item" href="<?= BASE_URL ?>/prenotazioni/calendario.php">Calendario prenotazioni</a></li>
+                        <li><a class="dropdown-item" href="<?= BASE_URL ?>/prenotazioni/lista.php">Elenco prenotazioni</a></li>
                         <li><a class="dropdown-item" href="<?= BASE_URL ?>/prenotazioni/calendario.php">Calendario</a></li>
                         <li><a class="dropdown-item" href="<?= BASE_URL ?>/clienti/clienti.php">Clienti</a></li>
                     </ul>
@@ -119,7 +120,7 @@ function in_gruppo($codice){
                 <?php if ($isRoot || in_gruppo('Pulizia')): ?>
                 <li class="nav-item">
                     <a class="nav-link" href="<?= BASE_URL ?>/pulizie/pulizie.php">
-                        <i class="bi bi-bucket"></i> Pulizie
+                        <i class="bi bi-stars"></i> Pulizie
                     </a>
                 </li>
                 <?php endif; ?>
@@ -135,16 +136,9 @@ function in_gruppo($codice){
 
                 <!-- RISTORANTE -->
                 <?php if ($isRoot || in_gruppo('Ristorante')): ?>
-                <li class="nav-item dropdown">
-                    <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                    <a class="nav-link" href="#" role="button">
                         <i class="bi bi-cup-hot"></i> Ristorante
                     </a>
-                    <ul class="dropdown-menu">
-                        <li><a class="dropdown-item" href="<?= BASE_URL ?>/ristorante/tavoli.php">Tavoli</a></li>
-                        <li><a class="dropdown-item" href="<?= BASE_URL ?>/ristorante/ordini.php">Ordini</a></li>
-                        <li><a class="dropdown-item" href="<?= BASE_URL ?>/ristorante/menu.php">Menu</a></li>
-                    </ul>
-                </li>
                 <?php endif; ?>
 
                 <!-- MAGAZZINO -->

@@ -56,7 +56,7 @@ if ($id <= 0 || !in_array($attivo, [0,1], true)) {
   json_out(['ok' => false, 'msg' => 'Parametri non validi'], 422);
 }
 
-$stmt = $mysqli->prepare("UPDATE edifici SET attivo=? WHERE id=?");
+$stmt = $mysqli->prepare("UPDATE struttura_edifici SET attivo=? WHERE id=?");
 if (!$stmt) {
   json_out(['ok' => false, 'msg' => 'Errore DB: ' . $mysqli->error], 500);
 }
