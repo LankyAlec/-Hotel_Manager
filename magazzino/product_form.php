@@ -169,6 +169,10 @@ if (($_POST['action'] ?? '') === 'add_lotto') {
   $scaff = trim((string)($_POST['lotto_scaffale'] ?? ''));
   $ripi  = trim((string)($_POST['lotto_ripiano'] ?? ''));
   $magId = (int)($_POST['lotto_magazzino_id'] ?? 0);
+  if ($magId <= 0 && $pid > 0) {
+    $resP = mysqli_query($conn, "SELECT magazzino_id FROM prodotti WHERE id=$pid LIMIT 1");
+    if ($resP && ($prow = mysqli_fetch_assoc($resP))) $magId = (int)($prow['magazzino_id'] ?? 0);
+  }
 
   if ($pid <= 0) {
     $err = 'Salva prima il prodotto, poi aggiungi i lotti.';
@@ -246,8 +250,16 @@ if (($_POST['action'] ?? '') === 'del_lotto') {
   $lid = (int)($_POST['lotto_id'] ?? 0);
 
   if ($pid > 0 && $lid > 0) {
-    $ok = mysqli_query($conn, "DELETE FROM lotti WHERE id=$lid AND prodotto_id=$pid LIMIT 1");
-    if ($ok) redirect('product_form.php?id='.$pid.'&msg='.urlencode('Lotto eliminato').$filterSuffix);
+    mysqli_begin_transaction($conn);
+    $ok = mysqli_query($conn, "DELETE FROM movimenti WHERE prodotto_id=$pid AND lotto_id=$lid");
+    if ($ok) {
+      $ok = mysqli_query($conn, "DELETE FROM lotti WHERE id=$lid AND prodotto_id=$pid LIMIT 1");
+    }
+    if ($ok) {
+      mysqli_commit($conn);
+      redirect('product_form.php?id='.$pid.'&msg='.urlencode('Lotto eliminato').$filterSuffix);
+    }
+    mysqli_rollback($conn);
     $err = 'Errore eliminazione lotto: ' . (mysqli_error($conn) ?: 'query failed');
   } else $err = 'Lotto non valido.';
 }
@@ -593,24 +605,14 @@ require __DIR__ . '/../includes/header.php';
       
       <div class="modal-body">
         <div class="row g-2">
-          <div class="col-12 col-md-4">
+          <input type="hidden" name="lotto_magazzino_id" value="<?= (int)($row['magazzino_id'] ?? 0) ?>">
+          <div class="col-12 col-md-6">
             <label class="form-label">Scadenza</label>
             <input type="date" class="form-control" name="lotto_scadenza">
           </div>
-          <div class="col-12 col-md-4">
+          <div class="col-12 col-md-6">
             <label class="form-label">Anno prod.</label>
             <input class="form-control" name="lotto_anno" inputmode="numeric" placeholder="es. 2024">
-          </div>
-          <div class="col-12 col-md-4">
-            <label class="form-label">Magazzino</label>
-            <select class="form-select" name="lotto_magazzino_id" required>
-              <option value="0">Seleziona...</option>
-              <?php foreach ($mag as $m): ?>
-                <option value="<?= (int)$m['id'] ?>" <?= ((int)$row['magazzino_id'] === (int)$m['id'] ? 'selected' : '') ?>>
-                  <?= h((string)$m['nome']) ?>
-                </option>
-              <?php endforeach; ?>
-            </select>
           </div>
           <div class="col-12 col-md-6">
             <label class="form-label">Scaffale</label>

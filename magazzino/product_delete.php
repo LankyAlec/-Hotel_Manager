@@ -12,10 +12,19 @@ if ($id <= 0) {
 }
 
 try {
+  $pdo->beginTransaction();
+  $stmt = $pdo->prepare("DELETE FROM movimenti WHERE prodotto_id = :id");
+  $stmt->execute([':id' => $id]);
+  $stmt = $pdo->prepare("DELETE FROM lotti WHERE prodotto_id = :id");
+  $stmt->execute([':id' => $id]);
   $stmt = $pdo->prepare("DELETE FROM prodotti WHERE id = :id LIMIT 1");
   $stmt->execute([':id' => $id]);
+  $pdo->commit();
   flash_set('success', 'Prodotto eliminato');
 } catch (Throwable $e) {
+  if ($pdo->inTransaction()) {
+    $pdo->rollBack();
+  }
   error_log("prodotto_delete.php: ".$e->getMessage());
   flash_set('danger', 'Errore eliminazione (controlla error_log PHP).');
 }
