@@ -109,7 +109,7 @@ function in_gruppo($codice){
                         <i class="bi bi-calendar-check"></i> Prenotazioni
                     </a>
                     <ul class="dropdown-menu">
-                        <li><a class="dropdown-item" href="<?= BASE_URL ?>/prenotazioni/lista.php">Elenco prenotazioni</a></li>
+                        <li><a class="dropdown-item" href="<?= BASE_URL ?>/prenotazioni/calendario.php">Calendario prenotazioni</a></li>
                         <li><a class="dropdown-item" href="<?= BASE_URL ?>/prenotazioni/calendario.php">Calendario</a></li>
                         <li><a class="dropdown-item" href="<?= BASE_URL ?>/clienti/clienti.php">Clienti</a></li>
                     </ul>

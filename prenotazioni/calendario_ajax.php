@@ -61,13 +61,15 @@ for ($i = 0; $i < $days; $i++) {
 
 $hasAccessibile = column_exists($mysqli, 'camere', 'accessibile_disabili');
 $hasAttiva = column_exists($mysqli, 'camere', 'attiva');
+$hasNote = column_exists($mysqli, 'camere', 'note');
 
 $selectAccessibile = $hasAccessibile ? ', c.accessibile_disabili' : ', 0 AS accessibile_disabili';
 $selectAttiva = $hasAttiva ? ', c.attiva' : ', 1 AS attiva';
+$selectNote = $hasNote ? ', c.note' : ', NULL AS note';
 
 $sqlRooms = "
     SELECT
-        c.id, c.codice{$selectAttiva}{$selectAccessibile},
+        c.id, c.codice{$selectAttiva}{$selectAccessibile}{$selectNote},
         p.id AS piano_id, p.nome AS piano_nome, p.livello,
         e.id AS edificio_id, e.nome AS edificio_nome
     FROM camere c
