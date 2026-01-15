@@ -51,6 +51,7 @@ if ($pianoSel === 0 && $edificioSel > 0) {
 
   .cell{ min-width:80px; border-radius:8px; padding:.35rem .3rem; display:flex; flex-direction:column; gap:4px; align-items:center; justify-content:center; font-size:.78rem; cursor:pointer; }
   .cell-libera{ background:#f8f9fa; color:#6c757d; }
+  .cell-libera .btn{ border-radius:999px; padding:.2rem .7rem; font-size:.72rem; font-weight:600; box-shadow:0 .2rem .5rem rgba(13,110,253,.25); }
   .cell-occupata{ background:rgba(13,110,253,.18); color:#084298; font-weight:600; }
   .cell-manutenzione{ background:rgba(220,53,69,.22); color:#842029; font-weight:600; }
   .cell-pulizia{ background:rgba(255,193,7,.35); color:#664d03; font-weight:600; }
@@ -142,7 +143,8 @@ if ($pianoSel === 0 && $edificioSel > 0) {
           <input type="hidden" name="id" id="bookingId">
           <div class="col-12 col-md-4">
             <label class="form-label small">Camera</label>
-            <select class="form-select" name="camera_id" id="bookingCamera" required></select>
+            <input type="hidden" name="camera_id" id="bookingCamera" required>
+            <input type="text" class="form-control" id="bookingCameraLabel" readonly>
           </div>
           <div class="col-6 col-md-4">
             <label class="form-label small">Check-in</label>
@@ -211,6 +213,7 @@ if ($pianoSel === 0 && $edificioSel > 0) {
     const bookingForm = document.getElementById('bookingForm');
     const bookingIdInput = document.getElementById('bookingId');
     const bookingCamera = document.getElementById('bookingCamera');
+    const bookingCameraLabel = document.getElementById('bookingCameraLabel');
     const bookingCheckin = document.getElementById('bookingCheckin');
     const bookingCheckout = document.getElementById('bookingCheckout');
     const saveBookingBtn = document.getElementById('saveBookingBtn');
@@ -327,28 +330,36 @@ if ($pianoSel === 0 && $edificioSel > 0) {
       return res.json();
     }
 
-    function populateCamereSelect() {
-      bookingCamera.innerHTML = '';
-      meta.camere.forEach(c => {
-        const opt = document.createElement('option');
-        opt.value = c.id;
-        opt.textContent = `${c.codice}${c.nome ? ' — ' + c.nome : ''}`;
-        bookingCamera.appendChild(opt);
-      });
-    }
-
     async function loadMeta() {
       const data = await fetchJson('prenotazioni_ajax.php?action=metadata');
       if (data.ok) {
         meta = data;
-        populateCamereSelect();
+        if (bookingCamera.value) {
+          bookingCameraLabel.value = getCameraLabel(bookingCamera.value);
+        }
       }
+    }
+
+    function getCameraLabel(cameraId) {
+      if (!cameraId) return '';
+      const camera = (meta.camere || []).find(c => String(c.id) === String(cameraId));
+      if (!camera) return `Camera ${cameraId}`;
+      return `${camera.codice || ''}${camera.nome ? ' — ' + camera.nome : ''}`.trim();
+    }
+
+    function setCameraSelection(cameraId) {
+      bookingCamera.value = cameraId || '';
+      bookingCameraLabel.value = getCameraLabel(cameraId);
     }
 
     function openBookingModal({ bookingId = null, cameraId, checkin, checkout } = {}) {
       currentBookingId = bookingId;
       bookingIdInput.value = bookingId || '';
-      if (cameraId) bookingCamera.value = cameraId;
+      if (cameraId) {
+        setCameraSelection(cameraId);
+      } else {
+        setCameraSelection('');
+      }
       if (checkin) bookingCheckin.value = checkin;
       if (checkout) bookingCheckout.value = checkout;
       if (currentBookingId) {
@@ -609,12 +620,8 @@ if ($pianoSel === 0 && $edificioSel > 0) {
           const checkinDate = new Date(day + 'T00:00:00');
           const checkoutDate = new Date(day + 'T00:00:00');
           checkoutDate.setDate(checkoutDate.getDate() + 1);
-          let defaultCheckin = checkinDate.toISOString().slice(0, 10);
-          let defaultCheckout = checkoutDate.toISOString().slice(0, 10);
-          if (bookingPayload) {
-            defaultCheckin = bookingPayload.checkin || defaultCheckin;
-            defaultCheckout = bookingPayload.checkout || defaultCheckout;
-          }
+          const defaultCheckin = checkinDate.toISOString().slice(0, 10);
+          const defaultCheckout = checkoutDate.toISOString().slice(0, 10);
           let metaTags = '';
           if (checkinMarkers.length || checkoutMarkers.length) {
             const tags = [
@@ -625,7 +632,10 @@ if ($pianoSel === 0 && $edificioSel > 0) {
           }
           const disabledClass = status === 'disattiva' ? ' disabled' : '';
           const bookingIdAttr = bookingId ? ` data-booking-id="${bookingId}"` : '';
-          html += `<td><div class="cell cell-${status}${disabledClass}" data-camera-id="${room.id}" data-checkin="${defaultCheckin}" data-checkout="${defaultCheckout}"${bookingIdAttr}${tooltipAttr}><div class="cell-label">${label}</div>${metaTags}</div></td>`;
+          const labelHtml = status === 'libera'
+            ? '<button class="btn btn-primary btn-sm">Prenota</button>'
+            : label;
+          html += `<td><div class="cell cell-${status}${disabledClass}" data-camera-id="${room.id}" data-checkin="${defaultCheckin}" data-checkout="${defaultCheckout}"${bookingIdAttr}${tooltipAttr}><div class="cell-label">${labelHtml}</div>${metaTags}</div></td>`;
         });
 
         html += '</tr>';
@@ -754,6 +764,7 @@ if ($pianoSel === 0 && $edificioSel > 0) {
       guestSearchInput.value = '';
       guestSearchResults.classList.add('d-none');
       guestSearchResults.innerHTML = '';
+      bookingCameraLabel.value = '';
     });
 
     renderPianiOptions();
