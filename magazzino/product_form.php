@@ -722,7 +722,7 @@ require __DIR__ . '/../includes/header.php';
             <input type="datetime-local" class="form-control" name="mov_ts" id="new_mov_ts" required>
           </div>
 
-          <div class="col-12 col-md-6 of-only-scarico-new d-none">
+          <div class="col-12 col-md-4 of-only-scarico-new d-none">
             <label class="form-label mb-1">Destinazione</label>
             <select class="form-select" name="mov_destinazione" id="new_mov_destinazione">
               <option value="">— Seleziona —</option>
@@ -837,7 +837,7 @@ require __DIR__ . '/../includes/header.php';
             <input type="datetime-local" class="form-control" name="edit_ts" id="edit_ts" required>
           </div>
 
-          <div class="col-12 col-md-6 of-only-scarico-edit d-none">
+          <div class="col-12 col-md-4 of-only-scarico-edit d-none">
             <label class="form-label mb-1">Destinazione</label>
             <select class="form-select of-only-scarico-edit d-none" name="edit_destinazione" id="edit_destinazione">
               <option value="">— Seleziona —</option>
