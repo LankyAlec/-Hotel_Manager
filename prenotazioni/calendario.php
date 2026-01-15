@@ -50,7 +50,7 @@ if ($pianoSel === 0 && $edificioSel > 0) {
   .calendar-table .room-note{ font-size:.78rem; color:#495057; }
 
   .cell{ min-width:80px; border-radius:8px; padding:.35rem .3rem; display:flex; flex-direction:column; gap:4px; align-items:center; justify-content:center; font-size:.78rem; cursor:pointer; }
-  .cell-libera{ background:#f8f9fa; color:#6c757d; }
+  .cell-libera{ }
   .cell-libera .btn{ border-radius:999px; padding:.2rem .7rem; font-size:.72rem; font-weight:600; box-shadow:0 .2rem .5rem rgba(13,110,253,.25); }
   .cell-occupata{ background:rgba(13,110,253,.18); color:#084298; font-weight:600; }
   .cell-manutenzione{ background:rgba(220,53,69,.22); color:#842029; font-weight:600; }
