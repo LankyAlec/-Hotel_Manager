@@ -73,12 +73,12 @@ if ($azione === 'salva_utente') {
         $stmt->execute();
 
         // Gruppi: reset e reinsert
-        $stmt = $mysqli->prepare("DELETE FROM utenti_gruppi WHERE utente_id=?");
+        $stmt = $mysqli->prepare("DELETE FROM utenti_privilegi WHERE utente_id=?");
         $stmt->bind_param("i", $id);
         $stmt->execute();
 
         if (is_array($gruppi) && !empty($gruppi)) {
-            $stmt = $mysqli->prepare("INSERT INTO utenti_gruppi (utente_id, gruppo_id) VALUES (?, ?)");
+            $stmt = $mysqli->prepare("INSERT INTO utenti_privilegi (utente_id, gruppo_id) VALUES (?, ?)");
             foreach ($gruppi as $gid) {
                 $gid = (int)$gid;
                 if ($gid > 0) {
@@ -89,12 +89,12 @@ if ($azione === 'salva_utente') {
         }
 
         // Permessi override: pulisci e reinsert solo quelli valorizzati
-        $stmt = $mysqli->prepare("DELETE FROM permessi_utenti WHERE utente_id=?");
+        $stmt = $mysqli->prepare("DELETE FROM utenti_permessi WHERE utente_id=?");
         $stmt->bind_param("i", $id);
         $stmt->execute();
 
         if (is_array($permOverride)) {
-            $stmt = $mysqli->prepare("INSERT INTO permessi_utenti (utente_id, permesso_id, valore) VALUES (?, ?, ?)");
+            $stmt = $mysqli->prepare("INSERT INTO utenti_permessi (utente_id, permesso_id, valore) VALUES (?, ?, ?)");
             foreach ($permOverride as $permId => $val) {
                 $permId = (int)$permId;
                 $val = (string)$val;

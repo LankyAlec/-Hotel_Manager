@@ -15,9 +15,9 @@ $stmt->execute();
 $utente = $stmt->get_result()->fetch_assoc();
 if (!$utente) { die("Utente non trovato."); }
 
-$gruppi = $mysqli->query("SELECT id, codice, nome FROM gruppi ORDER BY nome ASC")->fetch_all(MYSQLI_ASSOC);
+$gruppi = $mysqli->query("SELECT id, codice, nome FROM utenti_gruppi ORDER BY nome ASC")->fetch_all(MYSQLI_ASSOC);
 
-$stmt = $mysqli->prepare("SELECT gruppo_id FROM utenti_gruppi WHERE utente_id=?");
+$stmt = $mysqli->prepare("SELECT gruppo_id FROM utenti_privilegi WHERE utente_id=?");
 $stmt->bind_param("i", $id);
 $stmt->execute();
 $ug = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
@@ -25,7 +25,7 @@ $gruppiSelezionati = array_flip(array_map(fn($r)=> (int)$r['gruppo_id'], $ug));
 
 $permessi = $mysqli->query("SELECT id, codice, descrizione FROM permessi ORDER BY codice ASC")->fetch_all(MYSQLI_ASSOC);
 
-$stmt = $mysqli->prepare("SELECT permesso_id, valore FROM permessi_utenti WHERE utente_id=?");
+$stmt = $mysqli->prepare("SELECT permesso_id, valore FROM utenti_permessi WHERE utente_id=?");
 $stmt->bind_param("i", $id);
 $stmt->execute();
 $pu = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
