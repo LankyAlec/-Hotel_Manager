@@ -374,7 +374,6 @@ require __DIR__ . '/../includes/header.php';
           <?php endforeach; ?>
         </select>
       </div>
-
       <div class="col-12 col-md-6">
         <label class="form-label">Nome *</label>
         <input class="form-control" name="nome" required value="<?= h($row['nome']) ?>">
@@ -641,6 +640,8 @@ require __DIR__ . '/../includes/header.php';
       <input type="hidden" name="id" value="<?= (int)$id ?>">
       <input type="hidden" name="lotto_id" id="edit_lotto_id" value="">
       <input type="hidden" name="hide_zero" value="<?= (int)$hide_zero ?>">
+      <input type="hidden" name="edit_magazzino_id" value="<?= (int)$row['magazzino_id'] ?>">
+
 
       <div class="modal-header">
         <h5 class="modal-title">Modifica lotto</h5>
@@ -657,15 +658,6 @@ require __DIR__ . '/../includes/header.php';
           <div class="col-12 col-md-6">
             <label class="form-label">Scadenza</label>
             <input type="date" class="form-control" name="edit_scadenza" id="edit_scadenza">
-          </div>
-          <div class="col-12 col-md-6">
-            <label class="form-label">Magazzino *</label>
-            <select class="form-select" name="edit_magazzino_id" id="edit_magazzino_id" required>
-              <option value="0">Seleziona...</option>
-              <?php foreach ($mag as $m): ?>
-                <option value="<?= (int)$m['id'] ?>"><?= h((string)$m['nome']) ?></option>
-              <?php endforeach; ?>
-            </select>
           </div>
           <div class="col-12 col-md-6">
             <label class="form-label">Scaffale</label>
