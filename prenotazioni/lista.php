@@ -179,6 +179,7 @@ if (!$isRoot && !in_gruppo('Reception')) {
   const nuovaPrenotazioneForm = document.getElementById('nuovaPrenotazioneForm');
   const documentiModal = document.getElementById('documentiModal');
   const documentiContainer = document.getElementById('documentiContainer');
+  const queryParams = new URLSearchParams(window.location.search);
 
   let meta = { camere: [], stati: [] };
 
@@ -222,9 +223,29 @@ if (!$isRoot && !in_gruppo('Reception')) {
       meta = data;
       const selects = document.querySelectorAll('select[name="camera_id"]');
       selects.forEach(populateCamereSelect);
+      openPrenotazioneFromQuery();
     } else {
       showToast(data.message || 'Impossibile caricare le camere', 'danger');
     }
+  }
+
+  function openPrenotazioneFromQuery() {
+    if (!queryParams.has('prenota')) return;
+    const cameraId = queryParams.get('camera_id');
+    const checkin = queryParams.get('data_checkin');
+    const checkout = queryParams.get('data_checkout');
+    if (!cameraId || !checkin || !checkout) return;
+
+    const cameraSelect = nuovaPrenotazioneForm.querySelector('select[name="camera_id"]');
+    const checkinInput = nuovaPrenotazioneForm.querySelector('input[name="data_checkin"]');
+    const checkoutInput = nuovaPrenotazioneForm.querySelector('input[name="data_checkout"]');
+
+    if (cameraSelect) cameraSelect.value = cameraId;
+    if (checkinInput) checkinInput.value = checkin;
+    if (checkoutInput) checkoutInput.value = checkout;
+
+    const modal = new bootstrap.Modal(nuovaPrenotazioneModal);
+    modal.show();
   }
 
   function renderBookings(bookings) {

@@ -59,15 +59,21 @@ for ($i = 0; $i < $days; $i++) {
     $daysList[] = (clone $startDate)->modify('+' . $i . ' days')->format('Y-m-d');
 }
 
+$hasAccessibile = column_exists($mysqli, 'camere', 'accessibile_disabili');
+$hasAttiva = column_exists($mysqli, 'camere', 'attiva');
+
+$selectAccessibile = $hasAccessibile ? ', c.accessibile_disabili' : ', 0 AS accessibile_disabili';
+$selectAttiva = $hasAttiva ? ', c.attiva' : ', 1 AS attiva';
+
 $sqlRooms = "
     SELECT
-        c.id, c.codice, c.nome,
+        c.id, c.codice{$selectAttiva}{$selectAccessibile},
         p.id AS piano_id, p.nome AS piano_nome, p.livello,
         e.id AS edificio_id, e.nome AS edificio_nome
     FROM camere c
     JOIN piani p ON p.id = c.piano_id AND p.attivo = 1
     JOIN edifici e ON e.id = p.edificio_id AND e.attivo = 1
-    WHERE c.attiva = 1
+    WHERE 1=1
 ";
 
 $bind = [];
@@ -83,7 +89,7 @@ if ($pianoId > 0) {
     $types .= 'i';
 }
 
-$sqlRooms .= " ORDER BY p.livello ASC, c.codice ASC, c.nome ASC";
+$sqlRooms .= " ORDER BY p.livello ASC, c.codice ASC";
 
 $stmtRooms = $mysqli->prepare($sqlRooms);
 if (!$stmtRooms) {

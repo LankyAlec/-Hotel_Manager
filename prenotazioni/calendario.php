@@ -50,9 +50,11 @@ if ($pianoSel === 0 && $edificioSel > 0) {
 
   .cell{ min-width:80px; border-radius:8px; padding:.35rem .3rem; display:flex; flex-direction:column; gap:2px; align-items:center; justify-content:center; font-size:.78rem; }
   .cell-libera{ background:#f8f9fa; color:#6c757d; }
-  .cell-occupata{ background:rgba(25,135,84,.18); color:#0f5132; font-weight:600; }
+  .cell-occupata{ background:rgba(13,110,253,.18); color:#084298; font-weight:600; }
   .cell-manutenzione{ background:rgba(220,53,69,.22); color:#842029; font-weight:600; }
   .cell-pulizia{ background:rgba(255,193,7,.35); color:#664d03; font-weight:600; }
+  .cell-disattiva{ background:rgba(108,117,125,.2); color:#6c757d; font-weight:600; }
+  .cell .btn-book{ font-size:.7rem; padding:.1rem .35rem; line-height:1.2; }
 
   .calendar-empty{ padding:24px; text-align:center; color:#6c757d; }
   .calendar-toolbar{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; justify-content:space-between; }
@@ -92,7 +94,8 @@ if ($pianoSel === 0 && $edificioSel > 0) {
           <div class="legend">
             <div class="item"><span class="dot" style="background:#dc3545"></span> Manutenzione</div>
             <div class="item"><span class="dot" style="background:#ffc107"></span> Pulizia</div>
-            <div class="item"><span class="dot" style="background:#198754"></span> Occupata</div>
+            <div class="item"><span class="dot" style="background:#0d6efd"></span> Occupata</div>
+            <div class="item"><span class="dot" style="background:#6c757d"></span> Disattiva</div>
           </div>
         </div>
       </div>
@@ -176,10 +179,30 @@ if ($pianoSel === 0 && $edificioSel > 0) {
       return out;
     }
 
+    function formatStatus(raw) {
+      if (!raw) return '';
+      return raw
+        .toString()
+        .replace(/_/g, ' ')
+        .toLowerCase()
+        .replace(/\b\w/g, (match) => match.toUpperCase());
+    }
+
     function dateLabel(dateStr) {
       const d = new Date(dateStr + 'T00:00:00');
-      const giorni = ['Dom','Lun','Mar','Mer','Gio','Ven','Sab'];
-      return `${giorni[d.getDay()]}<br><span class="text-muted">${d.getDate()}/${d.getMonth() + 1}</span>`;
+      const formatter = new Intl.DateTimeFormat('it-IT', {
+        weekday: 'short',
+        day: '2-digit',
+        month: 'short'
+      });
+      const parts = formatter.formatToParts(d).reduce((acc, part) => {
+        acc[part.type] = part.value;
+        return acc;
+      }, {});
+      const weekday = parts.weekday || '';
+      const day = parts.day || '';
+      const month = parts.month || '';
+      return `${weekday}<br><span class="text-muted">${day} ${month}</span>`;
     }
 
     function renderCalendar(data) {
@@ -204,22 +227,27 @@ if ($pianoSel === 0 && $edificioSel > 0) {
       rooms.forEach(room => {
         const roomId = String(room.id);
         html += '<tr>';
-        html += `<td class="room-col">${room.codice || ''} ${room.nome || ''}<div class="room-sub">${room.piano_nome || ''}</div></td>`;
+        const disabili = parseInt(room.accessibile_disabili || 0, 10) > 0;
+        const accessibileHtml = disabili ? '<i class="bi bi-person-wheelchair"></i> Accessibile' : '';
+        html += `<td class="room-col">${room.codice || ''}<div class="room-sub">${accessibileHtml}</div></td>`;
 
         days.forEach(day => {
           let status = 'libera';
           let label = 'Libera';
           let tooltip = '';
-          if (manutenzioni.has(roomId)) {
+          if (!parseInt(room.attiva || 1, 10)) {
+            status = 'disattiva';
+            label = 'Disattiva';
+          } else if (manutenzioni.has(roomId)) {
             status = 'manutenzione';
             label = 'Manutenzione';
             const info = manutenzioni.get(roomId)[0];
-            tooltip = info?.stato ? `Ticket: ${info.stato}` : '';
+            tooltip = info?.stato ? `Ticket: ${formatStatus(info.stato)}` : '';
           } else if (pulizie.has(roomId)) {
             status = 'pulizia';
             label = 'Pulizia';
             const info = pulizie.get(roomId)[0];
-            tooltip = info?.stato ? `Pulizia: ${info.stato}` : '';
+            tooltip = info?.stato ? `Pulizia: ${formatStatus(info.stato)}` : '';
           } else {
             const occs = bookings.get(roomId) || [];
             const dayDate = new Date(day + 'T00:00:00');
@@ -236,7 +264,16 @@ if ($pianoSel === 0 && $edificioSel > 0) {
           }
 
           const tooltipAttr = tooltip ? ` data-bs-toggle="tooltip" title="${tooltip.replace(/"/g, '&quot;')}"` : '';
-          html += `<td><div class="cell cell-${status}"${tooltipAttr}>${label}</div></td>`;
+          let action = '';
+          if (status === 'libera') {
+            const checkinDate = new Date(day + 'T00:00:00');
+            const checkoutDate = new Date(day + 'T00:00:00');
+            checkoutDate.setDate(checkoutDate.getDate() + 1);
+            const checkin = checkinDate.toISOString().slice(0, 10);
+            const checkout = checkoutDate.toISOString().slice(0, 10);
+            action = `<a class="btn btn-sm btn-outline-primary btn-book" href="<?= BASE_URL ?>/prenotazioni/lista.php?prenota=1&camera_id=${room.id}&data_checkin=${checkin}&data_checkout=${checkout}">Prenota</a>`;
+          }
+          html += `<td><div class="cell cell-${status}"${tooltipAttr}>${label}${action ? `<div>${action}</div>` : ''}</div></td>`;
         });
 
         html += '</tr>';
