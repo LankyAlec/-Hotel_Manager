@@ -42,8 +42,16 @@ function date_it(?string $ymd): string {
 if (($_POST['action'] ?? '') === 'delete') {
   $id = (int)($_POST['id'] ?? 0);
   if ($id > 0) {
-    mysqli_query($conn, "DELETE FROM prodotti WHERE id=$id LIMIT 1");
-    mag_redirect('magazzino.php?msg=' . urlencode('Prodotto eliminato'));
+    mysqli_begin_transaction($conn);
+    $ok = mysqli_query($conn, "DELETE FROM movimenti WHERE prodotto_id=$id");
+    if ($ok) $ok = mysqli_query($conn, "DELETE FROM lotti WHERE prodotto_id=$id");
+    if ($ok) $ok = mysqli_query($conn, "DELETE FROM prodotti WHERE id=$id LIMIT 1");
+    if ($ok) {
+      mysqli_commit($conn);
+      mag_redirect('magazzino.php?msg=' . urlencode('Prodotto eliminato'));
+    }
+    mysqli_rollback($conn);
+    mag_redirect('magazzino.php?msg=' . urlencode('Errore eliminazione prodotto'));
   }
   mag_redirect('magazzino.php?msg=' . urlencode('ID non valido'));
 }
