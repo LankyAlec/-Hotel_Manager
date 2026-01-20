@@ -86,6 +86,36 @@ function get_tipologia_camera_column(mysqli $db): ?string {
     return null;
 }
 
+function get_housekeeping_column(mysqli $db): ?string {
+    if (column_exists($db, 'soggiorni', 'housekeeping')) return 'housekeeping';
+    if (column_exists($db, 'soggiorni', 'housekeeping_qty')) return 'housekeeping_qty';
+    if (column_exists($db, 'soggiorni', 'housekeeping_qta')) return 'housekeeping_qta';
+    return null;
+}
+
+function get_hb_dettagli_column(mysqli $db): ?string {
+    if (column_exists($db, 'soggiorni', 'hb_dettagli')) return 'hb_dettagli';
+    if (column_exists($db, 'soggiorni', 'hb_dettagli_json')) return 'hb_dettagli_json';
+    return null;
+}
+
+function get_tariffe_tipologia_column(mysqli $db): ?string {
+    if (!table_exists($db, 'soggiorni_tariffe')) return null;
+    if (column_exists($db, 'soggiorni_tariffe', 'tipologia_camera')) return 'tipologia_camera';
+    if (column_exists($db, 'soggiorni_tariffe', 'tipo_camera')) return 'tipo_camera';
+    if (column_exists($db, 'soggiorni_tariffe', 'camera_tipo')) return 'camera_tipo';
+    return null;
+}
+
+function get_soggiorni_tariffe_price_column(mysqli $db): ?string {
+    if (!table_exists($db, 'soggiorni_tariffe')) return null;
+    $candidates = ['prezzo', 'prezzo_notte', 'prezzo_camera', 'prezzo_giorno', 'tariffa'];
+    foreach ($candidates as $col) {
+        if (column_exists($db, 'soggiorni_tariffe', $col)) return $col;
+    }
+    return null;
+}
+
 function get_servizi(mysqli $db): array {
     if (!table_exists($db, 'servizi')) return [];
     $hasAttivo = column_exists($db, 'servizi', 'attivo');
@@ -127,6 +157,162 @@ function get_servizi(mysqli $db): array {
     }
 
     return array_values(array_filter($byParent, fn($item) => is_array($item) && array_key_exists('id', $item)));
+}
+
+function get_camera_pricing_preview(mysqli $db, int $cameraId, ?string $tipologia, string $checkin, string $checkout): array {
+    if (!table_exists($db, 'soggiorni_tariffe')) return ['breakdown' => [], 'total' => 0.0];
+    $priceCol = get_soggiorni_tariffe_price_column($db);
+    if (!$priceCol) return ['breakdown' => [], 'total' => 0.0];
+
+    $dalCol = column_exists($db, 'soggiorni_tariffe', 'dal');
+    $alCol = column_exists($db, 'soggiorni_tariffe', 'al');
+    $attivaCol = column_exists($db, 'soggiorni_tariffe', 'attiva');
+    $cameraCol = column_exists($db, 'soggiorni_tariffe', 'camera_id');
+    $tipologiaCol = get_tariffe_tipologia_column($db);
+
+    $start = DateTime::createFromFormat('Y-m-d', $checkin);
+    $end = DateTime::createFromFormat('Y-m-d', $checkout);
+    if (!$start || !$end || $start >= $end) {
+        return ['breakdown' => [], 'total' => 0.0];
+    }
+
+    $breakdown = [];
+    $total = 0.0;
+    $iter = clone $start;
+    while ($iter < $end) {
+        $date = $iter->format('Y-m-d');
+        $conditions = [];
+        $params = [];
+        $types = '';
+
+        if ($attivaCol) {
+            $conditions[] = 'attiva = 1';
+        }
+        if ($cameraCol && $cameraId > 0) {
+            $conditions[] = 'camera_id = ?';
+            $types .= 'i';
+            $params[] = $cameraId;
+        }
+        if ($tipologiaCol && $tipologia) {
+            $conditions[] = "{$tipologiaCol} = ?";
+            $types .= 's';
+            $params[] = $tipologia;
+        }
+        if ($dalCol) {
+            $conditions[] = 'dal <= ?';
+            $types .= 's';
+            $params[] = $date;
+        }
+        if ($alCol) {
+            $conditions[] = '(al IS NULL OR al >= ?)';
+            $types .= 's';
+            $params[] = $date;
+        }
+
+        $sql = "SELECT {$priceCol} AS prezzo FROM soggiorni_tariffe";
+        if ($conditions) $sql .= " WHERE " . implode(' AND ', $conditions);
+        if ($dalCol) {
+            $sql .= " ORDER BY dal DESC, id DESC LIMIT 1";
+        } else {
+            $sql .= " ORDER BY id DESC LIMIT 1";
+        }
+
+        $price = null;
+        $stmt = $db->prepare($sql);
+        if ($stmt) {
+            if ($types) $stmt->bind_param($types, ...$params);
+            $stmt->execute();
+            $row = $stmt->get_result()->fetch_assoc();
+            if ($row && $row['prezzo'] !== null) {
+                $price = (float)$row['prezzo'];
+            }
+            $stmt->close();
+        }
+
+        $breakdown[] = ['date' => $date, 'price' => $price];
+        if ($price !== null) $total += $price;
+        $iter->modify('+1 day');
+    }
+
+    return ['breakdown' => $breakdown, 'total' => $total];
+}
+
+function get_servizi_pricing_preview(mysqli $db, array $servizi, string $checkin): array {
+    if (!table_exists($db, 'servizi_tariffe') || !table_exists($db, 'servizi')) {
+        return ['items' => [], 'total' => 0.0];
+    }
+    $serviceIds = [];
+    $serviceModes = [];
+    foreach ($servizi as $item) {
+        $id = (int)($item['id'] ?? 0);
+        $mode = (string)($item['mode'] ?? '');
+        if ($id > 0) {
+            $serviceIds[] = $id;
+            $serviceModes[$id] = $mode ?: 'EXTRA';
+        }
+    }
+    if (!$serviceIds) return ['items' => [], 'total' => 0.0];
+
+    $in = implode(',', array_map('intval', $serviceIds));
+    $names = [];
+    $res = $db->query("SELECT id, nome FROM servizi WHERE id IN ({$in})");
+    if ($res) {
+        while ($row = $res->fetch_assoc()) {
+            $names[(int)$row['id']] = (string)$row['nome'];
+        }
+    }
+
+    $attivaCol = column_exists($db, 'servizi_tariffe', 'attiva');
+    $dalCol = column_exists($db, 'servizi_tariffe', 'dal');
+    $alCol = column_exists($db, 'servizi_tariffe', 'al');
+    $priceCol = column_exists($db, 'servizi_tariffe', 'prezzo_slot') ? 'prezzo_slot' : null;
+    $orderBy = $dalCol ? 'dal DESC, id DESC' : 'id DESC';
+
+    $items = [];
+    $total = 0.0;
+    foreach ($serviceIds as $serviceId) {
+        $mode = $serviceModes[$serviceId] ?? 'EXTRA';
+        $price = 0.0;
+        if ($mode === 'EXTRA' && $priceCol) {
+            $conditions = ['servizio_id = ?'];
+            $types = 'i';
+            $params = [$serviceId];
+            if ($attivaCol) {
+                $conditions[] = 'attiva = 1';
+            }
+            if ($dalCol) {
+                $conditions[] = 'dal <= ?';
+                $types .= 's';
+                $params[] = $checkin;
+            }
+            if ($alCol) {
+                $conditions[] = '(al IS NULL OR al >= ?)';
+                $types .= 's';
+                $params[] = $checkin;
+            }
+            $sql = "SELECT {$priceCol} AS prezzo FROM servizi_tariffe WHERE " . implode(' AND ', $conditions) . " ORDER BY {$orderBy} LIMIT 1";
+            $stmt = $db->prepare($sql);
+            if ($stmt) {
+                $stmt->bind_param($types, ...$params);
+                $stmt->execute();
+                $row = $stmt->get_result()->fetch_assoc();
+                if ($row && $row['prezzo'] !== null) {
+                    $price = (float)$row['prezzo'];
+                }
+                $stmt->close();
+            }
+        }
+
+        $items[] = [
+            'id' => $serviceId,
+            'nome' => $names[$serviceId] ?? "Servizio {$serviceId}",
+            'mode' => $mode,
+            'price' => $mode === 'EXTRA' ? $price : 0.0,
+        ];
+        if ($mode === 'EXTRA') $total += $price;
+    }
+
+    return ['items' => $items, 'total' => $total];
 }
 
 function is_range_available(mysqli $db, int $cameraId, string $checkin, string $checkout, ?int $excludeId = null): bool {
@@ -337,6 +523,9 @@ function save_booking(mysqli $db, array $payload): void {
     $pasto = $payload['piano_pasto_sigla'] ?? null;
     $hb = $payload['hb_servizio'] ?? null;
     $tipologiaCamera = $payload['tipologia_camera'] ?? null;
+    $housekeeping = $payload['housekeeping'] ?? null;
+    $hbMode = $payload['hb_modalita'] ?? null;
+    $hbDettagliRaw = $payload['hb_dettagli'] ?? null;
     $serviziProvided = array_key_exists('servizi', $payload);
     $servizi = normalize_servizi($payload['servizi'] ?? null);
     $serviziCol = get_servizi_column($db);
@@ -345,6 +534,14 @@ function save_booking(mysqli $db, array $payload): void {
     // opzionali se esistono nel DB
     $hb_da = $payload['hb_da'] ?? null;
     $hb_a  = $payload['hb_a'] ?? null;
+    $hbDettagli = null;
+    $hbDettagliProvided = array_key_exists('hb_dettagli', $payload);
+    if (is_string($hbDettagliRaw) && trim($hbDettagliRaw) !== '') {
+        $decoded = json_decode($hbDettagliRaw, true);
+        if (is_array($decoded)) {
+            $hbDettagli = $decoded;
+        }
+    }
 
     // ✅ Regole date
     if ($checkin && $checkout && $checkin >= $checkout) {
@@ -358,16 +555,34 @@ function save_booking(mysqli $db, array $payload): void {
 
     // ✅ Validazione pasto/HB
     if ($pasto !== null && $pasto !== '' && $pasto === 'HB') {
-        if (!in_array((string)$hb, ['PRANZO','CENA'], true)) {
-            json_response(false, 'Per HB devi specificare PRANZO o CENA', ['toast' => ['variant' => 'warning']]);
+        if ($hbMode === 'personalizzato') {
+            if (!$hbDettagli || !is_array($hbDettagli)) {
+                json_response(false, 'Per HB personalizzato devi indicare pranzo o cena per ogni data', ['toast' => ['variant' => 'warning']]);
+            }
+            foreach ($hbDettagli as $val) {
+                if (!in_array((string)$val, ['PRANZO', 'CENA'], true)) {
+                    json_response(false, 'Valori HB non validi: scegli PRANZO o CENA', ['toast' => ['variant' => 'warning']]);
+                }
+            }
+            $hb = null;
+        } else {
+            if (!in_array((string)$hb, ['PRANZO','CENA'], true)) {
+                json_response(false, 'Per HB devi specificare PRANZO o CENA', ['toast' => ['variant' => 'warning']]);
+            }
+            $hbDettagli = null;
         }
-        if (!$hb_da) {
-            json_response(false, 'Per HB devi specificare la data del pasto', ['toast' => ['variant' => 'warning']]);
-        }
-        // se ci sono hb_da/hb_a e arrivano, verifico coerenza
         if ($hb_da && $hb_a && $hb_da > $hb_a) {
             json_response(false, 'Intervallo HB non valido (da > a)', ['toast' => ['variant' => 'warning']]);
         }
+    } else {
+        $hb = null;
+        $hbDettagli = null;
+        $hbMode = null;
+    }
+
+    $hbDettagliJson = null;
+    if ($hbDettagli !== null) {
+        $hbDettagliJson = json_encode($hbDettagli, JSON_UNESCAPED_UNICODE);
     }
 
     // ✅ Blocco: non creare prenotazione senza ospiti
@@ -386,6 +601,11 @@ function save_booking(mysqli $db, array $payload): void {
         }
     }
 
+    $housekeepingVal = null;
+    if ($housekeeping !== null && $housekeeping !== '') {
+        $housekeepingVal = max(0, (int)$housekeeping);
+    }
+
     $fields = [];
     $values = [];
     $types = '';
@@ -402,6 +622,14 @@ function save_booking(mysqli $db, array $payload): void {
     if ($tipologiaCamera !== null) {
         $tipoCameraCol = get_tipologia_camera_column($db);
         if ($tipoCameraCol) { $fields[] = "{$tipoCameraCol} = ?"; $values[] = $tipologiaCamera; $types .= 's'; }
+    }
+    if ($housekeepingVal !== null) {
+        $housekeepingCol = get_housekeeping_column($db);
+        if ($housekeepingCol) { $fields[] = "{$housekeepingCol} = ?"; $values[] = $housekeepingVal; $types .= 'i'; }
+    }
+    if ($hbDettagliProvided) {
+        $hbDettagliCol = get_hb_dettagli_column($db);
+        if ($hbDettagliCol) { $fields[] = "{$hbDettagliCol} = ?"; $values[] = $hbDettagliJson; $types .= 's'; }
     }
 
     if ($hb_da !== null && column_exists($db, 'soggiorni', 'hb_da')) { $fields[] = 'hb_da = ?'; $values[] = $hb_da; $types .= 's'; }
@@ -456,6 +684,18 @@ function save_booking(mysqli $db, array $payload): void {
             $columns[] = $tipoCameraCol; $placeholders[] = '?'; $insertTypes .= 's'; $insertValues[] = $tipologiaCamera;
         }
     }
+    if ($housekeepingVal !== null) {
+        $housekeepingCol = get_housekeeping_column($db);
+        if ($housekeepingCol) {
+            $columns[] = $housekeepingCol; $placeholders[] = '?'; $insertTypes .= 'i'; $insertValues[] = $housekeepingVal;
+        }
+    }
+    if ($hbDettagliProvided) {
+        $hbDettagliCol = get_hb_dettagli_column($db);
+        if ($hbDettagliCol) {
+            $columns[] = $hbDettagliCol; $placeholders[] = '?'; $insertTypes .= 's'; $insertValues[] = $hbDettagliJson;
+        }
+    }
     if ($hb_da !== null && column_exists($db, 'soggiorni', 'hb_da')) {
         $columns[] = 'hb_da'; $placeholders[] = '?'; $insertTypes .= 's'; $insertValues[] = $hb_da;
     }
@@ -504,6 +744,28 @@ function check_availability(mysqli $db, array $payload): void {
     ]);
 }
 
+function pricing_preview(mysqli $db, array $payload): void {
+    $cameraId = (int)($payload['camera_id'] ?? 0);
+    $checkin = $payload['data_checkin'] ?? null;
+    $checkout = $payload['data_checkout'] ?? null;
+    $tipologia = $payload['tipologia_camera'] ?? null;
+    $servizi = normalize_servizi($payload['servizi'] ?? null);
+
+    if (!$cameraId || !$checkin || !$checkout) {
+        json_response(false, 'Parametri mancanti per il calcolo prezzi');
+    }
+
+    $cameraPreview = get_camera_pricing_preview($db, $cameraId, $tipologia, $checkin, $checkout);
+    $serviziPreview = get_servizi_pricing_preview($db, $servizi, $checkin);
+    $total = (float)($cameraPreview['total'] ?? 0) + (float)($serviziPreview['total'] ?? 0);
+
+    json_response(true, 'OK', [
+        'camera' => $cameraPreview,
+        'servizi' => $serviziPreview,
+        'total' => $total,
+    ]);
+}
+
 $action = get_action();
 
 switch ($action) {
@@ -517,6 +779,10 @@ switch ($action) {
             'stati' => ['prenotato', 'occupato', 'annullato', 'checkout'],
             'servizi' => get_servizi($mysqli),
         ]);
+        break;
+
+    case 'pricing_preview':
+        pricing_preview($mysqli, $_POST);
         break;
 
     case 'check_availability':

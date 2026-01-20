@@ -268,6 +268,22 @@ if ($pianoSel === 0 && $edificioSel > 0) {
     border:1px solid rgba(0,0,0,.08);
     color:#495057;
   }
+  .hb-custom-list{
+    border:1px solid rgba(0,0,0,.08);
+    border-radius:12px;
+    padding:12px;
+    background:#f8f9fa;
+  }
+  .price-preview-card{
+    border:1px solid rgba(0,0,0,.08);
+    border-radius:12px;
+    padding:12px;
+    background:#fff;
+  }
+  .price-preview-card table td,
+  .price-preview-card table th{
+    vertical-align:middle;
+  }
 </style>
 
 <div class="container-fluid">
@@ -361,37 +377,52 @@ if ($pianoSel === 0 && $edificioSel > 0) {
               <option value="FB">FB</option>
             </select>
           </div>
+          <div class="w-100 d-none d-md-block"></div>
           <div class="col-12 col-md-4">
             <label class="form-label small">Tipologia camera</label>
-            <select class="form-select" name="tipologia_camera" id="bookingTipologia">
-              <option value="">—</option>
-              <option value="Singola">Singola</option>
-              <option value="Doppia">Doppia</option>
-              <option value="Matrimoniale">Matrimoniale</option>
-              <option value="Tripla">Tripla</option>
-              <option value="Quadrupla">Quadrupla</option>
-              <option value="Family">Family</option>
-              <option value="Suite">Suite</option>
-            </select>
+            <div class="row g-2">
+              <div class="col-8">
+                <select class="form-select" name="tipologia_camera" id="bookingTipologia">
+                  <option value="">—</option>
+                  <option value="Singola">Singola</option>
+                  <option value="Doppia">Doppia</option>
+                  <option value="Matrimoniale">Matrimoniale</option>
+                  <option value="Tripla">Tripla</option>
+                  <option value="Quadrupla">Quadrupla</option>
+                  <option value="Family">Family</option>
+                  <option value="Suite">Suite</option>
+                </select>
+              </div>
+              <div class="col-4">
+                <label class="form-label small">Housekeeping</label>
+                <input type="number" class="form-control" name="housekeeping" id="bookingHousekeeping" min="0" value="1">
+              </div>
+            </div>
           </div>
 
           <div class="col-12 col-md-4" id="hbBox" style="display:none;">
             <label class="form-label small">HB: tipo pasto</label>
-            <select class="form-select" name="hb_servizio" id="bookingHb">
-              <option value="">—</option>
-              <option value="PRANZO">Pranzo</option>
-              <option value="CENA">Cena</option>
-            </select>
+            <div class="d-flex flex-wrap align-items-center gap-2">
+              <div class="btn-group btn-group-sm" role="group" aria-label="Modalità HB">
+                <input type="radio" class="btn-check" name="hb_modalita" id="hbModeAll" value="tutte" checked>
+                <label class="btn btn-outline-secondary" for="hbModeAll">Tutte</label>
+                <input type="radio" class="btn-check" name="hb_modalita" id="hbModeCustom" value="personalizzato">
+                <label class="btn btn-outline-secondary" for="hbModeCustom">Personalizzato</label>
+              </div>
+              <select class="form-select" name="hb_servizio" id="bookingHb" style="max-width:180px;">
+                <option value="">—</option>
+                <option value="PRANZO">Pranzo</option>
+                <option value="CENA">Cena</option>
+              </select>
+            </div>
+            <input type="hidden" name="hb_dettagli" id="bookingHbDettagli">
           </div>
 
-          <div class="col-6 col-md-2" id="hbDaBox" style="display:none;">
-            <label class="form-label small">HB: data pasto</label>
-            <input type="date" class="form-control" name="hb_da" id="bookingHbDa">
-          </div>
-
-          <div class="col-6 col-md-2" id="hbABBox" style="display:none;">
-            <label class="form-label small">HB: ripeti fino al</label>
-            <input type="date" class="form-control" name="hb_a" id="bookingHbA">
+          <div class="col-12" id="hbCustomBox" style="display:none;">
+            <div class="hb-custom-list">
+              <div class="text-muted small mb-2">Seleziona pranzo o cena per ogni giornata.</div>
+              <div id="hbCustomList"></div>
+            </div>
           </div>
 
           <div class="col-12" id="bookingNotesBox" style="display:none;">
@@ -404,6 +435,13 @@ if ($pianoSel === 0 && $edificioSel > 0) {
             <div class="services-card">
               <div id="servicesContainer" class="services-grid"></div>
               <div id="servicesEmpty" class="text-muted small d-none">Nessun servizio attivo disponibile.</div>
+            </div>
+          </div>
+
+          <div class="col-12">
+            <label class="form-label small">Anteprima costi</label>
+            <div class="price-preview-card" id="pricePreviewBox">
+              <div id="pricePreviewBody" class="text-muted small">Seleziona camera e date per vedere il totale.</div>
             </div>
           </div>
         </form>
@@ -473,17 +511,20 @@ if ($pianoSel === 0 && $edificioSel > 0) {
     const bookingCheckout = document.getElementById('bookingCheckout');
     const bookingPasto = document.getElementById('bookingPasto');
     const bookingTipologia = document.getElementById('bookingTipologia');
+    const bookingHousekeeping = document.getElementById('bookingHousekeeping');
     const hbBox = document.getElementById('hbBox');
-    const hbDaBox = document.getElementById('hbDaBox');
-    const hbABBox = document.getElementById('hbABBox');
+    const hbCustomBox = document.getElementById('hbCustomBox');
+    const hbCustomList = document.getElementById('hbCustomList');
+    const hbModeAll = document.getElementById('hbModeAll');
+    const hbModeCustom = document.getElementById('hbModeCustom');
     const bookingHb = document.getElementById('bookingHb');
-    const bookingHbDa = document.getElementById('bookingHbDa');
-    const bookingHbA = document.getElementById('bookingHbA');
+    const bookingHbDettagli = document.getElementById('bookingHbDettagli');
     const bookingNotesBox = document.getElementById('bookingNotesBox');
     const bookingNote = document.getElementById('bookingNote');
     const servicesContainer = document.getElementById('servicesContainer');
     const servicesEmpty = document.getElementById('servicesEmpty');
     const saveBookingBtn = document.getElementById('saveBookingBtn');
+    const pricePreviewBody = document.getElementById('pricePreviewBody');
     const guestsContainer = document.getElementById('guestsContainer');
     const guestsEmpty = document.getElementById('guestsEmpty');
     const addGuestBtn = document.getElementById('addGuestBtn');
@@ -645,27 +686,76 @@ if ($pianoSel === 0 && $edificioSel > 0) {
       }
     }
 
-    function applyHbDateBounds() {
-      if (!bookingCheckin.value || !bookingCheckout.value) return;
-      bookingHbDa.min = bookingCheckin.value;
-      bookingHbA.min = bookingCheckin.value;
-      bookingHbDa.max = bookingCheckout.value;
-      bookingHbA.max = bookingCheckout.value;
+    function formatCurrency(amount) {
+      if (amount === null || amount === undefined || Number.isNaN(amount)) return '—';
+      return new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(amount);
+    }
+
+    function getHbMode() {
+      return hbModeCustom?.checked ? 'personalizzato' : 'tutte';
+    }
+
+    function buildHbCustomList(details = {}) {
+      hbCustomList.innerHTML = '';
+      if (!bookingCheckin.value || !bookingCheckout.value) {
+        hbCustomList.innerHTML = '<div class="text-muted small">Imposta check-in e check-out per personalizzare HB.</div>';
+        return;
+      }
+      const days = [];
+      let current = bookingCheckin.value;
+      while (current < bookingCheckout.value) {
+        days.push(current);
+        current = addDaysYMD(current, 1);
+      }
+      if (!days.length) {
+        hbCustomList.innerHTML = '<div class="text-muted small">Intervallo non valido.</div>';
+        return;
+      }
+      days.forEach(day => {
+        const row = document.createElement('div');
+        row.className = 'row g-2 align-items-center mb-2';
+        row.dataset.hbDate = day;
+        row.innerHTML = `
+          <div class="col-4 col-md-3 text-muted small">${day}</div>
+          <div class="col-8 col-md-4">
+            <select class="form-select form-select-sm hb-day-select">
+              <option value="">—</option>
+              <option value="PRANZO">Pranzo</option>
+              <option value="CENA">Cena</option>
+            </select>
+          </div>
+        `;
+        const select = row.querySelector('select');
+        if (details && details[day]) select.value = details[day];
+        hbCustomList.appendChild(row);
+      });
+    }
+
+    function collectHbCustomDetails() {
+      const details = {};
+      hbCustomList.querySelectorAll('[data-hb-date]').forEach(row => {
+        const date = row.dataset.hbDate;
+        const val = row.querySelector('select')?.value || '';
+        if (date && val) details[date] = val;
+      });
+      return details;
     }
 
     function toggleHbFields() {
       const show = bookingPasto.value === 'HB';
       hbBox.style.display = show ? '' : 'none';
-      hbDaBox.style.display = show ? '' : 'none';
-      hbABBox.style.display = show ? '' : 'none';
+      hbCustomBox.style.display = show && getHbMode() === 'personalizzato' ? '' : 'none';
+      bookingHb.style.display = show && getHbMode() === 'tutte' ? '' : 'none';
       if (!show) {
         bookingHb.value = '';
-        bookingHbDa.value = '';
-        bookingHbA.value = '';
-        bookingHbDa.required = false;
+        bookingHbDettagli.value = '';
+        bookingHb.required = false;
+      } else if (getHbMode() === 'personalizzato') {
+        bookingHb.value = '';
+        bookingHb.required = false;
+        buildHbCustomList(bookingHbDettagli.value ? JSON.parse(bookingHbDettagli.value) : {});
       } else {
-        applyHbDateBounds();
-        bookingHbDa.required = true;
+        bookingHb.required = true;
       }
     }
 
@@ -738,9 +828,19 @@ if ($pianoSel === 0 && $edificioSel > 0) {
       if (checkin) bookingCheckin.value = checkin;
       if (booking?.pasto) bookingPasto.value = booking.pasto;
       if (booking?.tipologia_camera) bookingTipologia.value = booking.tipologia_camera;
+      if (booking?.housekeeping !== undefined && booking?.housekeeping !== null) {
+        bookingHousekeeping.value = booking.housekeeping;
+      } else {
+        bookingHousekeeping.value = 1;
+      }
       if (booking?.hb_servizio) bookingHb.value = booking.hb_servizio;
-      if (booking?.hb_da) bookingHbDa.value = booking.hb_da;
-      if (booking?.hb_a) bookingHbA.value = booking.hb_a;
+      if (booking?.hb_dettagli) {
+        bookingHbDettagli.value = booking.hb_dettagli;
+        hbModeCustom.checked = true;
+      } else {
+        bookingHbDettagli.value = '';
+        hbModeAll.checked = true;
+      }
       if (booking?.note) bookingNote.value = booking.note;
 
       if (booking?.servizi) {
@@ -750,7 +850,6 @@ if ($pianoSel === 0 && $edificioSel > 0) {
       }
       toggleHbFields();
       toggleNotesField();
-      applyHbDateBounds();
 
       if (currentBookingId) {
         if (checkout) bookingCheckout.value = checkout;
@@ -769,6 +868,7 @@ if ($pianoSel === 0 && $edificioSel > 0) {
       guestSearchResults.classList.add('d-none');
       const modal = new bootstrap.Modal(bookingModalEl);
       modal.show();
+      updatePricePreview();
     }
 
     function renderGuestCard(guest, isNew = false) {
@@ -786,6 +886,7 @@ if ($pianoSel === 0 && $edificioSel > 0) {
       card.className = 'guest-card';
       card.dataset.new = isNew ? '1' : '0';
       if (guest.id) card.dataset.guestId = guest.id;
+      const shouldShowSave = !isNew && !!guest.id;
       card.innerHTML = `
         <div class="guest-title mb-2">${escapeHtml(guest.nome || '')} ${escapeHtml(guest.cognome || '')}</div>
         <div class="row g-2">
@@ -838,9 +939,11 @@ if ($pianoSel === 0 && $edificioSel > 0) {
           <button class="btn btn-outline-secondary btn-sm guest-remove js-remove-guest" type="button">
             <i class="bi bi-x-lg"></i> Chiudi
           </button>
-          <button class="btn btn-outline-primary btn-sm js-save-guest" ${idAttr}>
-            <i class="bi bi-save"></i> ${isNew ? 'Crea ospite' : 'Salva ospite'}
-          </button>
+          ${shouldShowSave ? `
+            <button class="btn btn-outline-primary btn-sm js-save-guest" ${idAttr}>
+              <i class="bi bi-save"></i> Salva ospite
+            </button>
+          ` : ''}
         </div>
       `;
       guestsContainer.appendChild(card);
@@ -889,6 +992,24 @@ if ($pianoSel === 0 && $edificioSel > 0) {
 
     async function saveBooking(ev) {
       ev?.preventDefault();
+
+      if (bookingPasto.value === 'HB' && getHbMode() === 'personalizzato') {
+        const details = collectHbCustomDetails();
+        const requiredDates = [];
+        let current = bookingCheckin.value;
+        while (current && bookingCheckout.value && current < bookingCheckout.value) {
+          requiredDates.push(current);
+          current = addDaysYMD(current, 1);
+        }
+        const missing = requiredDates.filter(d => !details[d]);
+        if (missing.length) {
+          showToast('Completa la scelta pranzo/cena per tutte le date HB.', 'warning');
+          return;
+        }
+        bookingHbDettagli.value = JSON.stringify(details);
+      } else {
+        bookingHbDettagli.value = '';
+      }
 
       const data = new FormData(bookingForm);
       const payload = Object.fromEntries(data.entries());
@@ -1346,6 +1467,85 @@ if ($pianoSel === 0 && $edificioSel > 0) {
       renderCalendar(data);
     }
 
+    async function updatePricePreview() {
+      if (!bookingCheckin.value || !bookingCheckout.value || !bookingCamera.value) {
+        pricePreviewBody.textContent = 'Seleziona camera e date per vedere il totale.';
+        return;
+      }
+      pricePreviewBody.textContent = 'Calcolo in corso...';
+      const payload = {
+        action: 'pricing_preview',
+        camera_id: bookingCamera.value,
+        data_checkin: bookingCheckin.value,
+        data_checkout: bookingCheckout.value,
+        tipologia_camera: bookingTipologia.value,
+        servizi: collectServicesFromUI(),
+      };
+      const res = await fetchJson('prenotazioni_ajax.php', {
+        method: 'POST',
+        body: JSON.stringify(payload)
+      });
+      if (!res.ok) {
+        pricePreviewBody.textContent = res.message || 'Errore nel calcolo dei prezzi.';
+        return;
+      }
+      const cameraTotal = res.camera?.total ?? 0;
+      const serviziTotal = res.servizi?.total ?? 0;
+      const total = res.total ?? (cameraTotal + serviziTotal);
+      const cameraRows = (res.camera?.breakdown || []).map(r => `
+        <tr>
+          <td>${r.date}</td>
+          <td class="text-end">${formatCurrency(r.price)}</td>
+        </tr>
+      `).join('') || `
+        <tr><td colspan="2" class="text-muted small">Nessuna tariffa trovata.</td></tr>
+      `;
+      const serviziRows = (res.servizi?.items || []).map(r => `
+        <tr>
+          <td>${escapeHtml(r.nome || '')} <span class="text-muted small">(${r.mode})</span></td>
+          <td class="text-end">${formatCurrency(r.price)}</td>
+        </tr>
+      `).join('') || `
+        <tr><td colspan="2" class="text-muted small">Nessun servizio selezionato.</td></tr>
+      `;
+      pricePreviewBody.innerHTML = `
+        <div class="row g-3">
+          <div class="col-12 col-lg-6">
+            <div class="fw-semibold mb-2">Camera</div>
+            <table class="table table-sm">
+              <tbody>
+                ${cameraRows}
+              </tbody>
+              <tfoot>
+                <tr>
+                  <th>Totale camera</th>
+                  <th class="text-end">${formatCurrency(cameraTotal)}</th>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+          <div class="col-12 col-lg-6">
+            <div class="fw-semibold mb-2">Servizi</div>
+            <table class="table table-sm">
+              <tbody>
+                ${serviziRows}
+              </tbody>
+              <tfoot>
+                <tr>
+                  <th>Totale servizi</th>
+                  <th class="text-end">${formatCurrency(serviziTotal)}</th>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+        <div class="border-top pt-2 mt-2 d-flex justify-content-between">
+          <strong>Totale</strong>
+          <strong>${formatCurrency(total)}</strong>
+        </div>
+      `;
+    }
+
     selEdificio?.addEventListener('change', () => {
       edificioSel = selEdificio.value || 0;
       renderPianiOptions();
@@ -1412,12 +1612,25 @@ if ($pianoSel === 0 && $edificioSel > 0) {
     // ✅ aggiorna min checkout quando cambia check-in manualmente nel modal
     bookingCheckin?.addEventListener('change', () => {
       applyCheckoutMinFromCheckin(bookingCheckin.value);
-      applyHbDateBounds();
+      if (getHbMode() === 'personalizzato') {
+        buildHbCustomList(bookingHbDettagli.value ? JSON.parse(bookingHbDettagli.value) : {});
+      }
+      updatePricePreview();
     });
-    bookingCheckout?.addEventListener('change', applyHbDateBounds);
+    bookingCheckout?.addEventListener('change', () => {
+      if (getHbMode() === 'personalizzato') {
+        buildHbCustomList(bookingHbDettagli.value ? JSON.parse(bookingHbDettagli.value) : {});
+      }
+      updatePricePreview();
+    });
+    bookingCamera?.addEventListener('change', updatePricePreview);
+    bookingTipologia?.addEventListener('change', updatePricePreview);
+    servicesContainer?.addEventListener('change', updatePricePreview);
 
     bookingPasto?.addEventListener('change', toggleHbFields);
     bookingPasto?.addEventListener('change', toggleNotesField);
+    hbModeAll?.addEventListener('change', toggleHbFields);
+    hbModeCustom?.addEventListener('change', toggleHbFields);
 
     guestsContainer.addEventListener('click', (ev) => {
       const btn = ev.target.closest('.js-save-guest');
@@ -1483,6 +1696,7 @@ if ($pianoSel === 0 && $edificioSel > 0) {
       renderServices(meta.servizi || []);
       toggleHbFields();
       toggleNotesField();
+      pricePreviewBody.textContent = 'Seleziona camera e date per vedere il totale.';
     });
 
     renderPianiOptions();
