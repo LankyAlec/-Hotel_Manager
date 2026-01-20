@@ -175,6 +175,11 @@ if ($roomIds) {
         $hasHb = column_exists($mysqli, $bookingTable, 'hb_servizio');
         $hasHbDa = column_exists($mysqli, $bookingTable, 'hb_da');
         $hasHbA = column_exists($mysqli, $bookingTable, 'hb_a');
+        $hasHousekeeping = column_exists($mysqli, $bookingTable, 'housekeeping')
+            || column_exists($mysqli, $bookingTable, 'housekeeping_qty')
+            || column_exists($mysqli, $bookingTable, 'housekeeping_qta');
+        $hasHbDettagli = column_exists($mysqli, $bookingTable, 'hb_dettagli')
+            || column_exists($mysqli, $bookingTable, 'hb_dettagli_json');
         $hasNote = column_exists($mysqli, $bookingTable, 'note');
         $hasTipoCamera = column_exists($mysqli, $bookingTable, 'tipologia_camera')
             || column_exists($mysqli, $bookingTable, 'tipo_camera')
@@ -222,6 +227,26 @@ if ($roomIds) {
         $selectHb = $hasHb ? ', b.hb_servizio' : ', NULL AS hb_servizio';
         $selectHbDa = $hasHbDa ? ', b.hb_da' : ', NULL AS hb_da';
         $selectHbA = $hasHbA ? ', b.hb_a' : ', NULL AS hb_a';
+        if ($hasHousekeeping) {
+            if (column_exists($mysqli, $bookingTable, 'housekeeping')) {
+                $selectHousekeeping = ', b.housekeeping AS housekeeping';
+            } elseif (column_exists($mysqli, $bookingTable, 'housekeeping_qty')) {
+                $selectHousekeeping = ', b.housekeeping_qty AS housekeeping';
+            } else {
+                $selectHousekeeping = ', b.housekeeping_qta AS housekeeping';
+            }
+        } else {
+            $selectHousekeeping = ', NULL AS housekeeping';
+        }
+        if ($hasHbDettagli) {
+            if (column_exists($mysqli, $bookingTable, 'hb_dettagli')) {
+                $selectHbDettagli = ', b.hb_dettagli AS hb_dettagli';
+            } else {
+                $selectHbDettagli = ', b.hb_dettagli_json AS hb_dettagli';
+            }
+        } else {
+            $selectHbDettagli = ', NULL AS hb_dettagli';
+        }
         $selectNote = $hasNote ? ', b.note' : ', NULL AS note';
         if ($hasTipoCamera) {
             if (column_exists($mysqli, $bookingTable, 'tipologia_camera')) {
@@ -252,6 +277,8 @@ if ($roomIds) {
                 {$selectHb}
                 {$selectHbDa}
                 {$selectHbA}
+                {$selectHousekeeping}
+                {$selectHbDettagli}
                 {$selectNote}
                 {$selectTipoCamera}
                 {$selectServizi}
@@ -290,6 +317,8 @@ if ($roomIds) {
                     'hb_servizio' => (string)($row['hb_servizio'] ?? ''),
                     'hb_da' => (string)($row['hb_da'] ?? ''),
                     'hb_a' => (string)($row['hb_a'] ?? ''),
+                    'housekeeping' => $row['housekeeping'] !== null ? (int)$row['housekeeping'] : null,
+                    'hb_dettagli' => (string)($row['hb_dettagli'] ?? ''),
                     'note' => (string)($row['note'] ?? ''),
                     'tipologia_camera' => (string)($row['tipologia_camera'] ?? ''),
                     'servizi' => $serviziParsed,
