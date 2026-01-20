@@ -28,6 +28,12 @@ $checkout = !empty($booking['data_checkout']) ? date('d/m/Y', strtotime($booking
 $ospiti = (int)($booking['ospiti'] ?? 0);
 $cameraId = (int)($booking['camera_id'] ?? 0);
 $pasto = $booking['piano_pasto_sigla'] ?? '';
+$hbServizio = $booking['hb_servizio'] ?? '';
+$hbDa = $booking['hb_da'] ?? '';
+$hbA = $booking['hb_a'] ?? '';
+$tipologiaCamera = $booking['tipologia_camera'] ?? ($booking['tipo_camera'] ?? ($booking['camera_tipo'] ?? ''));
+$noteSoggiorno = $booking['note'] ?? '';
+$showNote = in_array($pasto, ['HB', 'FB'], true);
 ?>
 
 <div class="d-flex align-items-center justify-content-between mb-4">
@@ -66,6 +72,10 @@ $pasto = $booking['piano_pasto_sigla'] ?? '';
                         <div class="fw-semibold"><?= $cameraId > 0 ? 'Camera #' . (int)$cameraId : '—' ?></div>
                     </div>
                     <div class="col-md-6">
+                        <div class="text-secondary text-uppercase small">Tipologia camera</div>
+                        <div class="fw-semibold"><?= $tipologiaCamera !== '' ? h((string)$tipologiaCamera) : '—' ?></div>
+                    </div>
+                    <div class="col-md-6">
                         <div class="text-secondary text-uppercase small">Ospiti</div>
                         <div class="fw-semibold"><?= $ospiti > 0 ? (int)$ospiti : '—' ?></div>
                     </div>
@@ -73,14 +83,30 @@ $pasto = $booking['piano_pasto_sigla'] ?? '';
                         <div class="text-secondary text-uppercase small">Piano pasto</div>
                         <div class="fw-semibold"><?= $pasto !== '' ? h(strtoupper($pasto)) : '—' ?></div>
                     </div>
+                    <?php if ($pasto === 'HB'): ?>
+                        <div class="col-md-6">
+                            <div class="text-secondary text-uppercase small">HB: tipo pasto</div>
+                            <div class="fw-semibold"><?= $hbServizio !== '' ? h($hbServizio) : '—' ?></div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="text-secondary text-uppercase small">HB: data pasto</div>
+                            <div class="fw-semibold"><?= $hbDa !== '' ? h(date('d/m/Y', strtotime($hbDa))) : '—' ?></div>
+                        </div>
+                        <?php if (!empty($hbA)): ?>
+                            <div class="col-md-6">
+                                <div class="text-secondary text-uppercase small">HB: ripeti fino al</div>
+                                <div class="fw-semibold"><?= h(date('d/m/Y', strtotime($hbA))) ?></div>
+                            </div>
+                        <?php endif; ?>
+                    <?php endif; ?>
                     <div class="col-md-6">
                         <div class="text-secondary text-uppercase small">Stato</div>
                         <div class="fw-semibold"><?= render_booking_badge($booking) ?></div>
                     </div>
-                    <?php if (!empty($booking['note'])): ?>
+                    <?php if ($showNote): ?>
                         <div class="col-12">
-                            <div class="text-secondary text-uppercase small">Note</div>
-                            <div class="fw-semibold"><?= h((string)$booking['note']) ?></div>
+                            <div class="text-secondary text-uppercase small">Note soggiorno</div>
+                            <div class="fw-semibold"><?= $noteSoggiorno !== '' ? h((string)$noteSoggiorno) : '—' ?></div>
                         </div>
                     <?php endif; ?>
                 </div>

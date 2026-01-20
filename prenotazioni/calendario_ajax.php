@@ -175,6 +175,10 @@ if ($roomIds) {
         $hasHb = column_exists($mysqli, $bookingTable, 'hb_servizio');
         $hasHbDa = column_exists($mysqli, $bookingTable, 'hb_da');
         $hasHbA = column_exists($mysqli, $bookingTable, 'hb_a');
+        $hasNote = column_exists($mysqli, $bookingTable, 'note');
+        $hasTipoCamera = column_exists($mysqli, $bookingTable, 'tipologia_camera')
+            || column_exists($mysqli, $bookingTable, 'tipo_camera')
+            || column_exists($mysqli, $bookingTable, 'camera_tipo');
 
         $selectCodice = $hasCodice ? ', b.codice' : ', NULL AS codice';
         $selectStato  = $hasStato  ? ', b.stato'  : ', NULL AS stato';
@@ -218,6 +222,18 @@ if ($roomIds) {
         $selectHb = $hasHb ? ', b.hb_servizio' : ', NULL AS hb_servizio';
         $selectHbDa = $hasHbDa ? ', b.hb_da' : ', NULL AS hb_da';
         $selectHbA = $hasHbA ? ', b.hb_a' : ', NULL AS hb_a';
+        $selectNote = $hasNote ? ', b.note' : ', NULL AS note';
+        if ($hasTipoCamera) {
+            if (column_exists($mysqli, $bookingTable, 'tipologia_camera')) {
+                $selectTipoCamera = ', b.tipologia_camera AS tipologia_camera';
+            } elseif (column_exists($mysqli, $bookingTable, 'tipo_camera')) {
+                $selectTipoCamera = ', b.tipo_camera AS tipologia_camera';
+            } else {
+                $selectTipoCamera = ', b.camera_tipo AS tipologia_camera';
+            }
+        } else {
+            $selectTipoCamera = ', NULL AS tipologia_camera';
+        }
         if (column_exists($mysqli, $bookingTable, 'servizi_json')) {
             $selectServizi = ', b.servizi_json';
         } elseif (column_exists($mysqli, $bookingTable, 'servizi')) {
@@ -236,6 +252,8 @@ if ($roomIds) {
                 {$selectHb}
                 {$selectHbDa}
                 {$selectHbA}
+                {$selectNote}
+                {$selectTipoCamera}
                 {$selectServizi}
             FROM {$bookingTable} b
             WHERE b.camera_id IN ({$ph})
@@ -272,6 +290,8 @@ if ($roomIds) {
                     'hb_servizio' => (string)($row['hb_servizio'] ?? ''),
                     'hb_da' => (string)($row['hb_da'] ?? ''),
                     'hb_a' => (string)($row['hb_a'] ?? ''),
+                    'note' => (string)($row['note'] ?? ''),
+                    'tipologia_camera' => (string)($row['tipologia_camera'] ?? ''),
                     'servizi' => $serviziParsed,
                 ];
             }

@@ -79,19 +79,54 @@ function get_servizi_column(mysqli $db): ?string {
     return null;
 }
 
+function get_tipologia_camera_column(mysqli $db): ?string {
+    if (column_exists($db, 'soggiorni', 'tipologia_camera')) return 'tipologia_camera';
+    if (column_exists($db, 'soggiorni', 'tipo_camera')) return 'tipo_camera';
+    if (column_exists($db, 'soggiorni', 'camera_tipo')) return 'camera_tipo';
+    return null;
+}
+
 function get_servizi(mysqli $db): array {
     if (!table_exists($db, 'servizi')) return [];
     $hasAttivo = column_exists($db, 'servizi', 'attivo');
     $hasParent = column_exists($db, 'servizi', 'parent_id');
     $where = [];
     if ($hasAttivo) $where[] = 'attivo = 1';
-    if ($hasParent) $where[] = 'parent_id IS NULL';
-    $sql = "SELECT id, nome FROM servizi";
+    $sql = "SELECT id, nome" . ($hasParent ? ", parent_id" : ", NULL AS parent_id") . " FROM servizi";
     if ($where) $sql .= " WHERE " . implode(' AND ', $where);
-    $sql .= " ORDER BY nome ASC";
+    $sql .= " ORDER BY " . ($hasParent ? "parent_id ASC, nome ASC" : "nome ASC");
     $res = $db->query($sql);
     if (!$res) return [];
-    return $res->fetch_all(MYSQLI_ASSOC);
+    $rows = $res->fetch_all(MYSQLI_ASSOC);
+    if (!$hasParent) {
+        return $rows;
+    }
+
+    $byParent = [];
+    foreach ($rows as $row) {
+        $parentId = $row['parent_id'];
+        if ($parentId === null) {
+            $byParent[(int)$row['id']] = [
+                'id' => (int)$row['id'],
+                'nome' => (string)$row['nome'],
+                'children' => [],
+            ];
+        } else {
+            $byParent['children:' . (int)$parentId][] = [
+                'id' => (int)$row['id'],
+                'nome' => (string)$row['nome'],
+            ];
+        }
+    }
+
+    foreach ($byParent as $key => $value) {
+        if (strpos((string)$key, 'children:') === 0) continue;
+        $childrenKey = 'children:' . (int)$value['id'];
+        $byParent[$key]['children'] = $byParent[$childrenKey] ?? [];
+        unset($byParent[$childrenKey]);
+    }
+
+    return array_values(array_filter($byParent, fn($item) => is_array($item) && array_key_exists('id', $item)));
 }
 
 function is_range_available(mysqli $db, int $cameraId, string $checkin, string $checkout, ?int $excludeId = null): bool {
@@ -165,6 +200,8 @@ function list_bookings(mysqli $db): void {
     $selectLead = column_exists($db, 'soggiorni', 'referente') ? ', s.referente' : '';
     $selectPasto = column_exists($db, 'soggiorni', 'piano_pasto_sigla') ? ', s.piano_pasto_sigla' : '';
     $selectHb = column_exists($db, 'soggiorni', 'hb_servizio') ? ', s.hb_servizio' : '';
+    $tipoCameraCol = get_tipologia_camera_column($db);
+    $selectTipoCamera = $tipoCameraCol ? ", s.{$tipoCameraCol}" : '';
 
     $sql = "
         SELECT
@@ -177,6 +214,7 @@ function list_bookings(mysqli $db): void {
             $selectLead
             $selectPasto
             $selectHb
+            $selectTipoCamera
         FROM soggiorni s
         ORDER BY s.data_checkin DESC
         LIMIT 200
@@ -231,6 +269,7 @@ function list_bookings(mysqli $db): void {
             'referente' => $row['referente'] ?? $firstGuest,
             'pasto' => $row['piano_pasto_sigla'] ?? '',
             'hb' => $row['hb_servizio'] ?? '',
+            'tipologia_camera' => $tipoCameraCol ? ($row[$tipoCameraCol] ?? '') : '',
             'ospiti' => $guestsCount,
         ];
     }
@@ -297,6 +336,7 @@ function save_booking(mysqli $db, array $payload): void {
 
     $pasto = $payload['piano_pasto_sigla'] ?? null;
     $hb = $payload['hb_servizio'] ?? null;
+    $tipologiaCamera = $payload['tipologia_camera'] ?? null;
     $serviziProvided = array_key_exists('servizi', $payload);
     $servizi = normalize_servizi($payload['servizi'] ?? null);
     $serviziCol = get_servizi_column($db);
@@ -320,6 +360,9 @@ function save_booking(mysqli $db, array $payload): void {
     if ($pasto !== null && $pasto !== '' && $pasto === 'HB') {
         if (!in_array((string)$hb, ['PRANZO','CENA'], true)) {
             json_response(false, 'Per HB devi specificare PRANZO o CENA', ['toast' => ['variant' => 'warning']]);
+        }
+        if (!$hb_da) {
+            json_response(false, 'Per HB devi specificare la data del pasto', ['toast' => ['variant' => 'warning']]);
         }
         // se ci sono hb_da/hb_a e arrivano, verifico coerenza
         if ($hb_da && $hb_a && $hb_da > $hb_a) {
@@ -356,6 +399,10 @@ function save_booking(mysqli $db, array $payload): void {
     if ($note !== null && column_exists($db, 'soggiorni', 'note')) { $fields[] = 'note = ?'; $values[] = $note; $types .= 's'; }
     if ($pasto !== null && column_exists($db, 'soggiorni', 'piano_pasto_sigla')) { $fields[] = 'piano_pasto_sigla = ?'; $values[] = $pasto; $types .= 's'; }
     if ($hb !== null && column_exists($db, 'soggiorni', 'hb_servizio')) { $fields[] = 'hb_servizio = ?'; $values[] = $hb; $types .= 's'; }
+    if ($tipologiaCamera !== null) {
+        $tipoCameraCol = get_tipologia_camera_column($db);
+        if ($tipoCameraCol) { $fields[] = "{$tipoCameraCol} = ?"; $values[] = $tipologiaCamera; $types .= 's'; }
+    }
 
     if ($hb_da !== null && column_exists($db, 'soggiorni', 'hb_da')) { $fields[] = 'hb_da = ?'; $values[] = $hb_da; $types .= 's'; }
     if ($hb_a !== null && column_exists($db, 'soggiorni', 'hb_a')) { $fields[] = 'hb_a = ?'; $values[] = $hb_a; $types .= 's'; }
@@ -402,6 +449,12 @@ function save_booking(mysqli $db, array $payload): void {
     }
     if ($hb !== null && column_exists($db, 'soggiorni', 'hb_servizio')) {
         $columns[] = 'hb_servizio'; $placeholders[] = '?'; $insertTypes .= 's'; $insertValues[] = $hb;
+    }
+    if ($tipologiaCamera !== null) {
+        $tipoCameraCol = get_tipologia_camera_column($db);
+        if ($tipoCameraCol) {
+            $columns[] = $tipoCameraCol; $placeholders[] = '?'; $insertTypes .= 's'; $insertValues[] = $tipologiaCamera;
+        }
     }
     if ($hb_da !== null && column_exists($db, 'soggiorni', 'hb_da')) {
         $columns[] = 'hb_da'; $placeholders[] = '?'; $insertTypes .= 's'; $insertValues[] = $hb_da;

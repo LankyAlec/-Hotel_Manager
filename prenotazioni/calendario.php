@@ -242,11 +242,32 @@ if ($pianoSel === 0 && $edificioSel > 0) {
   }
   .services-grid{
     display:grid;
-    grid-template-columns: 1fr auto;
-    gap:8px 12px;
-    align-items:center;
+    gap:12px;
   }
-  .services-grid .service-name{ font-weight:600; }
+  .service-row{
+    border:1px solid rgba(0,0,0,.08);
+    border-radius:12px;
+    padding:12px;
+    background:#f8f9fa;
+  }
+  .service-row .service-header{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:12px;
+  }
+  .service-row .service-name{ font-weight:600; }
+  .service-row .service-children{
+    display:flex;
+    flex-wrap:wrap;
+    gap:6px;
+    margin-top:8px;
+  }
+  .service-row .service-children .badge{
+    background:#fff;
+    border:1px solid rgba(0,0,0,.08);
+    color:#495057;
+  }
 </style>
 
 <div class="container-fluid">
@@ -340,9 +361,22 @@ if ($pianoSel === 0 && $edificioSel > 0) {
               <option value="FB">FB</option>
             </select>
           </div>
+          <div class="col-12 col-md-4">
+            <label class="form-label small">Tipologia camera</label>
+            <select class="form-select" name="tipologia_camera" id="bookingTipologia">
+              <option value="">—</option>
+              <option value="Singola">Singola</option>
+              <option value="Doppia">Doppia</option>
+              <option value="Matrimoniale">Matrimoniale</option>
+              <option value="Tripla">Tripla</option>
+              <option value="Quadrupla">Quadrupla</option>
+              <option value="Family">Family</option>
+              <option value="Suite">Suite</option>
+            </select>
+          </div>
 
           <div class="col-12 col-md-4" id="hbBox" style="display:none;">
-            <label class="form-label small">HB: servizio</label>
+            <label class="form-label small">HB: tipo pasto</label>
             <select class="form-select" name="hb_servizio" id="bookingHb">
               <option value="">—</option>
               <option value="PRANZO">Pranzo</option>
@@ -351,13 +385,18 @@ if ($pianoSel === 0 && $edificioSel > 0) {
           </div>
 
           <div class="col-6 col-md-2" id="hbDaBox" style="display:none;">
-            <label class="form-label small">HB: data</label>
+            <label class="form-label small">HB: data pasto</label>
             <input type="date" class="form-control" name="hb_da" id="bookingHbDa">
           </div>
 
           <div class="col-6 col-md-2" id="hbABBox" style="display:none;">
-            <label class="form-label small">HB: fino al</label>
+            <label class="form-label small">HB: ripeti fino al</label>
             <input type="date" class="form-control" name="hb_a" id="bookingHbA">
+          </div>
+
+          <div class="col-12" id="bookingNotesBox" style="display:none;">
+            <label class="form-label small">Note soggiorno (HB/FB)</label>
+            <textarea class="form-control" name="note" id="bookingNote" rows="2" placeholder="Note per il servizio pasti o richieste specifiche"></textarea>
           </div>
 
           <div class="col-12">
@@ -433,12 +472,15 @@ if ($pianoSel === 0 && $edificioSel > 0) {
     const bookingCheckin = document.getElementById('bookingCheckin');
     const bookingCheckout = document.getElementById('bookingCheckout');
     const bookingPasto = document.getElementById('bookingPasto');
+    const bookingTipologia = document.getElementById('bookingTipologia');
     const hbBox = document.getElementById('hbBox');
     const hbDaBox = document.getElementById('hbDaBox');
     const hbABBox = document.getElementById('hbABBox');
     const bookingHb = document.getElementById('bookingHb');
     const bookingHbDa = document.getElementById('bookingHbDa');
     const bookingHbA = document.getElementById('bookingHbA');
+    const bookingNotesBox = document.getElementById('bookingNotesBox');
+    const bookingNote = document.getElementById('bookingNote');
     const servicesContainer = document.getElementById('servicesContainer');
     const servicesEmpty = document.getElementById('servicesEmpty');
     const saveBookingBtn = document.getElementById('saveBookingBtn');
@@ -620,8 +662,18 @@ if ($pianoSel === 0 && $edificioSel > 0) {
         bookingHb.value = '';
         bookingHbDa.value = '';
         bookingHbA.value = '';
+        bookingHbDa.required = false;
       } else {
         applyHbDateBounds();
+        bookingHbDa.required = true;
+      }
+    }
+
+    function toggleNotesField() {
+      const show = bookingPasto.value === 'HB' || bookingPasto.value === 'FB';
+      bookingNotesBox.style.display = show ? '' : 'none';
+      if (!show) {
+        bookingNote.value = '';
       }
     }
 
@@ -634,15 +686,21 @@ if ($pianoSel === 0 && $edificioSel > 0) {
       servicesEmpty.classList.add('d-none');
       list.forEach(service => {
         const row = document.createElement('div');
-        row.className = 'service-row d-flex align-items-center justify-content-between gap-2';
+        row.className = 'service-row';
         row.dataset.serviceId = service.id;
+        const children = (service.children || []).map(child => `
+          <span class="badge rounded-pill">${escapeHtml(child.nome || '')}</span>
+        `).join('');
         row.innerHTML = `
-          <div class="service-name">${escapeHtml(service.nome || '')}</div>
-          <select class="form-select form-select-sm service-mode" style="max-width:160px;">
-            <option value="">—</option>
-            <option value="INCLUSO">Incluso</option>
-            <option value="EXTRA">Extra</option>
-          </select>
+          <div class="service-header">
+            <div class="service-name">${escapeHtml(service.nome || '')}</div>
+            <select class="form-select form-select-sm service-mode" style="max-width:160px;">
+              <option value="">—</option>
+              <option value="INCLUSO">Incluso</option>
+              <option value="EXTRA">Extra</option>
+            </select>
+          </div>
+          ${children ? `<div class="service-children">${children}</div>` : ''}
         `;
         servicesContainer.appendChild(row);
       });
@@ -679,9 +737,11 @@ if ($pianoSel === 0 && $edificioSel > 0) {
 
       if (checkin) bookingCheckin.value = checkin;
       if (booking?.pasto) bookingPasto.value = booking.pasto;
+      if (booking?.tipologia_camera) bookingTipologia.value = booking.tipologia_camera;
       if (booking?.hb_servizio) bookingHb.value = booking.hb_servizio;
       if (booking?.hb_da) bookingHbDa.value = booking.hb_da;
       if (booking?.hb_a) bookingHbA.value = booking.hb_a;
+      if (booking?.note) bookingNote.value = booking.note;
 
       if (booking?.servizi) {
         setServicesSelection(booking.servizi);
@@ -689,6 +749,7 @@ if ($pianoSel === 0 && $edificioSel > 0) {
         setServicesSelection([]);
       }
       toggleHbFields();
+      toggleNotesField();
       applyHbDateBounds();
 
       if (currentBookingId) {
@@ -712,6 +773,15 @@ if ($pianoSel === 0 && $edificioSel > 0) {
 
     function renderGuestCard(guest, isNew = false) {
       const idAttr = guest.id ? `data-cliente="${guest.id}"` : '';
+      const docValue = (guest.documento_tipo || '').toString().toUpperCase();
+      const docOptions = ['CARTA D\'IDENTITÀ', 'PATENTE', 'PASSAPORTO'];
+      const docList = docOptions.map(opt => {
+        const selected = docValue === opt ? 'selected' : '';
+        return `<option value="${opt}" ${selected}>${opt}</option>`;
+      }).join('');
+      const customOption = docValue && !docOptions.includes(docValue)
+        ? `<option value="${escapeHtml(docValue)}" selected>${escapeHtml(docValue)}</option>`
+        : '';
       const card = document.createElement('div');
       card.className = 'guest-card';
       card.dataset.new = isNew ? '1' : '0';
@@ -741,7 +811,11 @@ if ($pianoSel === 0 && $edificioSel > 0) {
           </div>
           <div class="col-6 col-md-3">
             <label class="form-label small">Tipo documento <span class="required">*</span></label>
-            <input class="form-control form-control-sm" name="documento_tipo" value="${escapeHtml(guest.documento_tipo ?? '')}" required>
+            <select class="form-select form-select-sm" name="documento_tipo" required>
+              <option value="">—</option>
+              ${customOption}
+              ${docList}
+            </select>
           </div>
           <div class="col-6 col-md-3">
             <label class="form-label small">N° Documento <span class="required">*</span></label>
@@ -1343,6 +1417,7 @@ if ($pianoSel === 0 && $edificioSel > 0) {
     bookingCheckout?.addEventListener('change', applyHbDateBounds);
 
     bookingPasto?.addEventListener('change', toggleHbFields);
+    bookingPasto?.addEventListener('change', toggleNotesField);
 
     guestsContainer.addEventListener('click', (ev) => {
       const btn = ev.target.closest('.js-save-guest');
@@ -1407,6 +1482,7 @@ if ($pianoSel === 0 && $edificioSel > 0) {
       bookingCheckout.min = '';
       renderServices(meta.servizi || []);
       toggleHbFields();
+      toggleNotesField();
     });
 
     renderPianiOptions();
