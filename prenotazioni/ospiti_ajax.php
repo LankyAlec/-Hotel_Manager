@@ -295,6 +295,15 @@ function attach_guest(mysqli $db, int $soggiornoId, int $guestId): void {
     json_response(true, 'Ospite associato (clonato)', ['toast' => ['variant' => 'success'], 'guest_id' => $stmt2->insert_id]);
 }
 
+function delete_guest(mysqli $db, int $soggiornoId, int $guestId): void {
+    assert_guest_belongs($db, $soggiornoId, $guestId);
+    $stmt = $db->prepare("DELETE FROM soggiorni_clienti WHERE id = ? AND soggiorno_id = ? LIMIT 1");
+    if (!$stmt) json_response(false, 'Errore DB: ' . $db->error, [], 500);
+    $stmt->bind_param('ii', $guestId, $soggiornoId);
+    $stmt->execute();
+    json_response(true, 'Ospite rimosso', ['toast' => ['variant' => 'success']]);
+}
+
 $payload = get_payload();
 $action = strtolower((string)($payload['action'] ?? $_GET['action'] ?? ''));
 
@@ -328,6 +337,13 @@ switch ($action) {
         $guestId = (int)($payload['cliente_id'] ?? 0); // compat
         if ($soggiornoId <= 0 || $guestId <= 0) json_response(false, 'Parametri mancanti');
         attach_guest($mysqli, $soggiornoId, $guestId);
+        break;
+
+    case 'delete_guest':
+        $soggiornoId = (int)($payload['soggiorno_id'] ?? 0);
+        $guestId = (int)($payload['cliente_id'] ?? 0);
+        if ($soggiornoId <= 0 || $guestId <= 0) json_response(false, 'Parametri mancanti');
+        delete_guest($mysqli, $soggiornoId, $guestId);
         break;
 
     default:

@@ -218,8 +218,35 @@ if ($pianoSel === 0 && $edificioSel > 0) {
 
   .guest-card{ border:1px solid rgba(0,0,0,.08); border-radius:12px; padding:12px; margin-bottom:12px; }
   .guest-card .guest-title{ font-weight:600; }
-  .guest-card .guest-actions{ display:flex; justify-content:flex-end; }
-  .guest-search-results{ max-height:200px; overflow:auto; border:1px solid rgba(0,0,0,.08); border-radius:8px; }
+  .guest-card .guest-actions{ display:flex; justify-content:space-between; align-items:center; gap:8px; }
+  .guest-card .guest-remove{ color:#6c757d; }
+  .guest-search-card{
+    border:1px solid rgba(0,0,0,.08);
+    border-radius:12px;
+    background:#f8f9fa;
+    padding:12px;
+  }
+  .guest-search-results{
+    max-height:220px;
+    overflow:auto;
+    border:1px solid rgba(0,0,0,.08);
+    border-radius:10px;
+    background:#fff;
+  }
+  .guest-search-results .result-row:hover{ background:#f1f3f5; }
+  .services-card{
+    border:1px solid rgba(0,0,0,.08);
+    border-radius:12px;
+    padding:12px;
+    background:#fff;
+  }
+  .services-grid{
+    display:grid;
+    grid-template-columns: 1fr auto;
+    gap:8px 12px;
+    align-items:center;
+  }
+  .services-grid .service-name{ font-weight:600; }
 </style>
 
 <div class="container-fluid">
@@ -324,15 +351,22 @@ if ($pianoSel === 0 && $edificioSel > 0) {
           </div>
 
           <div class="col-6 col-md-2" id="hbDaBox" style="display:none;">
-            <label class="form-label small">HB da</label>
+            <label class="form-label small">HB: data</label>
             <input type="date" class="form-control" name="hb_da" id="bookingHbDa">
           </div>
 
           <div class="col-6 col-md-2" id="hbABBox" style="display:none;">
-            <label class="form-label small">HB a</label>
+            <label class="form-label small">HB: fino al</label>
             <input type="date" class="form-control" name="hb_a" id="bookingHbA">
           </div>
 
+          <div class="col-12">
+            <label class="form-label small">Servizi</label>
+            <div class="services-card">
+              <div id="servicesContainer" class="services-grid"></div>
+              <div id="servicesEmpty" class="text-muted small d-none">Nessun servizio attivo disponibile.</div>
+            </div>
+          </div>
         </form>
 
         <div class="border-top pt-3 mt-3">
@@ -348,19 +382,20 @@ if ($pianoSel === 0 && $edificioSel > 0) {
             </div>
           </div>
 
-          <div class="row g-2 align-items-end mb-3">
-            <div class="col-12 col-md-6">
-              <label class="form-label small">Ricerca ospite già registrato</label>
-              <input class="form-control form-control-sm" id="guestSearchInput" placeholder="Nome, cognome, documento o email">
+          <div class="guest-search-card mb-3">
+            <div class="row g-2 align-items-end">
+              <div class="col-12 col-md-8">
+                <label class="form-label small">Ricerca ospite già registrato</label>
+                <input class="form-control form-control-sm" id="guestSearchInput" placeholder="Nome, cognome, documento o email">
+              </div>
+              <div class="col-12 col-md-4">
+                <button class="btn btn-outline-primary btn-sm w-100" type="button" id="guestSearchBtn">
+                  <i class="bi bi-search"></i> Cerca
+                </button>
+              </div>
             </div>
-            <div class="col-12 col-md-3">
-              <button class="btn btn-outline-primary btn-sm w-100" type="button" id="guestSearchBtn">
-                <i class="bi bi-search"></i> Cerca
-              </button>
-            </div>
+            <div id="guestSearchResults" class="guest-search-results mt-2 d-none"></div>
           </div>
-
-          <div id="guestSearchResults" class="guest-search-results mb-3 d-none"></div>
           <div id="guestsContainer"></div>
           <div id="guestsEmpty" class="text-muted small d-none">
             Inserisci almeno 1 ospite (nome e cognome) prima di salvare la prenotazione.
@@ -397,6 +432,15 @@ if ($pianoSel === 0 && $edificioSel > 0) {
     const bookingCameraLabel = document.getElementById('bookingCameraLabel');
     const bookingCheckin = document.getElementById('bookingCheckin');
     const bookingCheckout = document.getElementById('bookingCheckout');
+    const bookingPasto = document.getElementById('bookingPasto');
+    const hbBox = document.getElementById('hbBox');
+    const hbDaBox = document.getElementById('hbDaBox');
+    const hbABBox = document.getElementById('hbABBox');
+    const bookingHb = document.getElementById('bookingHb');
+    const bookingHbDa = document.getElementById('bookingHbDa');
+    const bookingHbA = document.getElementById('bookingHbA');
+    const servicesContainer = document.getElementById('servicesContainer');
+    const servicesEmpty = document.getElementById('servicesEmpty');
     const saveBookingBtn = document.getElementById('saveBookingBtn');
     const guestsContainer = document.getElementById('guestsContainer');
     const guestsEmpty = document.getElementById('guestsEmpty');
@@ -532,6 +576,7 @@ if ($pianoSel === 0 && $edificioSel > 0) {
         if (bookingCamera.value) {
           bookingCameraLabel.value = getCameraLabel(bookingCamera.value);
         }
+        renderServices(meta.servizi || []);
       }
     }
 
@@ -558,7 +603,74 @@ if ($pianoSel === 0 && $edificioSel > 0) {
       }
     }
 
-    function openBookingModal({ bookingId = null, cameraId, checkin, checkout } = {}) {
+    function applyHbDateBounds() {
+      if (!bookingCheckin.value || !bookingCheckout.value) return;
+      bookingHbDa.min = bookingCheckin.value;
+      bookingHbA.min = bookingCheckin.value;
+      bookingHbDa.max = bookingCheckout.value;
+      bookingHbA.max = bookingCheckout.value;
+    }
+
+    function toggleHbFields() {
+      const show = bookingPasto.value === 'HB';
+      hbBox.style.display = show ? '' : 'none';
+      hbDaBox.style.display = show ? '' : 'none';
+      hbABBox.style.display = show ? '' : 'none';
+      if (!show) {
+        bookingHb.value = '';
+        bookingHbDa.value = '';
+        bookingHbA.value = '';
+      } else {
+        applyHbDateBounds();
+      }
+    }
+
+    function renderServices(list) {
+      servicesContainer.innerHTML = '';
+      if (!list || list.length === 0) {
+        servicesEmpty.classList.remove('d-none');
+        return;
+      }
+      servicesEmpty.classList.add('d-none');
+      list.forEach(service => {
+        const row = document.createElement('div');
+        row.className = 'service-row d-flex align-items-center justify-content-between gap-2';
+        row.dataset.serviceId = service.id;
+        row.innerHTML = `
+          <div class="service-name">${escapeHtml(service.nome || '')}</div>
+          <select class="form-select form-select-sm service-mode" style="max-width:160px;">
+            <option value="">—</option>
+            <option value="INCLUSO">Incluso</option>
+            <option value="EXTRA">Extra</option>
+          </select>
+        `;
+        servicesContainer.appendChild(row);
+      });
+    }
+
+    function setServicesSelection(selected) {
+      const map = new Map();
+      (selected || []).forEach(item => map.set(String(item.id), item.mode));
+      servicesContainer.querySelectorAll('.service-row').forEach(row => {
+        const id = row.dataset.serviceId;
+        const sel = row.querySelector('.service-mode');
+        sel.value = map.get(String(id)) || '';
+      });
+    }
+
+    function collectServicesFromUI() {
+      const out = [];
+      servicesContainer.querySelectorAll('.service-row').forEach(row => {
+        const id = parseInt(row.dataset.serviceId, 10);
+        const mode = row.querySelector('.service-mode')?.value || '';
+        if (id && mode) {
+          out.push({ id, mode });
+        }
+      });
+      return out;
+    }
+
+    function openBookingModal({ bookingId = null, cameraId, checkin, checkout, booking = null } = {}) {
       currentBookingId = bookingId;
       bookingIdInput.value = bookingId || '';
 
@@ -566,6 +678,18 @@ if ($pianoSel === 0 && $edificioSel > 0) {
       else setCameraSelection('');
 
       if (checkin) bookingCheckin.value = checkin;
+      if (booking?.pasto) bookingPasto.value = booking.pasto;
+      if (booking?.hb_servizio) bookingHb.value = booking.hb_servizio;
+      if (booking?.hb_da) bookingHbDa.value = booking.hb_da;
+      if (booking?.hb_a) bookingHbA.value = booking.hb_a;
+
+      if (booking?.servizi) {
+        setServicesSelection(booking.servizi);
+      } else {
+        setServicesSelection([]);
+      }
+      toggleHbFields();
+      applyHbDateBounds();
 
       if (currentBookingId) {
         if (checkout) bookingCheckout.value = checkout;
@@ -574,7 +698,8 @@ if ($pianoSel === 0 && $edificioSel > 0) {
       } else {
         bookingCheckout.value = checkout || '';
         guestsContainer.innerHTML = '';
-        guestsEmpty.classList.remove('d-none'); // ✅ devi inserire ospiti prima di salvare
+        guestsEmpty.classList.add('d-none');
+        renderGuestCard({}, true);
         applyCheckoutMinFromCheckin(bookingCheckin.value);
         setTimeout(() => bookingCheckout.focus(), 150);
       }
@@ -590,6 +715,7 @@ if ($pianoSel === 0 && $edificioSel > 0) {
       const card = document.createElement('div');
       card.className = 'guest-card';
       card.dataset.new = isNew ? '1' : '0';
+      if (guest.id) card.dataset.guestId = guest.id;
       card.innerHTML = `
         <div class="guest-title mb-2">${escapeHtml(guest.nome || '')} ${escapeHtml(guest.cognome || '')}</div>
         <div class="row g-2">
@@ -635,6 +761,9 @@ if ($pianoSel === 0 && $edificioSel > 0) {
           </div>
         </div>
         <div class="guest-actions mt-2">
+          <button class="btn btn-outline-secondary btn-sm guest-remove js-remove-guest" type="button">
+            <i class="bi bi-x-lg"></i> Chiudi
+          </button>
           <button class="btn btn-outline-primary btn-sm js-save-guest" ${idAttr}>
             <i class="bi bi-save"></i> ${isNew ? 'Crea ospite' : 'Salva ospite'}
           </button>
@@ -670,6 +799,9 @@ if ($pianoSel === 0 && $edificioSel > 0) {
       for (const card of cards) {
         const obj = {};
         card.querySelectorAll('input[name]').forEach(i => obj[i.name] = i.value);
+        if (card.dataset.guestId) {
+          obj.id = card.dataset.guestId;
+        }
 
         // minimo richiesto
         const nome = (obj.nome || '').trim();
@@ -698,6 +830,7 @@ if ($pianoSel === 0 && $edificioSel > 0) {
         return;
       }
       payload.ospiti = guests;
+      payload.servizi = collectServicesFromUI();
 
       const res = await fetchJson('prenotazioni_ajax.php', {
         method: 'POST',
@@ -758,7 +891,7 @@ if ($pianoSel === 0 && $edificioSel > 0) {
         return;
       }
       guestSearchResults.innerHTML = res.results.map(r => `
-        <div class="d-flex justify-content-between align-items-center px-2 py-2 border-bottom" data-cliente="${r.id}">
+        <div class="d-flex justify-content-between align-items-center px-2 py-2 border-bottom result-row" data-cliente="${r.id}">
           <div>
             <div class="fw-semibold">${escapeHtml(r.nome ?? '')} ${escapeHtml(r.cognome ?? '')}</div>
             <div class="small text-muted">${escapeHtml(r.data_nascita ?? '')} ${r.documento_numero ? '· ' + escapeHtml(r.documento_numero) : ''}</div>
@@ -939,6 +1072,7 @@ if ($pianoSel === 0 && $edificioSel > 0) {
       }
 
       const days = data.days || [];
+      window.currentCalendarDays = days;
       const windowStart = days[0];
       const windowEndExclusive = addDaysYMD(days[days.length - 1], 1);
       const manutenzioni = mapSet(data.manutenzioni || []);
@@ -1062,9 +1196,7 @@ if ($pianoSel === 0 && $edificioSel > 0) {
             // bottone prenota
             insideHtml += `<button class="btn btn-outline-primary btn-sm">Prenota</button>`;
           } else if (status === 'occupata') {
-            const txt = escapeHtml(bookingLabel(match));
-            const showTxt = shouldShowLabelOnDay(match, day, windowStart, windowEndExclusive);
-            const labelHtml = showTxt ? `<span class="staytxt">${txt}</span>` : '';
+            const labelHtml = '';
 
             if (hasCI && !hasCO) {
               insideHtml += `<div class="stayseg occ ci">${labelHtml}</div>`;
@@ -1110,6 +1242,8 @@ if ($pianoSel === 0 && $edificioSel > 0) {
       tooltipTriggerList.forEach(function (tooltipTriggerEl) {
         new bootstrap.Tooltip(tooltipTriggerEl);
       });
+
+      placeBookingLabels(days);
     }
 
     async function loadCalendar() {
@@ -1183,11 +1317,20 @@ if ($pianoSel === 0 && $edificioSel > 0) {
           bookingId,
           cameraId: booking?.camera_id || cameraId,
           checkin: booking?.checkin || checkin,
-          checkout: booking?.checkout || checkout
+          checkout: booking?.checkout || checkout,
+          booking
         });
       } else {
         openBookingModal({ bookingId: null, cameraId, checkin, checkout });
       }
+    });
+
+    calendarContainer.addEventListener('scroll', () => {
+      if (window.currentCalendarDays) placeBookingLabels(window.currentCalendarDays);
+    });
+
+    window.addEventListener('resize', () => {
+      if (window.currentCalendarDays) placeBookingLabels(window.currentCalendarDays);
     });
 
     saveBookingBtn?.addEventListener('click', saveBooking);
@@ -1195,13 +1338,38 @@ if ($pianoSel === 0 && $edificioSel > 0) {
     // ✅ aggiorna min checkout quando cambia check-in manualmente nel modal
     bookingCheckin?.addEventListener('change', () => {
       applyCheckoutMinFromCheckin(bookingCheckin.value);
+      applyHbDateBounds();
     });
+    bookingCheckout?.addEventListener('change', applyHbDateBounds);
+
+    bookingPasto?.addEventListener('change', toggleHbFields);
 
     guestsContainer.addEventListener('click', (ev) => {
       const btn = ev.target.closest('.js-save-guest');
       if (!btn) return;
       const card = btn.closest('.guest-card');
       saveGuest(card);
+    });
+
+    guestsContainer.addEventListener('click', async (ev) => {
+      const btn = ev.target.closest('.js-remove-guest');
+      if (!btn) return;
+      const card = btn.closest('.guest-card');
+      if (!card) return;
+      const guestId = card.dataset.guestId ? parseInt(card.dataset.guestId, 10) : null;
+      if (!guestId || !currentBookingId) {
+        card.remove();
+        if (!guestsContainer.querySelector('.guest-card')) {
+          guestsEmpty.classList.remove('d-none');
+        }
+        return;
+      }
+      const res = await fetchJson('ospiti_ajax.php', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'delete_guest', soggiorno_id: currentBookingId, cliente_id: guestId })
+      });
+      showToast(res.message || 'Ospite rimosso', res.toast?.variant || (res.ok ? 'success' : 'danger'));
+      if (res.ok) loadGuests(currentBookingId);
     });
 
     addGuestBtn?.addEventListener('click', () => {
@@ -1237,6 +1405,8 @@ if ($pianoSel === 0 && $edificioSel > 0) {
       guestSearchResults.innerHTML = '';
       bookingCameraLabel.value = '';
       bookingCheckout.min = '';
+      renderServices(meta.servizi || []);
+      toggleHbFields();
     });
 
     renderPianiOptions();

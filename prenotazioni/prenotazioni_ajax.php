@@ -64,6 +64,36 @@ function normalize_ospiti($raw): array {
     return [];
 }
 
+function normalize_servizi($raw): array {
+    if (is_array($raw)) return $raw;
+    if (is_string($raw) && trim($raw) !== '') {
+        $j = json_decode($raw, true);
+        return is_array($j) ? $j : [];
+    }
+    return [];
+}
+
+function get_servizi_column(mysqli $db): ?string {
+    if (column_exists($db, 'soggiorni', 'servizi_json')) return 'servizi_json';
+    if (column_exists($db, 'soggiorni', 'servizi')) return 'servizi';
+    return null;
+}
+
+function get_servizi(mysqli $db): array {
+    if (!table_exists($db, 'servizi')) return [];
+    $hasAttivo = column_exists($db, 'servizi', 'attivo');
+    $hasParent = column_exists($db, 'servizi', 'parent_id');
+    $where = [];
+    if ($hasAttivo) $where[] = 'attivo = 1';
+    if ($hasParent) $where[] = 'parent_id IS NULL';
+    $sql = "SELECT id, nome FROM servizi";
+    if ($where) $sql .= " WHERE " . implode(' AND ', $where);
+    $sql .= " ORDER BY nome ASC";
+    $res = $db->query($sql);
+    if (!$res) return [];
+    return $res->fetch_all(MYSQLI_ASSOC);
+}
+
 function is_range_available(mysqli $db, int $cameraId, string $checkin, string $checkout, ?int $excludeId = null): bool {
     $sql = "
         SELECT COUNT(*) AS tot
@@ -217,6 +247,7 @@ function insert_guests_for_booking(mysqli $db, int $soggiornoId, array $ospiti):
 
     foreach ($ospiti as $o) {
         if (!is_array($o)) continue;
+        if (!empty($o['id']) || !empty($o['cliente_id'])) continue;
 
         $nome = trim((string)($o['nome'] ?? ''));
         $cognome = trim((string)($o['cognome'] ?? ''));
@@ -266,6 +297,10 @@ function save_booking(mysqli $db, array $payload): void {
 
     $pasto = $payload['piano_pasto_sigla'] ?? null;
     $hb = $payload['hb_servizio'] ?? null;
+    $serviziProvided = array_key_exists('servizi', $payload);
+    $servizi = normalize_servizi($payload['servizi'] ?? null);
+    $serviziCol = get_servizi_column($db);
+    $serviziJson = ($serviziCol && $serviziProvided) ? json_encode($servizi, JSON_UNESCAPED_UNICODE) : null;
 
     // opzionali se esistono nel DB
     $hb_da = $payload['hb_da'] ?? null;
@@ -324,6 +359,7 @@ function save_booking(mysqli $db, array $payload): void {
 
     if ($hb_da !== null && column_exists($db, 'soggiorni', 'hb_da')) { $fields[] = 'hb_da = ?'; $values[] = $hb_da; $types .= 's'; }
     if ($hb_a !== null && column_exists($db, 'soggiorni', 'hb_a')) { $fields[] = 'hb_a = ?'; $values[] = $hb_a; $types .= 's'; }
+    if ($serviziCol && $serviziJson !== null) { $fields[] = "{$serviziCol} = ?"; $values[] = $serviziJson; $types .= 's'; }
 
     if ($id > 0) {
         if (empty($fields)) json_response(false, 'Nessun campo da aggiornare');
@@ -335,6 +371,9 @@ function save_booking(mysqli $db, array $payload): void {
 
         $stmt->bind_param($types, ...$values);
         $stmt->execute();
+        if (!empty($ospiti)) {
+            insert_guests_for_booking($db, $id, $ospiti);
+        }
         json_response(true, 'Prenotazione aggiornata', ['toast' => ['variant' => 'success']]);
     }
 
@@ -369,6 +408,9 @@ function save_booking(mysqli $db, array $payload): void {
     }
     if ($hb_a !== null && column_exists($db, 'soggiorni', 'hb_a')) {
         $columns[] = 'hb_a'; $placeholders[] = '?'; $insertTypes .= 's'; $insertValues[] = $hb_a;
+    }
+    if ($serviziCol && $serviziJson !== null) {
+        $columns[] = $serviziCol; $placeholders[] = '?'; $insertTypes .= 's'; $insertValues[] = $serviziJson;
     }
 
     // transazione: creo soggiorno + creo ospiti
@@ -420,6 +462,7 @@ switch ($action) {
         json_response(true, 'OK', [
             'camere' => get_camere($mysqli),
             'stati' => ['prenotato', 'occupato', 'annullato', 'checkout'],
+            'servizi' => get_servizi($mysqli),
         ]);
         break;
 
