@@ -42,13 +42,11 @@ function bind_params(mysqli_stmt $stmt, string $types, array $params): void
 }
 
 $edificioId = (int)($_GET['edificio_id'] ?? 0);
-$pianoId = (int)($_GET['piano_id'] ?? 0);
+$pianoId    = (int)($_GET['piano_id'] ?? 0);
 $startInput = (string)($_GET['start'] ?? date('Y-m-d'));
-$days = (int)($_GET['days'] ?? 14);
+$days       = (int)($_GET['days'] ?? 14);
 
-if ($days < 1 || $days > 31) {
-    $days = 14;
-}
+if ($days < 1 || $days > 31) $days = 14;
 
 $startDate = DateTime::createFromFormat('Y-m-d', $startInput) ?: new DateTime();
 $startDate->setTime(0, 0, 0);
@@ -59,13 +57,14 @@ for ($i = 0; $i < $days; $i++) {
     $daysList[] = (clone $startDate)->modify('+' . $i . ' days')->format('Y-m-d');
 }
 
-$hasAccessibile = column_exists($mysqli, 'camere', 'accessibile_disabili');
-$hasAttiva = column_exists($mysqli, 'camere', 'attiva');
-$hasNote = column_exists($mysqli, 'camere', 'note');
+/* === ROOMS === */
+$hasAccessibile = column_exists($mysqli, 'struttura_camere', 'accessibile_disabili');
+$hasAttiva      = column_exists($mysqli, 'struttura_camere', 'attiva');
+$hasNote        = column_exists($mysqli, 'struttura_camere', 'note');
 
 $selectAccessibile = $hasAccessibile ? ', c.accessibile_disabili' : ', 0 AS accessibile_disabili';
-$selectAttiva = $hasAttiva ? ', c.attiva' : ', 1 AS attiva';
-$selectNote = $hasNote ? ', c.note' : ', NULL AS note';
+$selectAttiva      = $hasAttiva      ? ', c.attiva AS attiva'      : ', 1 AS attiva';
+$selectNote        = $hasNote        ? ', c.note'                  : ', NULL AS note';
 
 $sqlRooms = "
     SELECT
@@ -95,16 +94,14 @@ $sqlRooms .= " ORDER BY p.livello ASC, c.codice ASC";
 
 $stmtRooms = $mysqli->prepare($sqlRooms);
 if (!$stmtRooms) {
-    json_response(false, 'Errore DB: ' . $mysqli->error, [], 500);
+    json_response(false, 'Errore DB (rooms): ' . $mysqli->error, [], 500);
 }
-
-if ($bind) {
-    bind_params($stmtRooms, $types, $bind);
-}
+if ($bind) bind_params($stmtRooms, $types, $bind);
 
 $stmtRooms->execute();
 $resRooms = $stmtRooms->get_result();
 $rooms = $resRooms ? $resRooms->fetch_all(MYSQLI_ASSOC) : [];
+$stmtRooms->close();
 
 $roomIds = array_map('intval', array_column($rooms, 'id'));
 
@@ -116,6 +113,7 @@ if ($roomIds) {
     $ph = implode(',', array_fill(0, count($roomIds), '?'));
     $commonTypes = str_repeat('i', count($roomIds));
 
+    /* === MANUT === */
     if (table_exists($mysqli, 'ticket_manutenzione') && column_exists($mysqli, 'ticket_manutenzione', 'stato')) {
         $sqlMan = "
             SELECT camera_id, stato
@@ -134,9 +132,11 @@ if ($roomIds) {
                     'stato' => (string)$row['stato'],
                 ];
             }
+            $stmtMan->close();
         }
     }
 
+    /* === PULIZIE === */
     if (table_exists($mysqli, 'pulizie_task') && column_exists($mysqli, 'pulizie_task', 'stato')) {
         $sqlPul = "
             SELECT camera_id, stato
@@ -155,24 +155,56 @@ if ($roomIds) {
                     'stato' => (string)$row['stato'],
                 ];
             }
+            $stmtPul->close();
         }
     }
 
+    /* === BOOKINGS: scegli tabella === */
     $bookingTable = null;
     if (table_exists($mysqli, 'prenotazioni') && column_exists($mysqli, 'prenotazioni', 'camera_id')) {
         $bookingTable = 'prenotazioni';
-    } elseif (table_exists($mysqli, 'soggiorni')) {
+    } elseif (table_exists($mysqli, 'soggiorni') && column_exists($mysqli, 'soggiorni', 'camera_id')) {
         $bookingTable = 'soggiorni';
     }
 
     if ($bookingTable) {
         $hasCodice = column_exists($mysqli, $bookingTable, 'codice');
-        $hasStato = column_exists($mysqli, $bookingTable, 'stato');
+        $hasStato  = column_exists($mysqli, $bookingTable, 'stato');
+        $hasReferente = column_exists($mysqli, $bookingTable, 'referente');
+
         $selectCodice = $hasCodice ? ', b.codice' : ', NULL AS codice';
-        $selectStato = $hasStato ? ', b.stato' : ', NULL AS stato';
+        $selectStato  = $hasStato  ? ', b.stato'  : ', NULL AS stato';
+
+        // ✅ referente: se esiste colonna, usa b.referente, altrimenti fallback su soggiorni_clienti
+        if ($hasReferente) {
+            $selectReferente = ", b.referente AS referente";
+        } else {
+            $canFallback = table_exists($mysqli, 'soggiorni_clienti')
+                && column_exists($mysqli, 'soggiorni_clienti', 'soggiorno_id')
+                && column_exists($mysqli, 'soggiorni_clienti', 'nome')
+                && column_exists($mysqli, 'soggiorni_clienti', 'cognome');
+
+            if ($canFallback) {
+                $selectReferente = ",
+                    (
+                        SELECT TRIM(CONCAT(COALESCE(sc.cognome,''), ' ', COALESCE(sc.nome,'')))
+                        FROM soggiorni_clienti sc
+                        WHERE sc.soggiorno_id = b.id
+                        ORDER BY sc.id ASC
+                        LIMIT 1
+                    ) AS referente
+                ";
+            } else {
+                $selectReferente = ", NULL AS referente";
+            }
+        }
 
         $sqlBook = "
-            SELECT b.id, b.camera_id, b.data_checkin, b.data_checkout{$selectCodice}{$selectStato}
+            SELECT
+                b.id, b.camera_id, b.data_checkin, b.data_checkout
+                {$selectCodice}
+                {$selectStato}
+                {$selectReferente}
             FROM {$bookingTable} b
             WHERE b.camera_id IN ({$ph})
               AND NOT (? >= b.data_checkout OR ? <= b.data_checkin)
@@ -184,20 +216,23 @@ if ($roomIds) {
 
         $stmtBook = $mysqli->prepare($sqlBook);
         if ($stmtBook) {
-            $paramsBook = array_merge([$startDate->format('Y-m-d'), $endDate->format('Y-m-d')], $roomIds);
-            bind_params($stmtBook, 'ss' . $commonTypes, $paramsBook);
+            $paramsBook = array_merge($roomIds, [$startDate->format('Y-m-d'), $endDate->format('Y-m-d')]);
+            bind_params($stmtBook, $commonTypes . 'ss', $paramsBook);
+
             $stmtBook->execute();
             $resBook = $stmtBook->get_result();
             while ($row = $resBook->fetch_assoc()) {
                 $bookings[] = [
-                    'id' => (int)$row['id'],
+                    'id'       => (int)$row['id'],
                     'camera_id' => (int)$row['camera_id'],
-                    'checkin' => (string)$row['data_checkin'],
-                    'checkout' => (string)$row['data_checkout'],
-                    'codice' => (string)($row['codice'] ?? ''),
-                    'stato' => (string)($row['stato'] ?? ''),
+                    'checkin'   => (string)$row['data_checkin'],
+                    'checkout'  => (string)$row['data_checkout'],
+                    'codice'    => (string)($row['codice'] ?? ''),
+                    'stato'     => (string)($row['stato'] ?? ''),
+                    'referente' => (string)($row['referente'] ?? ''),
                 ];
             }
+            $stmtBook->close();
         }
     }
 }

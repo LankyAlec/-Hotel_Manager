@@ -124,22 +124,33 @@ function fetch_state(
   $limit = $perPage + 1;
 
   $sql = "SELECT
-            t.id, t.titolo, t.descrizione, t.stato, t.priorita,
-            t.edificio_id, t.piano_id, t.camera_id,
-            t.assegnato_a, t.aperto_da, t.chiuso_da,
-            t.opened_at AS opened_at,
-            t.closed_at AS closed_at,
-            ($nameExprAss) AS assegnato_nome,
-            ($nameExprAp)  AS aperto_nome,
-            ($nameExprCh)  AS chiuso_nome
-          FROM ticket_manutenzione t
-          LEFT JOIN utenti uass ON uass.id = t.assegnato_a
-          LEFT JOIN utenti uap  ON uap.id  = t.aperto_da
-          LEFT JOIN utenti uch  ON uch.id  = t.chiuso_da
-          $whereSql
-          ".($whereSql ? "AND" : "WHERE")." t.stato = ?
-          ORDER BY t.id DESC
-          LIMIT $limit OFFSET $offset";
+          t.id, t.titolo, t.descrizione, t.stato, t.priorita,
+          t.edificio_id, t.piano_id, t.camera_id,
+          t.assegnato_a, t.aperto_da, t.chiuso_da,
+          t.opened_at AS opened_at,
+          t.closed_at AS closed_at,
+
+          se.nome   AS edificio_nome,
+          sp.nome   AS piano_nome,
+          sc.codice AS camera_codice,
+
+          ($nameExprAss) AS assegnato_nome,
+          ($nameExprAp)  AS aperto_nome,
+          ($nameExprCh)  AS chiuso_nome
+        FROM ticket_manutenzione t
+        LEFT JOIN utenti uass ON uass.id = t.assegnato_a
+        LEFT JOIN utenti uap  ON uap.id  = t.aperto_da
+        LEFT JOIN utenti uch  ON uch.id  = t.chiuso_da
+
+        LEFT JOIN struttura_edifici se ON se.id = t.edificio_id
+        LEFT JOIN struttura_piani    sp ON sp.id = t.piano_id
+        LEFT JOIN struttura_camere   sc ON sc.id = t.camera_id
+
+        $whereSql
+        ".($whereSql ? "AND" : "WHERE")." t.stato = ?
+        ORDER BY t.id DESC
+        LIMIT $limit OFFSET $offset";
+
 
   $st = $mysqli->prepare($sql);
   if (!$st) throw new RuntimeException("Errore DB (prepare $stato)");
@@ -192,6 +203,24 @@ function makeCard(array $r, bool $annullatoList=false): string {
   $edificioId = (int)($r['edificio_id'] ?? 0);
   $pianoId    = (int)($r['piano_id'] ?? 0);
   $cameraId   = (int)($r['camera_id'] ?? 0);
+  $edificioNome = trim((string)($r['edificio_nome'] ?? ''));
+  $pianoNome    = trim((string)($r['piano_nome'] ?? ''));
+  $cameraCodice = trim((string)($r['camera_codice'] ?? ''));
+
+  // Costruisci "luogo" (priorità: camera > piano > edificio)
+  $luogo = '';
+  if ($cameraCodice !== '') {
+    $luogo = 'Camera ' . $cameraCodice;
+  } elseif ($pianoNome !== '') {
+    $luogo = 'Piano ' . $pianoNome;
+  } elseif ($edificioNome !== '') {
+    $luogo = $edificioNome;
+  }
+
+  $badgeLuogo = '';
+  if ($luogo !== '') {
+    $badgeLuogo = '<span class="badge badge-soft"><i class="bi bi-geo-alt"></i> <b>'.h($luogo).'</b></span>';
+  }
 
   $asId     = (int)($r['assegnato_a'] ?? 0);
   $asNome   = trim((string)($r['assegnato_nome'] ?? ''));
@@ -271,8 +300,10 @@ function makeCard(array $r, bool $annullatoList=false): string {
       <div style="min-width:0; flex:1;">
         <div class="title">#'.$id.' · '.h($titolo).'</div>
 
+        <div class="meta-row mt-1">'.$badgePrio.'</div>
         <div class="meta-col mt-2">
-          <div class="meta-row">'.$badgePrio.'</div>
+          '.($badgeLuogo !== '' ? '<div class="meta-row">'.$badgeLuogo.'</div>' : '').'
+
           <div class="meta-row mt-1">'.$badgeAperto.'</div>
           '.($badgeChiuso !== '' ? '<div class="meta-row mt-1">'.$badgeChiuso.'</div>' : '').'
           '.$badgeAssegnato.'

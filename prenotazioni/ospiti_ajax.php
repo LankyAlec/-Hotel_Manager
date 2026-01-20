@@ -13,9 +13,7 @@ if (empty($_SESSION['utente_id'])) {
 function column_exists(mysqli $db, string $table, string $column): bool {
     static $cache = [];
     $key = $table . '.' . $column;
-    if (isset($cache[$key])) {
-        return $cache[$key];
-    }
+    if (isset($cache[$key])) return $cache[$key];
 
     $stmt = $db->prepare("
         SELECT 1
@@ -25,10 +23,7 @@ function column_exists(mysqli $db, string $table, string $column): bool {
           AND COLUMN_NAME = ?
         LIMIT 1
     ");
-
-    if (!$stmt) {
-        return false;
-    }
+    if (!$stmt) return $cache[$key] = false;
 
     $stmt->bind_param('ss', $table, $column);
     $stmt->execute();
@@ -50,44 +45,36 @@ function get_payload(): array {
 }
 
 function list_guests(mysqli $db, int $soggiornoId): void {
-    $docTipo = column_exists($db, 'clienti', 'documento_tipo') ? ', c.documento_tipo' : '';
-    $docNum = column_exists($db, 'clienti', 'documento_numero') ? ', c.documento_numero' : '';
-    $docScad = column_exists($db, 'clienti', 'documento_scadenza') ? ', c.documento_scadenza' : '';
-    $docRil = column_exists($db, 'clienti', 'documento_rilasciato_da') ? ', c.documento_rilasciato_da' : '';
-    $docNote = column_exists($db, 'clienti', 'documento_note') ? ', c.documento_note' : '';
-    $dataNascita = column_exists($db, 'clienti', 'data_nascita') ? ', c.data_nascita' : '';
-    $nazionalita = column_exists($db, 'clienti', 'nazionalita') ? ', c.nazionalita' : '';
-    $indirizzo = column_exists($db, 'clienti', 'indirizzo') ? ', c.indirizzo' : '';
-    $email = column_exists($db, 'clienti', 'email') ? ', c.email' : '';
-    $telefono = column_exists($db, 'clienti', 'telefono') ? ', c.telefono' : '';
-    $note = column_exists($db, 'clienti', 'note') ? ', c.note' : '';
-
     $sql = "
         SELECT
-            c.id,
-            c.nome,
-            c.cognome
-            $docTipo
-            $docNum
-            $docScad
-            $docRil
-            $docNote
-            $dataNascita
-            $nazionalita
-            $indirizzo
-            $email
-            $telefono
-            $note
-        FROM soggiorni_clienti sc
-        JOIN clienti c ON c.id = sc.cliente_id
-        WHERE sc.soggiorno_id = ?
-        ORDER BY c.nome ASC, c.cognome ASC
+            id,
+            soggiorno_id,
+            nome,
+            cognome,
+            " . (column_exists($db,'soggiorni_clienti','data_nascita') ? "data_nascita," : "") . "
+            " . (column_exists($db,'soggiorni_clienti','nazionalita') ? "nazionalita," : "") . "
+            " . (column_exists($db,'soggiorni_clienti','documento_tipo') ? "documento_tipo," : "") . "
+            " . (column_exists($db,'soggiorni_clienti','documento_numero') ? "documento_numero," : "") . "
+            " . (column_exists($db,'soggiorni_clienti','documento_scadenza') ? "documento_scadenza," : "") . "
+            " . (column_exists($db,'soggiorni_clienti','documento_rilasciato_da') ? "documento_rilasciato_da," : "") . "
+            " . (column_exists($db,'soggiorni_clienti','documento_note') ? "documento_note," : "") . "
+            " . (column_exists($db,'soggiorni_clienti','email') ? "email," : "") . "
+            " . (column_exists($db,'soggiorni_clienti','telefono') ? "telefono," : "") . "
+            " . (column_exists($db,'soggiorni_clienti','indirizzo') ? "indirizzo," : "") . "
+            " . (column_exists($db,'soggiorni_clienti','note') ? "note," : "") . "
+            created_at,
+            updated_at
+        FROM soggiorni_clienti
+        WHERE soggiorno_id = ?
+        ORDER BY cognome ASC, nome ASC
     ";
 
+    // pulizia virgole finali (nel caso qualche colonna non esista)
+    $sql = preg_replace('/,\s*created_at/', ', created_at', $sql);
+
     $stmt = $db->prepare($sql);
-    if (!$stmt) {
-        json_response(false, 'Errore DB: ' . $db->error, [], 500);
-    }
+    if (!$stmt) json_response(false, 'Errore DB: ' . $db->error, [], 500);
+
     $stmt->bind_param('i', $soggiornoId);
     $stmt->execute();
     $res = $stmt->get_result();
@@ -96,19 +83,19 @@ function list_guests(mysqli $db, int $soggiornoId): void {
     json_response(true, 'OK', ['ospiti' => $rows]);
 }
 
-function save_documents(mysqli $db, int $soggiornoId, int $clienteId, array $payload): void {
-    $stmtCheck = $db->prepare("
-        SELECT 1
-        FROM soggiorni_clienti
-        WHERE soggiorno_id = ? AND cliente_id = ?
-        LIMIT 1
-    ");
-    $stmtCheck?->bind_param('ii', $soggiornoId, $clienteId);
-    $stmtCheck?->execute();
-    $checkRes = $stmtCheck ? $stmtCheck->get_result() : null;
-    if (!$checkRes || $checkRes->num_rows === 0) {
+function assert_guest_belongs(mysqli $db, int $soggiornoId, int $guestId): void {
+    $stmt = $db->prepare("SELECT 1 FROM soggiorni_clienti WHERE soggiorno_id = ? AND id = ? LIMIT 1");
+    if (!$stmt) json_response(false, 'Errore DB: ' . $db->error, [], 500);
+    $stmt->bind_param('ii', $soggiornoId, $guestId);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    if (!$res || $res->num_rows === 0) {
         json_response(false, 'Ospite non associato a questa prenotazione', [], 403);
     }
+}
+
+function save_documents(mysqli $db, int $soggiornoId, int $guestId, array $payload): void {
+    assert_guest_belongs($db, $soggiornoId, $guestId);
 
     $fields = [];
     $types = '';
@@ -123,39 +110,32 @@ function save_documents(mysqli $db, int $soggiornoId, int $clienteId, array $pay
     ];
 
     foreach ($map as $field => $type) {
-        if (array_key_exists($field, $payload) && column_exists($db, 'clienti', $field)) {
+        if (array_key_exists($field, $payload) && column_exists($db, 'soggiorni_clienti', $field)) {
             $fields[] = "$field = ?";
             $types .= $type;
             $values[] = (string)$payload[$field];
         }
     }
 
-    if (empty($fields)) {
-        json_response(false, 'Nessun campo documento aggiornabile');
-    }
+    if (empty($fields)) json_response(false, 'Nessun campo documento aggiornabile');
 
-    $sql = "UPDATE clienti SET " . implode(', ', $fields) . " WHERE id = ?";
-    $types .= 'i';
-    $values[] = $clienteId;
+    $sql = "UPDATE soggiorni_clienti SET " . implode(', ', $fields) . " WHERE id = ? AND soggiorno_id = ?";
+    $types .= 'ii';
+    $values[] = $guestId;
+    $values[] = $soggiornoId;
 
     $stmt = $db->prepare($sql);
-    if (!$stmt) {
-        json_response(false, 'Errore DB: ' . $db->error, [], 500);
-    }
+    if (!$stmt) json_response(false, 'Errore DB: ' . $db->error, [], 500);
+
     $stmt->bind_param($types, ...$values);
     $stmt->execute();
 
     json_response(true, 'Documenti salvati', ['toast' => ['variant' => 'success']]);
 }
 
-function save_guest(mysqli $db, int $soggiornoId, ?int $clienteId, array $payload): void {
-    if ($soggiornoId <= 0) {
-        json_response(false, 'Prenotazione mancante');
-    }
+function save_guest(mysqli $db, int $soggiornoId, ?int $guestId, array $payload): void {
+    if ($soggiornoId <= 0) json_response(false, 'Prenotazione mancante');
 
-    $fields = [];
-    $types = '';
-    $values = [];
     $map = [
         'nome' => 's',
         'cognome' => 's',
@@ -169,98 +149,103 @@ function save_guest(mysqli $db, int $soggiornoId, ?int $clienteId, array $payloa
         'note' => 's',
     ];
 
+    $fields = [];
+    $types = '';
+    $values = [];
+
     foreach ($map as $field => $type) {
-        if (array_key_exists($field, $payload) && column_exists($db, 'clienti', $field)) {
-            $fields[] = "$field = ?";
+        if (array_key_exists($field, $payload) && column_exists($db, 'soggiorni_clienti', $field)) {
+            $fields[$field] = (string)$payload[$field];
             $types .= $type;
             $values[] = (string)$payload[$field];
         }
     }
 
-    if (empty($fields)) {
-        json_response(false, 'Nessun campo da salvare');
+    // minimo: nome/cognome (se esistono come colonne)
+    if (column_exists($db,'soggiorni_clienti','nome') && trim((string)($payload['nome'] ?? '')) === '') {
+        json_response(false, 'Nome obbligatorio');
+    }
+    if (column_exists($db,'soggiorni_clienti','cognome') && trim((string)($payload['cognome'] ?? '')) === '') {
+        json_response(false, 'Cognome obbligatorio');
     }
 
-    if ($clienteId && $clienteId > 0) {
-        $stmtCheck = $db->prepare("
-            SELECT 1
-            FROM soggiorni_clienti
-            WHERE soggiorno_id = ? AND cliente_id = ?
-            LIMIT 1
-        ");
-        $stmtCheck?->bind_param('ii', $soggiornoId, $clienteId);
-        $stmtCheck?->execute();
-        $checkRes = $stmtCheck ? $stmtCheck->get_result() : null;
-        if (!$checkRes || $checkRes->num_rows === 0) {
-            json_response(false, 'Ospite non associato a questa prenotazione', [], 403);
-        }
+    if (empty($fields)) json_response(false, 'Nessun campo da salvare');
 
-        $sql = "UPDATE clienti SET " . implode(', ', $fields) . " WHERE id = ?";
-        $types .= 'i';
-        $values[] = $clienteId;
+    // UPDATE
+    if ($guestId && $guestId > 0) {
+        assert_guest_belongs($db, $soggiornoId, $guestId);
+
+        $setParts = [];
+        foreach (array_keys($fields) as $col) $setParts[] = "$col = ?";
+
+        $sql = "UPDATE soggiorni_clienti SET " . implode(', ', $setParts) . " WHERE id = ? AND soggiorno_id = ?";
+        $typesUpd = $types . 'ii';
+        $valuesUpd = array_merge($values, [$guestId, $soggiornoId]);
+
         $stmt = $db->prepare($sql);
-        if (!$stmt) {
-            json_response(false, 'Errore DB: ' . $db->error, [], 500);
-        }
-        $stmt->bind_param($types, ...$values);
+        if (!$stmt) json_response(false, 'Errore DB: ' . $db->error, [], 500);
+        $stmt->bind_param($typesUpd, ...$valuesUpd);
         $stmt->execute();
 
         json_response(true, 'Ospite aggiornato', ['toast' => ['variant' => 'success']]);
     }
 
-    $columns = array_map(fn($f) => strtok($f, ' '), $fields);
-    $sql = "INSERT INTO clienti (" . implode(',', $columns) . ") VALUES (" . implode(',', array_fill(0, count($columns), '?')) . ")";
+    // INSERT (con soggiorno_id SEMPRE)
+    $columns = ['soggiorno_id'];
+    $placeholders = ['?'];
+    $typesIns = 'i';
+    $valuesIns = [$soggiornoId];
+
+    foreach ($fields as $col => $val) {
+        $columns[] = $col;
+        $placeholders[] = '?';
+    }
+    $typesIns .= $types;
+    $valuesIns = array_merge($valuesIns, $values);
+
+    $sql = "INSERT INTO soggiorni_clienti (" . implode(',', $columns) . ") VALUES (" . implode(',', $placeholders) . ")";
     $stmt = $db->prepare($sql);
-    if (!$stmt) {
-        json_response(false, 'Errore DB: ' . $db->error, [], 500);
-    }
-    $stmt->bind_param($types, ...$values);
+    if (!$stmt) json_response(false, 'Errore DB: ' . $db->error, [], 500);
+    $stmt->bind_param($typesIns, ...$valuesIns);
     $stmt->execute();
-    $newClienteId = $stmt->insert_id;
 
-    $stmtLink = $db->prepare("INSERT INTO soggiorni_clienti (soggiorno_id, cliente_id) VALUES (?, ?)");
-    if ($stmtLink) {
-        $stmtLink->bind_param('ii', $soggiornoId, $newClienteId);
-        $stmtLink->execute();
-    }
-
-    json_response(true, 'Ospite creato', ['toast' => ['variant' => 'success']]);
+    json_response(true, 'Ospite creato', [
+        'toast' => ['variant' => 'success'],
+        'guest_id' => $stmt->insert_id
+    ]);
 }
 
 function search_guests(mysqli $db, string $query): void {
     $query = trim($query);
-    if ($query === '') {
-        json_response(true, 'OK', ['results' => []]);
-    }
+    if ($query === '') json_response(true, 'OK', ['results' => []]);
 
     $fields = ['nome', 'cognome', 'email', 'documento_numero'];
     $conditions = [];
     $types = '';
     $values = [];
+
     foreach ($fields as $field) {
-        if (column_exists($db, 'clienti', $field)) {
+        if (column_exists($db, 'soggiorni_clienti', $field)) {
             $conditions[] = "$field LIKE ?";
             $types .= 's';
             $values[] = '%' . $query . '%';
         }
     }
-    if (empty($conditions)) {
-        json_response(true, 'OK', ['results' => []]);
-    }
+    if (empty($conditions)) json_response(true, 'OK', ['results' => []]);
 
     $sql = "
         SELECT id, nome, cognome" .
-        (column_exists($db, 'clienti', 'data_nascita') ? ", data_nascita" : "") .
-        (column_exists($db, 'clienti', 'documento_numero') ? ", documento_numero" : "") . "
-        FROM clienti
+        (column_exists($db, 'soggiorni_clienti', 'data_nascita') ? ", data_nascita" : "") .
+        (column_exists($db, 'soggiorni_clienti', 'documento_numero') ? ", documento_numero" : "") . "
+        FROM soggiorni_clienti
         WHERE " . implode(' OR ', $conditions) . "
         ORDER BY cognome ASC, nome ASC
         LIMIT 20
     ";
+
     $stmt = $db->prepare($sql);
-    if (!$stmt) {
-        json_response(false, 'Errore DB: ' . $db->error, [], 500);
-    }
+    if (!$stmt) json_response(false, 'Errore DB: ' . $db->error, [], 500);
+
     $stmt->bind_param($types, ...$values);
     $stmt->execute();
     $res = $stmt->get_result();
@@ -269,27 +254,45 @@ function search_guests(mysqli $db, string $query): void {
     json_response(true, 'OK', ['results' => $rows]);
 }
 
-function attach_guest(mysqli $db, int $soggiornoId, int $clienteId): void {
-    $stmtCheck = $db->prepare("
-        SELECT 1
-        FROM soggiorni_clienti
-        WHERE soggiorno_id = ? AND cliente_id = ?
-        LIMIT 1
-    ");
-    $stmtCheck?->bind_param('ii', $soggiornoId, $clienteId);
-    $stmtCheck?->execute();
-    $checkRes = $stmtCheck ? $stmtCheck->get_result() : null;
-    if ($checkRes && $checkRes->num_rows > 0) {
-        json_response(true, 'Ospite già associato', ['toast' => ['variant' => 'info']]);
+/**
+ * "attach" nel tuo vecchio codice era pensato come tabella ponte.
+ * Qui lo trasformiamo in: CLONA un ospite esistente dentro un altro soggiorno.
+ */
+function attach_guest(mysqli $db, int $soggiornoId, int $guestId): void {
+    // prendo i campi clonabili se esistono
+    $cloneCols = ['nome','cognome','data_nascita','nazionalita','indirizzo','documento_tipo','documento_numero','email','telefono','note'];
+    $selectCols = [];
+    foreach ($cloneCols as $c) {
+        if (column_exists($db,'soggiorni_clienti',$c)) $selectCols[] = $c;
+    }
+    if (empty($selectCols)) json_response(false, 'Nessun campo clonabile');
+
+    $sqlSel = "SELECT " . implode(',', $selectCols) . " FROM soggiorni_clienti WHERE id = ? LIMIT 1";
+    $stmt = $db->prepare($sqlSel);
+    if (!$stmt) json_response(false, 'Errore DB: ' . $db->error, [], 500);
+    $stmt->bind_param('i', $guestId);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    $row = $res ? $res->fetch_assoc() : null;
+    if (!$row) json_response(false, 'Ospite non trovato', [], 404);
+
+    $columns = array_merge(['soggiorno_id'], $selectCols);
+    $placeholders = array_fill(0, count($columns), '?');
+    $types = 'i';
+    $values = [$soggiornoId];
+
+    foreach ($selectCols as $c) {
+        $types .= 's';
+        $values[] = (string)($row[$c] ?? '');
     }
 
-    $stmt = $db->prepare("INSERT INTO soggiorni_clienti (soggiorno_id, cliente_id) VALUES (?, ?)");
-    if (!$stmt) {
-        json_response(false, 'Errore DB: ' . $db->error, [], 500);
-    }
-    $stmt->bind_param('ii', $soggiornoId, $clienteId);
-    $stmt->execute();
-    json_response(true, 'Ospite associato', ['toast' => ['variant' => 'success']]);
+    $sqlIns = "INSERT INTO soggiorni_clienti (" . implode(',', $columns) . ") VALUES (" . implode(',', $placeholders) . ")";
+    $stmt2 = $db->prepare($sqlIns);
+    if (!$stmt2) json_response(false, 'Errore DB: ' . $db->error, [], 500);
+    $stmt2->bind_param($types, ...$values);
+    $stmt2->execute();
+
+    json_response(true, 'Ospite associato (clonato)', ['toast' => ['variant' => 'success'], 'guest_id' => $stmt2->insert_id]);
 }
 
 $payload = get_payload();
@@ -298,25 +301,21 @@ $action = strtolower((string)($payload['action'] ?? $_GET['action'] ?? ''));
 switch ($action) {
     case 'list':
         $soggiornoId = (int)($payload['soggiorno_id'] ?? 0);
-        if ($soggiornoId <= 0) {
-            json_response(false, 'ID prenotazione mancante');
-        }
+        if ($soggiornoId <= 0) json_response(false, 'ID prenotazione mancante');
         list_guests($mysqli, $soggiornoId);
         break;
 
     case 'save_documenti':
         $soggiornoId = (int)($payload['soggiorno_id'] ?? 0);
-        $clienteId = (int)($payload['cliente_id'] ?? 0);
-        if ($soggiornoId <= 0 || $clienteId <= 0) {
-            json_response(false, 'Parametri mancanti');
-        }
-        save_documents($mysqli, $soggiornoId, $clienteId, $payload);
+        $guestId = (int)($payload['cliente_id'] ?? 0); // compat: dal frontend arriva cliente_id
+        if ($soggiornoId <= 0 || $guestId <= 0) json_response(false, 'Parametri mancanti');
+        save_documents($mysqli, $soggiornoId, $guestId, $payload);
         break;
 
     case 'save_guest':
         $soggiornoId = (int)($payload['soggiorno_id'] ?? 0);
-        $clienteId = isset($payload['cliente_id']) ? (int)$payload['cliente_id'] : null;
-        save_guest($mysqli, $soggiornoId, $clienteId, $payload);
+        $guestId = isset($payload['cliente_id']) ? (int)$payload['cliente_id'] : null; // compat
+        save_guest($mysqli, $soggiornoId, $guestId, $payload);
         break;
 
     case 'search':
@@ -326,11 +325,9 @@ switch ($action) {
 
     case 'attach_guest':
         $soggiornoId = (int)($payload['soggiorno_id'] ?? 0);
-        $clienteId = (int)($payload['cliente_id'] ?? 0);
-        if ($soggiornoId <= 0 || $clienteId <= 0) {
-            json_response(false, 'Parametri mancanti');
-        }
-        attach_guest($mysqli, $soggiornoId, $clienteId);
+        $guestId = (int)($payload['cliente_id'] ?? 0); // compat
+        if ($soggiornoId <= 0 || $guestId <= 0) json_response(false, 'Parametri mancanti');
+        attach_guest($mysqli, $soggiornoId, $guestId);
         break;
 
     default:

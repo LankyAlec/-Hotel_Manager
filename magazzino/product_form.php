@@ -84,13 +84,12 @@ $row = [
   'nome'=>'',
   'descrizione'=>'',
   'categoria_id'=>0,
-  'magazzino_id'=>0,
   'unita'=>'pz',
   'attivo'=>1
 ];
 
 if ($id > 0) {
-  $res = mysqli_query($conn, "SELECT * FROM prodotti WHERE id=$id LIMIT 1");
+  $res = mysqli_query($conn, "SELECT * FROM magazzino_prodotti WHERE id=$id LIMIT 1");
   if ($res && ($db = mysqli_fetch_assoc($res))) $row = array_merge($row, $db);
   else $id = 0;
 }
@@ -105,18 +104,16 @@ if (($_POST['action'] ?? '') === 'save') {
   $row['nome'] = trim((string)($_POST['nome'] ?? ''));
   $row['descrizione'] = trim((string)($_POST['descrizione'] ?? ''));
   $row['categoria_id'] = (int)($_POST['categoria_id'] ?? 0);
-  $row['magazzino_id'] = (int)($_POST['magazzino_id'] ?? 0);
 
   $unita = trim((string)($_POST['unita'] ?? 'pz'));
   $row['unita'] = array_key_exists($unita, $UNITA_OPZ) ? $unita : 'pz';
 
-  if ($row['nome'] === '' || $row['magazzino_id'] <= 0) {
-    $err = 'Nome e Magazzino sono obbligatori.';
+  if ($row['nome'] === '') {
+    $err = 'Nome obbligatorio.';
   } else {
     $nomeE  = "'" . esc($conn, $row['nome']) . "'";
     $descE  = $row['descrizione'] !== '' ? ("'".esc($conn,$row['descrizione'])."'") : "NULL";
     $catE   = ($row['categoria_id'] > 0) ? (string)$row['categoria_id'] : "NULL";
-    $magE   = (string)$row['magazzino_id'];
     $unitaE = "'" . esc($conn, $row['unita']) . "'";
 
     // prodotto pulito: giacenza/scadenza/prezzo non su prodotto
@@ -128,11 +125,10 @@ if (($_POST['action'] ?? '') === 'save') {
     $ripiReset     = "NULL";
 
     if ($id > 0) {
-      $sql = "UPDATE prodotti SET
+      $sql = "UPDATE magazzino_prodotti SET
         nome=$nomeE,
         descrizione=$descE,
         categoria_id=$catE,
-        magazzino_id=$magE,
         unita=$unitaE
       WHERE id=$id LIMIT 1";
 
@@ -140,10 +136,10 @@ if (($_POST['action'] ?? '') === 'save') {
       if ($ok) redirect('product_form.php?id='.$id.'&msg='.urlencode('Prodotto salvato').$filterSuffix);
       $err = 'Errore salvataggio: ' . (mysqli_error($conn) ?: 'query failed');
     } else {
-      $sql = "INSERT INTO prodotti
-        (nome, descrizione, categoria_id, magazzino_id, unita, attivo)
+      $sql = "INSERT INTO magazzino_prodotti
+        (nome, descrizione, categoria_id, unita, attivo)
       VALUES
-        ($nomeE, $descE, $catE, $magE, $unitaE, 1)";
+        ($nomeE, $descE, $catE, $unitaE, 1)";
 
       $ok = mysqli_query($conn, $sql);
       if ($ok) {
@@ -161,18 +157,11 @@ if (($_POST['action'] ?? '') === 'save') {
 if (($_POST['action'] ?? '') === 'add_lotto') {
   $pid = (int)($_POST['id'] ?? 0);
 
-  $scad = trim((string)($_POST['lotto_scadenza'] ?? ''));
+  $scad  = trim((string)($_POST['lotto_scadenza'] ?? ($_POST['edit_scadenza'] ?? '')));
+  $scaff = trim((string)($_POST['lotto_scaffale'] ?? ($_POST['edit_scaffale'] ?? '')));
+  $ripi  = trim((string)($_POST['lotto_ripiano'] ?? ($_POST['edit_ripiano'] ?? '')));
+  $magId = (int)($_POST['lotto_magazzino_id'] ?? ($_POST['edit_magazzino_id'] ?? 0));
 
-  $anno = trim((string)($_POST['lotto_anno'] ?? ''));
-  $anno = ($anno !== '' && preg_match('/^\d{4}$/', $anno)) ? (int)$anno : null;
-
-  $scaff = trim((string)($_POST['lotto_scaffale'] ?? ''));
-  $ripi  = trim((string)($_POST['lotto_ripiano'] ?? ''));
-  $magId = (int)($_POST['lotto_magazzino_id'] ?? 0);
-  if ($magId <= 0 && $pid > 0) {
-    $resP = mysqli_query($conn, "SELECT magazzino_id FROM prodotti WHERE id=$pid LIMIT 1");
-    if ($resP && ($prow = mysqli_fetch_assoc($resP))) $magId = (int)($prow['magazzino_id'] ?? 0);
-  }
 
   if ($pid <= 0) {
     $err = 'Salva prima il prodotto, poi aggiungi i lotti.';
@@ -185,30 +174,27 @@ if (($_POST['action'] ?? '') === 'add_lotto') {
     if (!$resM || mysqli_num_rows($resM) === 0) {
       $err = 'Seleziona un magazzino valido.';
     } else {
-      $annoE  = ($anno === null) ? "NULL" : (string)$anno;
       $scadE  = ($scad !== '') ? ("'".esc($conn, $scad)."'") : "NULL";
-      $scaffE = ($scaff !== '') ? ("'".esc($conn,$scaff)."'") : "NULL";
-      $ripiE  = ($ripi  !== '') ? ("'".esc($conn,$ripi )."'") : "NULL";
+      $scaffE = ($scaff !== '') ? ("'".esc($conn, $scaff)."'") : "NULL";
+      $ripiE  = ($ripi  !== '') ? ("'".esc($conn, $ripi )."'") : "NULL";
       $magE   = (string)$magId;
 
-      $sql = "INSERT INTO lotti (prodotto_id, magazzino_id, anno_produzione, data_scadenza, scaffale, ripiano)
-              VALUES ($pid, $magE, $annoE, $scadE, $scaffE, $ripiE)";
+      $sql = "INSERT INTO magazzino_lotti (prodotto_id, magazzino_id, data_scadenza, scaffale, ripiano)
+              VALUES ($pid, $magE, $scadE, $scaffE, $ripiE)";
+
       $ok = mysqli_query($conn, $sql);
       if ($ok) redirect('product_form.php?id='.$pid.'&msg='.urlencode('Lotto aggiunto').$filterSuffix);
-      $err = 'Errore inserimento lotto: ' . (mysqli_error($conn) ?: 'query failed');
+      $err = 'Errore aggiunta lotto: ' . (mysqli_error($conn) ?: 'query failed');
     }
   }
 }
+
 
 if (($_POST['action'] ?? '') === 'edit_lotto') {
   $pid = (int)($_POST['id'] ?? 0);
   $lid = (int)($_POST['lotto_id'] ?? 0);
 
-  $scad = trim((string)($_POST['edit_scadenza'] ?? ''));
-
-  $anno = trim((string)($_POST['edit_anno'] ?? ''));
-  $anno = ($anno !== '' && preg_match('/^\d{4}$/', $anno)) ? (int)$anno : null;
-
+  $scad  = trim((string)($_POST['edit_scadenza'] ?? ''));
   $scaff = trim((string)($_POST['edit_scaffale'] ?? ''));
   $ripi  = trim((string)($_POST['edit_ripiano'] ?? ''));
   $magId = (int)($_POST['edit_magazzino_id'] ?? 0);
@@ -224,20 +210,19 @@ if (($_POST['action'] ?? '') === 'edit_lotto') {
     if (!$resM || mysqli_num_rows($resM) === 0) {
       $err = 'Seleziona un magazzino valido.';
     } else {
-      $annoE  = ($anno === null) ? "NULL" : (string)$anno;
       $scadE  = ($scad !== '') ? ("'".esc($conn, $scad)."'") : "NULL";
-      $scaffE = ($scaff !== '') ? ("'".esc($conn,$scaff)."'") : "NULL";
-      $ripiE  = ($ripi  !== '') ? ("'".esc($conn,$ripi )."'") : "NULL";
+      $scaffE = ($scaff !== '') ? ("'".esc($conn, $scaff)."'") : "NULL";
+      $ripiE  = ($ripi  !== '') ? ("'".esc($conn, $ripi )."'") : "NULL";
       $magE   = (string)$magId;
 
-      $sql = "UPDATE lotti SET
+      $sql = "UPDATE magazzino_lotti SET
                 magazzino_id=$magE,
-                anno_produzione=$annoE,
                 data_scadenza=$scadE,
                 scaffale=$scaffE,
                 ripiano=$ripiE
               WHERE id=$lid AND prodotto_id=$pid
               LIMIT 1";
+
       $ok = mysqli_query($conn, $sql);
       if ($ok) redirect('product_form.php?id='.$pid.'&msg='.urlencode('Lotto modificato').$filterSuffix);
       $err = 'Errore modifica lotto: ' . (mysqli_error($conn) ?: 'query failed');
@@ -245,15 +230,16 @@ if (($_POST['action'] ?? '') === 'edit_lotto') {
   }
 }
 
+
 if (($_POST['action'] ?? '') === 'del_lotto') {
   $pid = (int)($_POST['id'] ?? 0);
   $lid = (int)($_POST['lotto_id'] ?? 0);
 
   if ($pid > 0 && $lid > 0) {
     mysqli_begin_transaction($conn);
-    $ok = mysqli_query($conn, "DELETE FROM movimenti WHERE prodotto_id=$pid AND lotto_id=$lid");
+    $ok = mysqli_query($conn, "DELETE FROM magazzino_movimenti WHERE prodotto_id=$pid AND lotto_id=$lid");
     if ($ok) {
-      $ok = mysqli_query($conn, "DELETE FROM lotti WHERE id=$lid AND prodotto_id=$pid LIMIT 1");
+      $ok = mysqli_query($conn, "DELETE FROM magazzino_lotti WHERE id=$lid AND prodotto_id=$pid LIMIT 1");
     }
     if ($ok) {
       mysqli_commit($conn);
@@ -277,15 +263,15 @@ $res = mysqli_query($conn, "SELECT id, nome FROM magazzini WHERE attivo=1 ORDER 
 while ($res && ($r = mysqli_fetch_assoc($res))) $mag[] = $r;
 
 $cat = [];
-$res = mysqli_query($conn, "SELECT id, nome, tipo FROM categorie WHERE attivo=1 ORDER BY tipo ASC, nome ASC");
+$res = mysqli_query($conn, "SELECT id, nome, tipo FROM magazzino_categorie WHERE attivo=1 ORDER BY tipo ASC, nome ASC");
 while ($res && ($r = mysqli_fetch_assoc($res))) $cat[] = $r;
 
 $fornitori = [];
-$res = mysqli_query($conn, "SELECT id, nome FROM fornitori WHERE attivo=1 ORDER BY nome ASC");
+$res = mysqli_query($conn, "SELECT id, nome FROM magazzino_fornitori WHERE attivo=1 ORDER BY nome ASC");
 while ($res && ($r = mysqli_fetch_assoc($res))) $fornitori[] = $r;
 
 $destinazioni = [];
-$res = mysqli_query($conn, "SELECT id, nome FROM destinazioni ORDER BY nome ASC");
+$res = mysqli_query($conn, "SELECT id, nome FROM magazzino_destinazioni ORDER BY nome ASC");
 while ($res && ($r = mysqli_fetch_assoc($res))) $destinazioni[] = $r;
 
 /* =========================
@@ -299,10 +285,10 @@ $lotti_pages = 1;
 
 if ($id > 0) {
   // totale lotti
-  $sqlCountLotti = "SELECT COUNT(*) AS c FROM lotti l
+  $sqlCountLotti = "SELECT COUNT(*) AS c FROM magazzino_lotti l
     LEFT JOIN (
       SELECT lotto_id, SUM(CASE WHEN tipo='CARICO' THEN quantita ELSE -quantita END) AS giacenza
-      FROM movimenti
+      FROM magazzino_movimenti
       WHERE prodotto_id=$id
       GROUP BY lotto_id
     ) m ON m.lotto_id = l.id
@@ -317,20 +303,22 @@ if ($id > 0) {
   $offset = ($lotti_page - 1) * $LOTTI_PER_PAGE;
 
   // totale giacenza (NON paginato)
-  $resT = mysqli_query($conn, "SELECT COALESCE(SUM(CASE WHEN tipo='CARICO' THEN quantita ELSE -quantita END),0) AS s FROM movimenti WHERE prodotto_id=$id");
+  $resT = mysqli_query($conn, "SELECT COALESCE(SUM(CASE WHEN tipo='CARICO' THEN quantita ELSE -quantita END),0) AS s FROM magazzino_movimenti WHERE prodotto_id=$id");
   if ($resT && ($tt = mysqli_fetch_assoc($resT))) $tot_qta = (int)$tt['s'];
 
   // lotti paginati
-  $sqlL = "SELECT l.id, l.magazzino_id, l.anno_produzione, l.data_scadenza, l.scaffale, l.ripiano,
-                  COALESCE(m.giacenza,0) AS giacenza
-           FROM lotti l
-           LEFT JOIN (
-             SELECT lotto_id, SUM(CASE WHEN tipo='CARICO' THEN quantita ELSE -quantita END) AS giacenza
-             FROM movimenti
-             WHERE prodotto_id=$id
-             GROUP BY lotto_id
-           ) m ON m.lotto_id = l.id
-           WHERE l.prodotto_id=$id";
+  $sqlL = "SELECT l.id, l.magazzino_id, mz.nome AS magazzino_nome, l.data_scadenza, l.scaffale, l.ripiano,
+                COALESCE(m.giacenza,0) AS giacenza
+         FROM magazzino_lotti l
+         JOIN magazzini mz ON mz.id = l.magazzino_id
+         LEFT JOIN (
+           SELECT lotto_id, SUM(CASE WHEN tipo='CARICO' THEN quantita ELSE -quantita END) AS giacenza
+           FROM magazzino_movimenti
+           WHERE prodotto_id=$id
+           GROUP BY lotto_id
+         ) m ON m.lotto_id = l.id
+         WHERE l.prodotto_id=$id";
+
   if ($hide_zero === 1) $sqlL .= " AND COALESCE(m.giacenza,0) <> 0";
   $sqlL .= "
            ORDER BY l.data_scadenza ASC, l.id ASC
@@ -342,7 +330,7 @@ if ($id > 0) {
 
 // se lotto_sel non esiste più nel DB, reset (non dipende dalla pagina corrente)
 if ($selectedLottoId > 0) {
-  $chk = mysqli_query($conn, "SELECT 1 FROM lotti WHERE id=$selectedLottoId AND prodotto_id=$id LIMIT 1");
+  $chk = mysqli_query($conn, "SELECT 1 FROM magazzino_lotti WHERE id=$selectedLottoId AND prodotto_id=$id LIMIT 1");
   if (!$chk || mysqli_num_rows($chk) === 0) $selectedLottoId = 0;
 }
 
@@ -364,22 +352,12 @@ require __DIR__ . '/../includes/header.php';
       <input type="hidden" name="action" value="save">
       <input type="hidden" name="id" value="<?= (int)$row['id'] ?>">
       <input type="hidden" name="hide_zero" value="<?= (int)$hide_zero ?>">
-
-      <div class="col-12 col-md-6">
-        <label class="form-label">Magazzino *</label>
-        <select class="form-select" name="magazzino_id" required>
-          <option value="0">Seleziona...</option>
-          <?php foreach ($mag as $m): ?>
-            <option value="<?= (int)$m['id'] ?>" <?= ((int)$row['magazzino_id']===(int)$m['id']?'selected':'') ?>><?= h($m['nome']) ?></option>
-          <?php endforeach; ?>
-        </select>
-      </div>
-      <div class="col-12 col-md-6">
+      <div class="col-12 col-md-4">
         <label class="form-label">Nome *</label>
         <input class="form-control" name="nome" required value="<?= h($row['nome']) ?>">
       </div>
 
-      <div class="col-12 col-md-6">
+      <div class="col-12 col-md-4">
         <label class="form-label">Unità</label>
         <select class="form-select" name="unita">
           <?php foreach ($UNITA_OPZ as $k=>$label): ?>
@@ -388,7 +366,7 @@ require __DIR__ . '/../includes/header.php';
         </select>
       </div>
 
-      <div class="col-12 col-md-6">
+      <div class="col-12 col-md-4">
         <label class="form-label">Categoria</label>
         <select class="form-select" name="categoria_id">
           <option value="0">—</option>
@@ -449,6 +427,7 @@ require __DIR__ . '/../includes/header.php';
             <table class="table table-sm align-middle mb-0">
               <thead class="text-secondary">
                 <tr>
+                  <th>Magazzino</th>
                   <th>Scadenza</th>
                   <th>Scaffale</th>
                   <th>Ripiano</th>
@@ -458,7 +437,7 @@ require __DIR__ . '/../includes/header.php';
               </thead>
               <tbody>
               <?php if (!$lotti): ?>
-                <tr><td colspan="5" class="text-center py-4 text-secondary">Nessun lotto inserito</td></tr>
+                <tr><td colspan="6" class="text-center py-4 text-secondary">Nessun lotto inserito</td></tr>
               <?php else: foreach ($lotti as $l): ?>
                 <?php
                   $lid = (int)$l['id'];
@@ -479,6 +458,7 @@ require __DIR__ . '/../includes/header.php';
                   $expCls = $expMap[$badgeClass] ?? $expMap['of-badge-na'];
 ?>
                 <tr class="js-lotto-row <?= $isSel ? 'table-primary' : '' ?>" data-lotto-id="<?= $lid ?>">
+                  <td><?= h((string)($l['magazzino_nome'] ?? '—')) ?></td>
                   <td><span class="badge <?= h($expCls) ?>"><?= h($scadIt) ?></span></td>
                   <td><?= h($scaff) ?></td>
                   <td><?= h($ripi) ?></td>
@@ -499,7 +479,6 @@ require __DIR__ . '/../includes/header.php';
                             aria-label="Modifica lotto"
                             data-lotto-id="<?= $lid ?>"
                             data-scad="<?= h((string)($l['data_scadenza'] ?? '')) ?>"
-                            data-anno="<?= h((string)($l['anno_produzione'] ?? '')) ?>"
                             data-magazzino-id="<?= (int)($l['magazzino_id'] ?? 0) ?>"
                             data-scaff="<?= h((string)($l['scaffale'] ?? '')) ?>"
                             data-ripi="<?= h((string)($l['ripiano'] ?? '')) ?>">
@@ -589,48 +568,35 @@ require __DIR__ . '/../includes/header.php';
 <?php endif; ?>
 
 <!-- MODAL ADD LOTTO -->
-<div class="modal fade" id="addLottoModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-lg">
-    <form method="post" class="modal-content">
-      <input type="hidden" name="action" value="add_lotto">
-      <input type="hidden" name="id" value="<?= (int)$id ?>">
-      <input type="hidden" name="hide_zero" value="<?= (int)$hide_zero ?>">
+<div class="modal-body">
+  <div class="row g-2">
+    <div class="col-12 col-md-6">
+      <label class="form-label">Magazzino *</label>
+      <select class="form-select" name="lotto_magazzino_id" required>
+        <option value="0">Seleziona...</option>
+        <?php foreach ($mag as $m): ?>
+          <option value="<?= (int)$m['id'] ?>"><?= h($m['nome']) ?></option>
+        <?php endforeach; ?>
+      </select>
+    </div>
 
-      <div class="modal-header">
-        <h5 class="modal-title">Aggiungi lotto</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Chiudi"></button>
-      </div>
+    <div class="col-12 col-md-6">
+      <label class="form-label">Scadenza</label>
+      <input type="date" class="form-control" name="lotto_scadenza">
+    </div>
 
-      
-      <div class="modal-body">
-        <div class="row g-2">
-          <input type="hidden" name="lotto_magazzino_id" value="<?= (int)($row['magazzino_id'] ?? 0) ?>">
-          <div class="col-12 col-md-6">
-            <label class="form-label">Scadenza</label>
-            <input type="date" class="form-control" name="lotto_scadenza">
-          </div>
-          <div class="col-12 col-md-6">
-            <label class="form-label">Anno prod.</label>
-            <input class="form-control" name="lotto_anno" inputmode="numeric" placeholder="es. 2024">
-          </div>
-          <div class="col-12 col-md-6">
-            <label class="form-label">Scaffale</label>
-            <input class="form-control" name="lotto_scaffale">
-          </div>
-          <div class="col-12 col-md-6">
-            <label class="form-label">Ripiano</label>
-            <input class="form-control" name="lotto_ripiano">
-          </div>
-        </div>
-      </div>
+    <div class="col-12 col-md-6">
+      <label class="form-label">Scaffale</label>
+      <input class="form-control" name="lotto_scaffale">
+    </div>
 
-      <div class="modal-footer">
-        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Annulla</button>
-        <button class="btn btn-primary">Aggiungi lotto</button>
-      </div>
-    </form>
+    <div class="col-12 col-md-6">
+      <label class="form-label">Ripiano</label>
+      <input class="form-control" name="lotto_ripiano">
+    </div>
   </div>
 </div>
+
 
 <!-- MODAL EDIT LOTTO -->
 <div class="modal fade" id="editLottoModal" tabindex="-1" aria-hidden="true">
@@ -640,8 +606,6 @@ require __DIR__ . '/../includes/header.php';
       <input type="hidden" name="id" value="<?= (int)$id ?>">
       <input type="hidden" name="lotto_id" id="edit_lotto_id" value="">
       <input type="hidden" name="hide_zero" value="<?= (int)$hide_zero ?>">
-      <input type="hidden" name="edit_magazzino_id" value="<?= (int)$row['magazzino_id'] ?>">
-
 
       <div class="modal-header">
         <h5 class="modal-title">Modifica lotto</h5>
@@ -652,8 +616,13 @@ require __DIR__ . '/../includes/header.php';
       <div class="modal-body">
         <div class="row g-2">
           <div class="col-12 col-md-6">
-            <label class="form-label">Anno prod.</label>
-            <input class="form-control" name="edit_anno" id="edit_anno" placeholder="es. 2024">
+            <label class="form-label">Magazzino *</label>
+            <select class="form-select" name="edit_magazzino_id" id="edit_magazzino_id" required>
+              <option value="0">Seleziona...</option>
+              <?php foreach ($mag as $m): ?>
+                <option value="<?= (int)$m['id'] ?>"><?= h($m['nome']) ?></option>
+              <?php endforeach; ?>
+            </select>
           </div>
           <div class="col-12 col-md-6">
             <label class="form-label">Scadenza</label>
@@ -730,7 +699,7 @@ require __DIR__ . '/../includes/header.php';
             <input class="form-control" name="mov_prezzo" id="new_mov_prezzo" inputmode="decimal" placeholder="es. 12.50">
           </div>
 
-          <div class="col-12 col-md-6 of-only-carico-new">
+          <div class="col-12 col-md-4 of-only-carico-new">
             <label class="form-label mb-1">Fornitore</label>
             <select class="form-select" name="mov_fornitore_id" id="new_mov_fornitore_id">
               <option value="0">—</option>
@@ -740,7 +709,7 @@ require __DIR__ . '/../includes/header.php';
             </select>
           </div>
 
-          <div class="col-12 col-md-3 of-only-carico-new">
+          <div class="col-12 col-md-4 of-only-carico-new">
             <label class="form-label mb-1">Doc. tipo</label>
             <select class="form-select" name="mov_doc_tipo" id="new_mov_doc_tipo">
               <option value="">—</option>
@@ -750,12 +719,12 @@ require __DIR__ . '/../includes/header.php';
             </select>
           </div>
 
-          <div class="col-12 col-md-3 of-only-carico-new">
+          <div class="col-12 col-md-4 of-only-carico-new">
             <label class="form-label mb-1">Doc. numero</label>
             <input class="form-control" name="mov_doc_numero" id="new_mov_doc_numero" placeholder="es. 123/2026">
           </div>
 
-          <div class="col-12 col-md-3 of-only-carico-new">
+          <div class="col-12 col-md-4 of-only-carico-new">
             <label class="form-label mb-1">Doc. data</label>
             <input type="date" class="form-control" name="mov_doc_data" id="new_mov_doc_data">
           </div>
@@ -1021,14 +990,12 @@ require __DIR__ . '/../includes/header.php';
 
     const idEl = document.getElementById('edit_lotto_id');
     const scadEl = document.getElementById('edit_scadenza');
-    const annoEl = document.getElementById('edit_anno');
     const magEl = document.getElementById('edit_magazzino_id');
     const scaffEl = document.getElementById('edit_scaffale');
     const ripiEl = document.getElementById('edit_ripiano');
 
     if (idEl) idEl.value = btn.dataset.lottoId || '';
-    if (scadEl) scadEl.value = btn.dataset.scad || '';
-    if (annoEl) annoEl.value = btn.dataset.anno || '';
+    if (scadEl) scadEl.value = btn.dataset.scad || '';    
     if (magEl) magEl.value = btn.dataset.magazzinoId || '0';
     if (scaffEl) scaffEl.value = btn.dataset.scaff || '';
     if (ripiEl) ripiEl.value = btn.dataset.ripi || '';

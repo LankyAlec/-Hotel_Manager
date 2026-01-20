@@ -46,140 +46,25 @@ if ($pianoSel === 0 && $edificioSel > 0) {
   .calendar-wrap .table-responsive{ border-radius:16px; overflow:hidden; }
   .calendar-header{ padding:16px; border-bottom:1px solid rgba(0,0,0,.06); }
   .calendar-table th{ background:#f8f9fa; font-size:.85rem; text-transform:uppercase; letter-spacing:.03em; }
-
-  /* ✅ CONTINUITÀ: niente padding nelle celle */
-  .calendar-table th, .calendar-table td{
-    text-align:center;
-    vertical-align:middle;
-    padding: 0 !important;
-  }
-
-  .calendar-table .room-col{
-    text-align:left;
-    min-width:180px;
-    font-weight:600;
-    background:#fff;
-    position:sticky;
-    left:0;
-    z-index:2;
-    box-shadow:1px 0 0 rgba(0,0,0,.05);
-    padding:.55rem .35rem !important; /* ripristina padding solo colonna camere */
-  }
+  .calendar-table th, .calendar-table td{ text-align:center; vertical-align:middle; padding:.55rem .35rem; }
+  .calendar-table .room-col{ text-align:left; min-width:180px; font-weight:600; background:#fff; position:sticky; left:0; z-index:2; box-shadow:1px 0 0 rgba(0,0,0,.05); }
   .calendar-table .room-sub{ font-weight:400; color:#6c757d; font-size:.82rem; display:flex; flex-direction:column; gap:2px; }
   .calendar-table .room-note{ font-size:.78rem; color:#495057; }
 
-  /* =========================
-   * CELLA (contenitore)
-   * ======================= */
-  .cell{
-    position: relative;
-    height: 54px;
-    background: transparent !important;
-  }
-
-  .cell.disabled{ cursor:not-allowed; opacity:.7; }
-
-  /* wrapper interno */
-  .cell .barwrap{
-    position: absolute;
-    inset: 0;           /* top/right/bottom/left = 0 */
-  }
-
-  /* =========================
-   * SEGMENTI SLOPE-LIKE
-   * ======================= */
-  .stayseg{
-    position: absolute;
-    top: 50%;
-    transform: translateY(-50%);
-    height: 34px;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    font-weight: 800;
-    font-size: .85rem;
-    letter-spacing: .02em;
-    user-select:none;
-    overflow:hidden;
-    box-shadow: 0 .25rem .6rem rgba(0,0,0,.10);
-    white-space: nowrap;
-  }
-
-  /* colori */
-  .stayseg.occ { background: rgba(13,110,253,.18); color:#084298; }
-  .stayseg.mnt { background: rgba(220,53,69,.18);  color:#842029; }
-  .stayseg.pul { background: rgba(255,193,7,.26);  color:#664d03; }
-  .stayseg.dis { background: rgba(108,117,125,.18);color:#6c757d; }
-
-  /* 100% cella (giorni in mezzo) */
-  .stayseg.full{
-    left: 0;
-    width: 100%;
-  }
-
-  /* ✅ CHECK-IN: dal 66% a fine cella (34%), punta a DESTRA */
-  .stayseg.ci{
-    left: 66%;
-    width: 34%;
-    clip-path: polygon(
-      0 0,     /* alto: corpo rientrato */
-      100% 0,     /* alto prima della punta */
-      100% 100%,  /* basso dopo la punta */
-      0 100%,  /* basso: corpo rientrato */
-      25% 50%      /* CODA: incavo centrale */
-    );
-  }
-
-  /* ✅ CHECK-OUT: da inizio cella al 33%, punta a SINISTRA */
-  .stayseg.co{
-    left: 0;
-    width: 33%;
-    clip-path: polygon(
-      0 0,
-      66% 0,
-      100% 50%,
-      66% 100%,
-      0 100%
-    );
-  }
-
-  /* turnover: 2 pezzi nello stesso giorno */
-  .stayseg.co.turnover{ left:0; width:33%; }
-  .stayseg.ci.turnover{ left:66%; width:34%; }
-
-  /* =========================
-   * PRENOTA al centro
-   * ======================= */
-  .cell-libera .btn{
-    position:absolute;
-    top:50%; left:50%;
-    transform:translate(-50%,-50%);
-    border-radius:999px;
-    padding:.25rem .9rem;
-    font-size:.72rem;
-    font-weight:800;
-    box-shadow:0 .25rem .65rem rgba(13,110,253,.18);
-  }
-
-  /* meta badges */
-  .cell .cell-meta{
-    position:absolute;
-    left:50%;
-    bottom:2px;
-    transform:translateX(-50%);
-    display:flex;
-    gap:4px;
-    flex-wrap:wrap;
-    justify-content:center;
-    z-index: 3;
-  }
+  .cell{ min-width:80px; border-radius:8px; padding:.35rem .3rem; display:flex; flex-direction:column; gap:4px; align-items:center; justify-content:center; font-size:.78rem; cursor:pointer; }
+  .cell-libera{ }
+  .cell-libera .btn{ border-radius:999px; padding:.2rem .7rem; font-size:.72rem; font-weight:600; box-shadow:0 .2rem .5rem rgba(13,110,253,.25); }
+  .cell-occupata{ background:rgba(13,110,253,.2); color:#084298; font-weight:600; }
+  .cell-manutenzione{ background:rgba(220,53,69,.22); color:#842029; font-weight:600; }
+  .cell-pulizia{ background:rgba(255,193,7,.35); color:#664d03; font-weight:600; }
+  .cell-disattiva{ background:rgba(108,117,125,.2); color:#6c757d; font-weight:600; }
+  .cell-checkin:not(.cell-occupata):not(.cell-turnover){ background:linear-gradient(90deg, transparent 0 45%, rgba(25,135,84,.35) 45% 100%); }
+  .cell-checkout:not(.cell-occupata):not(.cell-turnover){ background:linear-gradient(90deg, rgba(220,53,69,.25) 0 55%, transparent 55% 100%); }
+  .cell-turnover{ background:rgba(111,66,193,.25); color:#3d2a6b; font-weight:600; }
+  .cell .cell-label{ font-size:.85rem; font-weight:700; }
+  .cell .cell-meta{ display:flex; gap:4px; flex-wrap:wrap; justify-content:center; }
   .cell .badge{ font-size:.62rem; }
-
-  /* disattiva vecchi overlay */
-  .cell::before, .cell::after{ content:none !important; }
-  .cell.cell-checkout::before,
-  .cell.cell-checkin::after{ content:none !important; }
-  .cell.cell-turnover{ background:transparent !important; }
+  .cell.disabled{ cursor:not-allowed; opacity:.7; }
 
   .calendar-empty{ padding:24px; text-align:center; color:#6c757d; }
   .calendar-toolbar{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; justify-content:space-between; }
@@ -187,35 +72,6 @@ if ($pianoSel === 0 && $edificioSel > 0) {
   .calendar-toolbar .form-control{ max-width:170px; }
 
   .booking-modal .form-label span.required{ color:#dc3545; }
-
-  /* layer overlay sopra la tabella per le etichette centrate */
-  #calendarContainer{ position:relative; }
-
-  .booking-label-layer{
-    position:absolute;
-    inset:0;
-    pointer-events:none;
-    z-index: 50;
-  }
-
-  .booking-label{
-    position:absolute;
-    height:34px;              /* uguale a .stayseg */
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    font-weight:800;
-    font-size:.85rem;
-    letter-spacing:.02em;
-    color:#084298;
-    white-space:nowrap;
-    overflow:hidden;
-    text-overflow:ellipsis;
-    padding:0 10px;
-    filter: drop-shadow(0 .25rem .35rem rgba(0,0,0,.08));
-  }
-
-
   .guest-card{ border:1px solid rgba(0,0,0,.08); border-radius:12px; padding:12px; margin-bottom:12px; }
   .guest-card .guest-title{ font-weight:600; }
   .guest-card .guest-actions{ display:flex; justify-content:flex-end; }
@@ -304,35 +160,6 @@ if ($pianoSel === 0 && $edificioSel > 0) {
             <label class="form-label small">Check-out</label>
             <input type="date" class="form-control" name="data_checkout" id="bookingCheckout" required>
           </div>
-          <div class="col-12 col-md-4">
-            <label class="form-label small">Tipo soggiorno</label>
-            <select class="form-select" name="piano_pasto_sigla" id="bookingPasto">
-              <option value="">—</option>
-              <option value="BB">BB</option>
-              <option value="HB">HB</option>
-              <option value="FB">FB</option>
-            </select>
-          </div>
-
-          <div class="col-12 col-md-4" id="hbBox" style="display:none;">
-            <label class="form-label small">HB: servizio</label>
-            <select class="form-select" name="hb_servizio" id="bookingHb">
-              <option value="">—</option>
-              <option value="PRANZO">Pranzo</option>
-              <option value="CENA">Cena</option>
-            </select>
-          </div>
-
-          <div class="col-6 col-md-2" id="hbDaBox" style="display:none;">
-            <label class="form-label small">HB da</label>
-            <input type="date" class="form-control" name="hb_da" id="bookingHbDa">
-          </div>
-
-          <div class="col-6 col-md-2" id="hbABBox" style="display:none;">
-            <label class="form-label small">HB a</label>
-            <input type="date" class="form-control" name="hb_a" id="bookingHbA">
-          </div>
-
         </form>
 
         <div class="border-top pt-3 mt-3">
@@ -362,9 +189,7 @@ if ($pianoSel === 0 && $edificioSel > 0) {
 
           <div id="guestSearchResults" class="guest-search-results mb-3 d-none"></div>
           <div id="guestsContainer"></div>
-          <div id="guestsEmpty" class="text-muted small d-none">
-            Inserisci almeno 1 ospite (nome e cognome) prima di salvare la prenotazione.
-          </div>
+          <div id="guestsEmpty" class="text-muted small d-none">Salva la prenotazione per associare ospiti.</div>
         </div>
       </div>
       <div class="modal-footer">
@@ -448,10 +273,8 @@ if ($pianoSel === 0 && $edificioSel > 0) {
       }
     }
 
-    function shiftDate(deltaDays) {
-      const d = new Date(startDateEl.value + 'T12:00:00');
-      d.setDate(d.getDate() + deltaDays);
-      startDateEl.value = formatLocalYMD(d);
+    function shiftDate(days) {
+      sstartDateEl.value = formatLocalYMD(new Date());
     }
 
     function mapSet(list) {
@@ -572,13 +395,12 @@ if ($pianoSel === 0 && $edificioSel > 0) {
         applyCheckoutMinFromCheckin(bookingCheckin.value);
         loadGuests(currentBookingId);
       } else {
-        bookingCheckout.value = checkout || '';
+        bookingCheckout.value = '';
         guestsContainer.innerHTML = '';
-        guestsEmpty.classList.remove('d-none'); // ✅ devi inserire ospiti prima di salvare
+        guestsEmpty.classList.remove('d-none');
         applyCheckoutMinFromCheckin(bookingCheckin.value);
         setTimeout(() => bookingCheckout.focus(), 150);
       }
-
 
       guestSearchResults.classList.add('d-none');
       const modal = new bootstrap.Modal(bookingModalEl);
@@ -664,64 +486,33 @@ if ($pianoSel === 0 && $edificioSel > 0) {
       res.ospiti.forEach(o => renderGuestCard(o));
     }
 
-    function collectGuestsFromUI() {
-      const cards = Array.from(guestsContainer.querySelectorAll('.guest-card'));
-      const out = [];
-      for (const card of cards) {
-        const obj = {};
-        card.querySelectorAll('input[name]').forEach(i => obj[i.name] = i.value);
-
-        // minimo richiesto
-        const nome = (obj.nome || '').trim();
-        const cognome = (obj.cognome || '').trim();
-        if (!nome || !cognome) continue;
-
-        out.push(obj);
-      }
-      return out;
-    }
-
-    async function saveBooking(ev) {
-      ev?.preventDefault();
-
+    async function saveBooking() {
       const data = new FormData(bookingForm);
       const payload = Object.fromEntries(data.entries());
       payload.action = 'save_booking';
-
-      if (currentBookingId) payload.id = currentBookingId;
-
-      // ✅ ospiti sempre raccolti (servono soprattutto per nuova prenotazione)
-      const guests = collectGuestsFromUI();
-      if (!currentBookingId && guests.length < 1) {
-        showToast('Devi inserire almeno 1 ospite (nome e cognome) prima di salvare', 'warning');
-        guestsEmpty.classList.remove('d-none');
-        return;
+      if (currentBookingId) {
+        payload.id = currentBookingId;
       }
-      payload.ospiti = guests;
-
       const res = await fetchJson('prenotazioni_ajax.php', {
         method: 'POST',
         body: JSON.stringify(payload)
       });
-
       showToast(res.message || 'Salvataggio completato', res.toast?.variant || (res.ok ? 'success' : 'danger'));
-
       if (res.ok) {
         currentBookingId = res.id || currentBookingId;
         bookingIdInput.value = currentBookingId || '';
         loadCalendar();
-        if (currentBookingId) loadGuests(currentBookingId);
+        if (currentBookingId) {
+          loadGuests(currentBookingId);
+        }
       }
     }
 
-
     async function saveGuest(card) {
       if (!currentBookingId) {
-        // ✅ prima del salvataggio: gli ospiti restano "locali" e verranno inviati con saveBooking()
-        showToast('Ospite aggiunto. Ora salva la prenotazione.', 'info');
+        showToast('Salva prima la prenotazione', 'warning');
         return;
       }
-
       const inputs = card.querySelectorAll('input[name]');
       const payload = { action: 'save_guest', soggiorno_id: currentBookingId };
       const clienteId = card.querySelector('.js-save-guest')?.getAttribute('data-cliente');
@@ -770,166 +561,19 @@ if ($pianoSel === 0 && $edificioSel > 0) {
     }
 
     async function attachGuest(clienteId) {
-      // se non ho ancora salvato, non posso associare lato DB: creo card locale
       if (!currentBookingId) {
-        const row = guestSearchResults.querySelector(`[data-cliente="${clienteId}"]`);
-        const nome = row?.querySelector('.fw-semibold')?.textContent?.trim() || '';
-        const meta = row?.querySelector('.small')?.textContent?.trim() || '';
-
-        const parts = nome.split(' ');
-        const guest = {
-          nome: parts.slice(1).join(' ') ? parts.slice(1).join(' ') : (parts[0] || ''),
-          cognome: parts[0] || '',
-          data_nascita: '',
-          nazionalita: '',
-          indirizzo: '',
-          documento_tipo: '',
-          documento_numero: (meta.includes('·') ? meta.split('·')[1].trim() : '')
-        };
-
-        guestsEmpty.classList.add('d-none');
-        renderGuestCard(guest, true);
-        showToast('Ospite copiato. Ora salva la prenotazione.', 'info');
+        showToast('Salva prima la prenotazione', 'warning');
         return;
       }
-
       const res = await fetchJson('ospiti_ajax.php', {
         method: 'POST',
         body: JSON.stringify({ action: 'attach_guest', soggiorno_id: currentBookingId, cliente_id: clienteId })
       });
       showToast(res.message || 'Ospite associato', res.toast?.variant || (res.ok ? 'success' : 'danger'));
-      if (res.ok) loadGuests(currentBookingId);
-    }
-
-
-    function bookingLabel(b) {
-      if (!b) return '';
-      const ref = (b.referente || '').toString().trim();
-      if (ref) return ref;
-
-      const cognome = (b.cognome || b.cliente_cognome || '').toString().trim();
-      const nome    = (b.nome || b.cliente_nome || '').toString().trim();
-      const full = `${cognome} ${nome}`.trim();
-      if (full) return full;
-
-      const generic = (b.intestatario || b.cliente || b.nominativo || '').toString().trim();
-      return generic || `Pren. #${b.intestatario || ''}`.trim();
-    }
-
-    function daysBetween(aYmd, bYmd) {
-      const a = new Date(aYmd + 'T12:00:00');
-      const b = new Date(bYmd + 'T12:00:00');
-      return Math.round((b - a) / (1000 * 60 * 60 * 24));
-    }
-
-    // mostra testo solo nel “giorno centrale” del soggiorno, limitato alla finestra visibile
-    function isFullDayOfStay(b, day) {
-      // giorno occupato ma NON è il giorno di check-in (segmento parziale "ci")
-      // e NON è un giorno di turnover che vuoi evitare
-      if (!b) return false;
-      if (day === b.checkin) return false;
-      // l'ultimo giorno occupato (notte finale) di solito è full, quindi lo lasciamo ok
-      return true;
-    }
-
-    function labelDayForBooking(b, windowStart, windowEndExclusive) {
-      if (!b) return null;
-
-      const start = b.checkin;
-      const endEx = b.checkout;
-
-      const visStart = (start > windowStart) ? start : windowStart;
-      const visEndEx = (endEx < windowEndExclusive) ? endEx : windowEndExclusive;
-
-      const len = daysBetween(visStart, visEndEx);
-      if (len <= 0) return null;
-
-      // lista dei giorni visibili occupati
-      const days = [];
-      for (let i = 0; i < len; i++) days.push(addDaysYMD(visStart, i));
-
-      // preferisci un giorno "full" (non check-in)
-      const candidates = days.filter(d => isFullDayOfStay(b, d));
-      const pick = candidates.length ? candidates : days;
-
-      // ✅ centro: per len pari scegliamo il "middle di destra"
-      const idx = Math.floor(pick.length / 2);
-      return pick[idx] || null;
-    }
-
-    function shouldShowLabelOnDay(b, day, windowStart, windowEndExclusive) {
-      const midDay = labelDayForBooking(b, windowStart, windowEndExclusive);
-      return midDay ? (day === midDay) : false;
-    }
-
-
-    function ensureLabelLayer(){
-      let layer = calendarContainer.querySelector('.booking-label-layer');
-      if (!layer) {
-        layer = document.createElement('div');
-        layer.className = 'booking-label-layer';
-        calendarContainer.appendChild(layer);
+      if (res.ok) {
+        loadGuests(currentBookingId);
       }
-      return layer;
     }
-
-    function placeBookingLabels(days){
-      const layer = ensureLabelLayer();
-      layer.innerHTML = '';
-
-      const table = calendarContainer.querySelector('table.calendar-table');
-      if (!table) return;
-
-      const tableRect = table.getBoundingClientRect();
-      const layerRect = calendarContainer.getBoundingClientRect();
-
-      // per ogni booking, trova la prima e l'ultima cella visibile (per quella camera)
-      const bookings = window.currentCalendarBookings || [];
-
-      bookings.forEach(b => {
-        const id = String(b.id);
-        const label = bookingLabel(b);
-        if (!label) return;
-
-        // tutte le celle di quel booking (nella tabella corrente)
-        const cells = Array.from(calendarContainer.querySelectorAll(`.cell[data-booking-id="${id}"]`));
-        if (!cells.length) return;
-
-        // prendi prima e ultima cella (in ordine DOM sono già left->right)
-        const first = cells[0];
-        const last  = cells[cells.length - 1];
-
-        // se è un booking di 1 solo giorno visibile, ok comunque
-        const r1 = first.getBoundingClientRect();
-        const r2 = last.getBoundingClientRect();
-
-        // calcola left/right RELATIVI al calendarContainer
-        const scrollX = calendarContainer.scrollLeft || 0;
-
-        const left  = (r1.left - layerRect.left) + scrollX;
-        const right = (r2.right - layerRect.left) + scrollX;
-
-
-        const width = Math.max(40, right - left);
-
-        // top: allineato al centro verticale della barra
-        const cellH = first.getBoundingClientRect().height;
-        const barH  = 34;
-        const top = (r1.top - layerRect.top) + (cellH/2) - (barH/2);
-         // 54 cell height, 34 bar height
-
-        const el = document.createElement('div');
-        el.className = 'booking-label';
-        el.style.left = `${left}px`;
-        el.style.top = `${top}px`;
-        el.style.width = `${width}px`;
-        el.textContent = label;
-
-        layer.appendChild(el);
-      });
-    }
-
-
 
     function renderCalendar(data) {
       const rooms = data.rooms || [];
@@ -939,8 +583,6 @@ if ($pianoSel === 0 && $edificioSel > 0) {
       }
 
       const days = data.days || [];
-      const windowStart = days[0];
-      const windowEndExclusive = addDaysYMD(days[days.length - 1], 1);
       const manutenzioni = mapSet(data.manutenzioni || []);
       const pulizie = mapSet(data.pulizie || []);
       const bookings = mapSet(data.bookings || []);
@@ -956,27 +598,34 @@ if ($pianoSel === 0 && $edificioSel > 0) {
       rooms.forEach(room => {
         const roomId = String(room.id);
         html += '<tr>';
-
         const disabili = parseInt(room.accessibile_disabili || 0, 10) > 0;
         const accessibileHtml = disabili ? '<i class="bi bi-person-wheelchair"></i> Accessibile' : '';
         const noteHtml = room.note ? `<div class="room-note">${escapeHtml(room.note)}</div>` : '';
         html += `<td class="room-col">${escapeHtml(room.codice || '')}<div class="room-sub">${noteHtml}${accessibileHtml ? `<div>${accessibileHtml}</div>` : ''}</div></td>`;
 
-        const occs = bookings.get(roomId) || [];
-        const manutListAll = manutenzioni.get(roomId) || [];
-        const puliziaListAll = pulizie.get(roomId) || [];
-
-        // attiva/disattiva camera
-        const attivaVal = parseInt((room.attiva ?? 1), 10);
-        const isDisattivaCamera = (Number.isNaN(attivaVal) ? true : attivaVal !== 1);
-
         days.forEach(day => {
           let status = 'libera';
+          let label = statusInitial('Libera');
+          const tooltipParts = [];
           let bookingId = '';
           let bookingPayload = null;
-          const tooltipParts = [];
+          let checkinMarkers = [];
+          let checkoutMarkers = [];
 
-          // lookup occupazione (checkin <= day < checkout)
+          const occs = bookings.get(roomId) || [];
+          const manutList = manutenzioni.get(roomId) || [];
+          const puliziaList = pulizie.get(roomId) || [];
+
+          const checkinEvents = occs.filter(b => b.checkin === day);
+          const checkoutEvents = occs.filter(b => b.checkout === day);
+          const hasCheckin = checkinEvents.length > 0;
+          const hasCheckout = checkoutEvents.length > 0;
+          const hasTurnover = hasCheckin && hasCheckout;
+
+          checkinMarkers = checkinEvents.map(() => 'CI');
+          checkoutMarkers = checkoutEvents.map(() => 'CO');
+          bookingPayload = checkinEvents[0] || checkoutEvents[0] || null;
+
           const dayDate = new Date(day + 'T00:00:00');
           const match = occs.find(b => {
             const start = new Date(b.checkin + 'T00:00:00');
@@ -984,117 +633,89 @@ if ($pianoSel === 0 && $edificioSel > 0) {
             return dayDate >= start && dayDate < end;
           });
 
-          // per tooltip (solo informativo)
-          if (isDisattivaCamera) tooltipParts.push('Camera disattivata');
-          if (manutListAll.length) tooltipParts.push(manutListAll[0]?.stato ? `${formatStatus(manutListAll[0].stato)}` : 'Manutenzione');
-          if (puliziaListAll.length) tooltipParts.push(puliziaListAll[0]?.stato ? `${formatStatus(puliziaListAll[0].stato)}` : 'Pulizia');
+          const attivaVal = parseInt((room.attiva ?? 1), 10);
+          const isDisattiva = (Number.isNaN(attivaVal) ? true : attivaVal !== 1);
 
-          // Stato cella: prima la prenotazione (se c'è), altrimenti disattiva/manut/pulizia/libera
+          if (isDisattiva) tooltipParts.push('Camera disattivata');
+          if (manutList.length) {
+            const info = manutList[0];
+            tooltipParts.push(info?.stato ? `${formatStatus(info.stato)}` : '');
+          }
+          if (puliziaList.length) {
+            const info = puliziaList[0];
+            tooltipParts.push(info?.stato ? `${formatStatus(info.stato)}` : '');
+          }
+
           if (match) {
             status = 'occupata';
+            label = match.stato ? statusInitial(match.stato) : statusInitial('Occupata');
+            tooltipParts.push(`Soggiorno ${match.checkin} → ${match.checkout}`);
             bookingId = match.id;
             bookingPayload = match;
-            tooltipParts.push(`Soggiorno ${match.checkin} → ${match.checkout}`);
-          } else {
-            if (isDisattivaCamera) status = 'disattiva';
-            else if (manutListAll.length) status = 'manutenzione';
-            else if (puliziaListAll.length) status = 'pulizia';
-            else status = 'libera';
+          } else if (bookingPayload) {
+            tooltipParts.push(`Check-in ${bookingPayload.checkin} · Check-out ${bookingPayload.checkout}`);
+            bookingId = bookingPayload.id;
           }
 
-          // tooltip
-          const tooltip = tooltipParts.filter(Boolean).join(' · ');
+          if (!match) {
+            if (isDisattiva) {
+              status = 'disattiva';
+              label = statusInitial('Disattiva');
+            } else if (manutList.length) {
+              status = 'manutenzione';
+              label = statusInitial('Manutenzione');
+            } else if (puliziaList.length) {
+              status = 'pulizia';
+              label = statusInitial('Pulizia');
+            }
+          }
+
+          const tooltip = tooltipParts.join(' · ');
           const tooltipAttr = tooltip ? ` data-bs-toggle="tooltip" title="${tooltip.replace(/"/g, '&quot;')}"` : '';
 
-          // data-attr per click
+          // ✅ check-in = il giorno della cella (stringa già corretta)
           const defaultCheckin = day;
+
+          // ✅ checkout suggerito = day + 1, calcolato in locale (no UTC)
           const defaultCheckout = addDaysYMD(day, 1);
 
-          // Se occupata: per sicurezza settiamo checkout reale nel dataset (così in modal è sempre giusto)
-          const datasetCheckout = (status === 'occupata' && bookingPayload?.checkout) ? bookingPayload.checkout : '';
 
-          // checkout suggerito (solo per celle libere, utile se vuoi pre-compilare)
-          const checkoutSuggest = defaultCheckout;
+          // ✅ se cella libera: checkout vuoto (lo sceglie l'operatore)
+          const cellCheckoutValue = (status === 'libera') ? '' : defaultCheckout;
 
-          // meta badges (solo M / PU / D)
+          let metaTags = '';
           const statusBadges = [];
-          if (isDisattivaCamera) statusBadges.push('<span class="badge bg-secondary">D</span>');
-          if (manutListAll.length) statusBadges.push('<span class="badge bg-danger">M</span>');
-          if (puliziaListAll.length) statusBadges.push('<span class="badge bg-warning text-dark">PU</span>');
+          if (isDisattiva) statusBadges.push('<span class="badge bg-secondary">D</span>');
+          if (manutList.length) statusBadges.push('<span class="badge bg-danger">M</span>');
+          if (puliziaList.length) statusBadges.push('<span class="badge bg-warning text-dark">P</span>');
+          // ❌ niente badge "O"
 
-          const metaTags = statusBadges.length ? `<div class="cell-meta">${statusBadges.join('')}</div>` : '';
+          const tags = [
+            ...statusBadges,
+            ...checkinMarkers.map(tag => `<span class="badge bg-success">${tag}</span>`),
+            ...checkoutMarkers.map(tag => `<span class="badge bg-danger">${tag}</span>`)
+          ].join('');
 
-          // ---- SLOPE BAR LOGIC ----
-          // start = giorno check-in
-          // end   = ultima notte (giorno prima del checkout)
-          let isStart = false;
-          let isEndNight = false;
-          if (match) {
-            isStart = (day === match.checkin);
-            isEndNight = (addDaysYMD(day, 1) === match.checkout);
-          }
+          if (tags) metaTags = `<div class="cell-meta">${tags}</div>`;
 
-          let insideHtml = '';
-
-          // eventi sul giorno (servono per CI/CO parziali)
-          const occsForRoom = occs || [];
-          const hasCI = occsForRoom.some(b => b.checkin === day);
-          const hasCO = occsForRoom.some(b => b.checkout === day);
-          const isTurnover = hasCI && hasCO;
-
-          // scegli classe colore segmento
-          let segColor = 'occ';
-          if (status === 'manutenzione') segColor = 'mnt';
-          if (status === 'pulizia') segColor = 'pul';
-          if (status === 'disattiva') segColor = 'dis';
-
-          insideHtml += `<div class="barwrap">`;
-
-          if (status === 'libera') {
-            // se è libera ma ha un CO (check-out) vogliamo comunque disegnarlo a sinistra
-            if (hasCO) {
-              insideHtml += `<div class="stayseg ${segColor} co"> </div>`;
-            }
-            // se è libera ma ha un CI (caso raro: booking che parte ma match non trovato) disegna CI
-            if (hasCI) {
-              insideHtml += `<div class="stayseg ${segColor} ci"> </div>`;
-            }
-            // bottone prenota
-            insideHtml += `<button class="btn btn-outline-primary btn-sm">Prenota</button>`;
-          } else if (status === 'occupata') {
-            const txt = escapeHtml(bookingLabel(match));
-            const showTxt = shouldShowLabelOnDay(match, day, windowStart, windowEndExclusive);
-            const labelHtml = showTxt ? `<span class="staytxt">${txt}</span>` : '';
-
-            if (hasCI && !hasCO) {
-              insideHtml += `<div class="stayseg occ ci">${labelHtml}</div>`;
-            }
-            else if (!hasCI && !hasCO) {
-              insideHtml += `<div class="stayseg occ full">${labelHtml}</div>`;
-            }
-            else if (isTurnover) {
-              insideHtml += `<div class="stayseg occ co turnover"></div>`;
-              insideHtml += `<div class="stayseg occ ci turnover">${labelHtml}</div>`;
-            }
-            else {
-              insideHtml += `<div class="stayseg occ full">${labelHtml}</div>`;
-            }
-          }
-
-
-          insideHtml += `</div>`;
-
-          const disabledClass = isDisattivaCamera ? ' disabled' : '';
+          const disabledClass = isDisattiva ? ' disabled' : '';
           const bookingIdAttr = bookingId ? ` data-booking-id="${bookingId}"` : '';
+          const checkinClass = hasCheckin ? ' cell-checkin' : '';
+          const checkoutClass = hasCheckout ? ' cell-checkout' : '';
+          const turnoverClass = hasTurnover ? ' cell-turnover' : '';
+
+          const labelHtml = status === 'libera'
+            ? '<button class="btn btn-outline-primary btn-sm">Prenota</button>'
+            : label;
 
           html += `<td>
-            <div class="cell cell-${status}${disabledClass}"
+            <div class="cell cell-${status}${checkinClass}${checkoutClass}${turnoverClass}${disabledClass}"
                  data-camera-id="${room.id}"
                  data-checkin="${defaultCheckin}"
-                 data-checkout="${datasetCheckout}"
-                 data-checkout-suggest="${checkoutSuggest}"
+                 data-checkout="${cellCheckoutValue}"
+                 data-checkout-suggest="${defaultCheckout}"
                  ${bookingIdAttr}${tooltipAttr}>
-              ${insideHtml}
+              <div class="cell-label">${labelHtml}</div>
               ${metaTags}
             </div>
           </td>`;
@@ -1175,7 +796,7 @@ if ($pianoSel === 0 && $edificioSel > 0) {
       const bookingId = cell.dataset.bookingId ? parseInt(cell.dataset.bookingId, 10) : null;
       const cameraId = parseInt(cell.dataset.cameraId, 10);
       const checkin = cell.dataset.checkin;
-      const checkout = cell.dataset.checkout || cell.dataset.checkoutSuggest || '';
+      const checkout = cell.dataset.checkout;
 
       if (bookingId) {
         const booking = (window.currentCalendarBookings || []).find(b => parseInt(b.id, 10) === bookingId);
@@ -1205,11 +826,12 @@ if ($pianoSel === 0 && $edificioSel > 0) {
     });
 
     addGuestBtn?.addEventListener('click', () => {
-      // ✅ ora posso aggiungere ospiti anche prima del salvataggio prenotazione
-      guestsEmpty.classList.add('d-none');
+      if (!currentBookingId) {
+        showToast('Salva prima la prenotazione', 'warning');
+        return;
+      }
       renderGuestCard({}, true);
     });
-
 
     guestSearchBtn?.addEventListener('click', searchGuests);
     guestSearchInput?.addEventListener('keydown', (ev) => {

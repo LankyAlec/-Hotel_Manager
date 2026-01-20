@@ -39,10 +39,13 @@ function col_exists(mysqli $mysqli, string $table, string $col): bool {
 $type = (string)($_GET['type'] ?? '');
 
 try {
-  if ($type === 'edifici') {
-    $hasAttivo = col_exists($mysqli, 'edifici', 'attivo');
 
-    $sql = "SELECT id, nome FROM edifici";
+  if ($type === 'edifici') {
+    // Schema Hotel: struttura_edifici / struttura_piani / struttura_camere
+    $table = 'struttura_edifici';
+    $hasAttivo = col_exists($mysqli, $table, 'attivo');
+
+    $sql = "SELECT id, nome FROM $table";
     if ($hasAttivo) $sql .= " WHERE attivo = 1";
     $sql .= " ORDER BY nome ASC";
 
@@ -60,10 +63,11 @@ try {
     $edificio_id = (int)($_GET['edificio_id'] ?? 0);
     if ($edificio_id <= 0) json_out(['ok'=>true,'items'=>[]]);
 
-    $hasAttivo = col_exists($mysqli, 'piani', 'attivo');
-    $hasLivello = col_exists($mysqli, 'piani', 'livello');
+    $table = 'struttura_piani';
+    $hasAttivo   = col_exists($mysqli, $table, 'attivo');
+    $hasLivello  = col_exists($mysqli, $table, 'livello');
 
-    $sql = "SELECT id, nome" . ($hasLivello ? ", livello" : "") . " FROM piani WHERE edificio_id = ?";
+    $sql = "SELECT id, nome" . ($hasLivello ? ", livello" : "") . " FROM $table WHERE edificio_id = ?";
     if ($hasAttivo) $sql .= " AND attivo = 1";
     $sql .= $hasLivello ? " ORDER BY livello ASC, nome ASC" : " ORDER BY nome ASC";
 
@@ -87,9 +91,10 @@ try {
     $piano_id = (int)($_GET['piano_id'] ?? 0);
     if ($piano_id <= 0) json_out(['ok'=>true,'items'=>[]]);
 
-    $hasAttiva = col_exists($mysqli, 'camere', 'attiva');
+    $table = 'struttura_camere';
+    $hasAttiva = col_exists($mysqli, $table, 'attiva');
 
-    $sql = "SELECT id, codice FROM camere WHERE piano_id = ?";
+    $sql = "SELECT id, codice FROM $table WHERE piano_id = ?";
     if ($hasAttiva) $sql .= " AND attiva = 1";
     $sql .= " ORDER BY (codice REGEXP '^[0-9]+$') DESC, CAST(codice AS UNSIGNED), codice ASC";
 
@@ -108,8 +113,6 @@ try {
   }
 
   if ($type === 'assegnati') {
-    // qui NON sappiamo come distingui "manutenzione".
-    // Ti do default: tutti gli utenti (se esiste status, prendo solo attivi).
     $hasStatus = col_exists($mysqli, 'utenti', 'status');
 
     $sql = "SELECT id, cognome, nome FROM utenti";

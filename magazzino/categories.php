@@ -19,14 +19,14 @@ if (($_POST['action'] ?? '') === 'add') {
   if ($nome !== '') {
     $nomeE = "'" . esc($conn, $nome) . "'";
     $tipoE = "'" . esc($conn, $tipo) . "'";
-    mysqli_query($conn, "INSERT IGNORE INTO categorie (nome,tipo) VALUES ($nomeE,$tipoE)");
+    mysqli_query($conn, "INSERT IGNORE INTO magazzino_categorie (nome,tipo) VALUES ($nomeE,$tipoE)");
   }
   mag_redirect('categories.php');
 }
 
 if (($_POST['action'] ?? '') === 'del') {
   $id = (int)($_POST['id'] ?? 0);
-  if ($id > 0) mysqli_query($conn, "DELETE FROM categorie WHERE id=$id LIMIT 1");
+  if ($id > 0) mysqli_query($conn, "DELETE FROM magazzino_categorie WHERE id=$id LIMIT 1");
   mag_redirect('categories.php');
 }
 
@@ -37,13 +37,13 @@ if (($_POST['action'] ?? '') === 'edit') {
   if ($id > 0 && $nome !== '') {
     $nomeE = "'" . esc($conn, $nome) . "'";
     $tipoE = "'" . esc($conn, $tipo) . "'";
-    mysqli_query($conn, "UPDATE categorie SET nome=$nomeE, tipo=$tipoE WHERE id=$id LIMIT 1");
+    mysqli_query($conn, "UPDATE magazzino_categorie SET nome=$nomeE, tipo=$tipoE WHERE id=$id LIMIT 1");
   }
   mag_redirect('categories.php?page=' . $page . '&q=' . urlencode($q));
 }
 
 if ($editId > 0) {
-  $res = mysqli_query($conn, "SELECT id, nome, tipo FROM categorie WHERE id=$editId");
+  $res = mysqli_query($conn, "SELECT id, nome, tipo FROM magazzino_categorie WHERE id=$editId");
   if ($res && ($r = mysqli_fetch_assoc($res))) $editRow = $r;
 }
 
@@ -55,7 +55,7 @@ if ($q !== '') {
 $whereSql = 'WHERE ' . implode(' AND ', $where);
 
 $total = 0;
-$res = mysqli_query($conn, "SELECT COUNT(*) AS n FROM categorie c $whereSql");
+$res = mysqli_query($conn, "SELECT COUNT(*) AS n FROM magazzino_categorie c $whereSql");
 if ($res && ($r = mysqli_fetch_assoc($res))) $total = (int)$r['n'];
 
 $pages = max(1, (int)ceil($total / $perPage));
@@ -68,10 +68,10 @@ SELECT
   c.nome,
   c.tipo,
   COALESCE(p.n_prodotti, 0) AS n_prodotti
-FROM categorie c
+FROM magazzino_categorie c
 LEFT JOIN (
   SELECT categoria_id, COUNT(DISTINCT id) AS n_prodotti
-  FROM prodotti
+  FROM magazzino_prodotti
   WHERE attivo=1
   GROUP BY categoria_id
 ) p ON p.categoria_id = c.id

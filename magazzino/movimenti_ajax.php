@@ -94,7 +94,7 @@ if ($method === 'POST' && $operatore_id <= 0) {
  * DESTINAZIONI (scarico)
  * ======================= */
 $DEST_MAP = [];
-$resDest = mysqli_query($conn, "SELECT id, nome FROM destinazioni ORDER BY nome ASC");
+$resDest = mysqli_query($conn, "SELECT id, nome FROM magazzino_destinazioni ORDER BY nome ASC");
 while ($resDest && ($r = mysqli_fetch_assoc($resDest))) {
   $DEST_MAP[(int)$r['id']] = (string)$r['nome'];
 }
@@ -102,12 +102,12 @@ while ($resDest && ($r = mysqli_fetch_assoc($resDest))) {
 /* =========================
  * PRODOTTO / LOTTO
  * ======================= */
-$res = mysqli_query($conn, "SELECT id, unita FROM prodotti WHERE id=$pid LIMIT 1");
+$res = mysqli_query($conn, "SELECT id, unita FROM magazzino_prodotti WHERE id=$pid LIMIT 1");
 if (!$res || !($prod = mysqli_fetch_assoc($res))) json_out(['ok'=>false, 'html'=>'Prodotto non trovato']);
 $unita = (string)($prod['unita'] ?? 'pz');
 
 $res = mysqli_query($conn, "SELECT id, prodotto_id, data_scadenza, scaffale, ripiano
-                            FROM lotti WHERE id=$lid AND prodotto_id=$pid LIMIT 1");
+                            FROM magazzino_lotti WHERE id=$lid AND prodotto_id=$pid LIMIT 1");
 if (!$res || !($lot = mysqli_fetch_assoc($res))) json_out(['ok'=>false, 'html'=>'Lotto non trovato']);
 
 /* =========================
@@ -117,7 +117,7 @@ $render_panel = function(int $pid, int $lid, int $page) use ($conn, $MOV_PER_PAG
   $offset = ($page - 1) * $MOV_PER_PAGE;
 
   $tot = 0;
-  $resC = mysqli_query($conn, "SELECT COUNT(*) AS c FROM movimenti WHERE prodotto_id=$pid AND lotto_id=$lid");
+  $resC = mysqli_query($conn, "SELECT COUNT(*) AS c FROM magazzino_movimenti WHERE prodotto_id=$pid AND lotto_id=$lid");
   if ($resC && ($cc = mysqli_fetch_assoc($resC))) $tot = (int)$cc['c'];
 
   $pages = max(1, (int)ceil($tot / $MOV_PER_PAGE));
@@ -125,41 +125,27 @@ $render_panel = function(int $pid, int $lid, int $page) use ($conn, $MOV_PER_PAG
 
   $movimenti = [];
 
-  // prova con join su utenti per operatore
+  // Join con utenti per mostrare "Cognome Nome" dell'operatore
   $sqlM = "
-    SELECT mv.id, mv.ts, mv.tipo, mv.quantita, mv.prezzo,
-           mv.note, mv.fornitore_id, mv.doc_tipo, mv.doc_numero, mv.doc_data,
-           mv.operatore_id, mv.id_destinazione,
-           d.nome AS destinazione_nome,
-           f.nome AS fornitore_nome,
-           CONCAT(u.nome,' ',u.cognome) AS operatore_nome
-    FROM movimenti mv
-    LEFT JOIN destinazioni d ON d.id = mv.id_destinazione
-    LEFT JOIN fornitori f ON f.id = mv.fornitore_id
+    SELECT
+      mv.id, mv.ts, mv.tipo, mv.quantita,
+      mv.prezzo AS prezzo,
+      mv.note, mv.fornitore_id, mv.doc_tipo, mv.doc_numero, mv.doc_data,
+      mv.operatore_id,
+      CONCAT(COALESCE(u.cognome,''), ' ', COALESCE(u.nome,'')) AS operatore_nome,
+      mv.id_destinazione,
+      d.nome AS destinazione_nome,
+      f.nome AS fornitore_nome
+    FROM magazzino_movimenti mv
     LEFT JOIN utenti u ON u.id = mv.operatore_id
+    LEFT JOIN magazzino_destinazioni d ON d.id = mv.id_destinazione
+    LEFT JOIN magazzino_fornitori f ON f.id = mv.fornitore_id
     WHERE mv.prodotto_id = $pid AND mv.lotto_id = $lid
     ORDER BY mv.ts DESC, mv.id DESC
     LIMIT $MOV_PER_PAGE OFFSET $offset
   ";
-  $res = mysqli_query($conn, $sqlM);
 
-  // fallback se tabella utenti/colonne non esistono
-  if (!$res) {
-    $sqlM = "
-      SELECT mv.id, mv.ts, mv.tipo, mv.quantita, mv.prezzo,
-             mv.note, mv.fornitore_id, mv.doc_tipo, mv.doc_numero, mv.doc_data,
-             mv.operatore_id, mv.id_destinazione,
-             d.nome AS destinazione_nome,
-             f.nome AS fornitore_nome
-      FROM movimenti mv
-      LEFT JOIN destinazioni d ON d.id = mv.id_destinazione
-      LEFT JOIN fornitori f ON f.id = mv.fornitore_id
-      WHERE mv.prodotto_id = $pid AND mv.lotto_id = $lid
-      ORDER BY mv.ts DESC, mv.id DESC
-      LIMIT $MOV_PER_PAGE OFFSET $offset
-    ";
-    $res = mysqli_query($conn, $sqlM);
-  }
+  $res = mysqli_query($conn, $sqlM);
 
   while ($res && ($r = mysqli_fetch_assoc($res))) $movimenti[] = $r;
 
@@ -325,13 +311,13 @@ if ($method === 'POST') {
     mysqli_begin_transaction($conn);
 
     // lock lotto
-    $resL = mysqli_query($conn, "SELECT id FROM lotti WHERE id=$lid AND prodotto_id=$pid LIMIT 1 FOR UPDATE");
+    $resL = mysqli_query($conn, "SELECT id FROM magazzino_lotti WHERE id=$lid AND prodotto_id=$pid LIMIT 1 FOR UPDATE");
     if (!$resL || mysqli_num_rows($resL) === 0) throw new RuntimeException('Lotto non trovato.');
 
     // giacenza attuale
     $curQty = 0;
     $resG = mysqli_query($conn, "SELECT COALESCE(SUM(CASE WHEN tipo='CARICO' THEN quantita ELSE -quantita END),0) AS g
-                                FROM movimenti WHERE prodotto_id=$pid AND lotto_id=$lid");
+                                FROM magazzino_movimenti WHERE prodotto_id=$pid AND lotto_id=$lid");
     if ($resG && ($gg = mysqli_fetch_assoc($resG))) $curQty = (int)$gg['g'];
 
     /* ---------- ADD ---------- */
@@ -399,7 +385,7 @@ if ($method === 'POST') {
         : "NULL";
 
       $sqlIns = "
-        INSERT INTO movimenti (ts, tipo, prodotto_id, lotto_id, quantita, prezzo, fornitore_id, operatore_id, id_destinazione, note, doc_tipo, doc_numero, doc_data)
+        INSERT INTO magazzino_movimenti (ts, tipo, prodotto_id, lotto_id, quantita, prezzo, fornitore_id, operatore_id, id_destinazione, note, doc_tipo, doc_numero, doc_data)
         VALUES ($tsE, $tipoE, $pid, $lid, $qta, $prezzoE, $fornE, $operatore_id, $destE, $noteE, $docTipoE, $docNumeroE, $docDataE)
       ";
       if (!mysqli_query($conn, $sqlIns)) throw new RuntimeException('Errore inserimento movimento: '.(mysqli_error($conn) ?: 'query failed'));
@@ -419,7 +405,7 @@ if ($method === 'POST') {
 
       // lock movimento vecchio
       $resM = mysqli_query($conn, "SELECT id, tipo, quantita
-                                  FROM movimenti
+                                  FROM magazzino_movimenti
                                   WHERE id=$mov_id AND prodotto_id=$pid AND lotto_id=$lid
                                   LIMIT 1 FOR UPDATE");
       if (!$resM || !($old = mysqli_fetch_assoc($resM))) throw new RuntimeException('Movimento non trovato.');
@@ -485,7 +471,7 @@ if ($method === 'POST') {
         ? (string)$newDestId
         : "NULL";
 
-      $sqlUpdM = "UPDATE movimenti
+      $sqlUpdM = "UPDATE magazzino_movimenti
                   SET ts=$tsE,
                       tipo=$tipoE,
                       quantita=$newQta,
@@ -512,7 +498,7 @@ if ($method === 'POST') {
       if ($mov_id <= 0) throw new RuntimeException('Movimento non valido.');
 
       $resM = mysqli_query($conn, "SELECT id, tipo, quantita
-                                  FROM movimenti
+                                  FROM magazzino_movimenti
                                   WHERE id=$mov_id AND prodotto_id=$pid AND lotto_id=$lid
                                   LIMIT 1 FOR UPDATE");
       if (!$resM || !($old = mysqli_fetch_assoc($resM))) throw new RuntimeException('Movimento non trovato.');
@@ -523,7 +509,7 @@ if ($method === 'POST') {
       $newQty = ($oldTipo === 'CARICO') ? ($curQty - $oldQta) : ($curQty + $oldQta);
       if ($newQty < 0) throw new RuntimeException('Errore coerenza: giacenza negativa.');
 
-      if (!mysqli_query($conn, "DELETE FROM movimenti WHERE id=$mov_id AND prodotto_id=$pid AND lotto_id=$lid LIMIT 1")) {
+      if (!mysqli_query($conn, "DELETE FROM magazzino_movimenti WHERE id=$mov_id AND prodotto_id=$pid AND lotto_id=$lid LIMIT 1")) {
         throw new RuntimeException('Errore delete movimento: '.(mysqli_error($conn) ?: 'query failed'));
       }
 

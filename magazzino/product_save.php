@@ -1,16 +1,18 @@
 <?php
-// prodotto_save.php
+// product_save.php
+// Endpoint legacy (salva prodotto) aggiornato alla nuova struttura (stock nei lotti).
+
 declare(strict_types=1);
 require __DIR__ . '/init.php';
 
 $id  = qint($_POST['id'] ?? 0, 0);
-$mid = qint($_POST['mid'] ?? 0, 0);
+$mid = qint($_POST['mid'] ?? 0, 0); // tenuto per compat UI/redirect, non viene scritto sul prodotto
 
 $nome        = trim((string)($_POST['nome'] ?? ''));
 $descrizione = trim((string)($_POST['descrizione'] ?? ''));
 
-$id_categoria = $_POST['id_categoria'] ?? null;
-$id_categoria = ($id_categoria === '' || $id_categoria === null) ? null : qint($id_categoria, 1);
+$categoria_id = $_POST['categoria_id'] ?? ($_POST['id_categoria'] ?? null);
+$categoria_id = ($categoria_id === '' || $categoria_id === null) ? null : qint($categoria_id, 1);
 
 $unita = (string)($_POST['unita'] ?? 'pz');
 $allowedU = ['pz','kg','g','l','ml','altro'];
@@ -18,48 +20,44 @@ if (!in_array($unita, $allowedU, true)) $unita = 'pz';
 
 if ($nome === '') {
   flash_set('danger', 'Nome obbligatorio');
-  mag_redirect('product_form.php?mid='.$mid.($id>0?'&id='.$id:''));
+  mag_redirect('product_form.php' . ($id > 0 ? ('?id=' . $id) : ''));
 }
-if ($mid <= 0) {
-  flash_set('danger', 'Magazzino non valido');
-  mag_redirect('magazzini.php');
-}
+
+$nomeE  = "'" . esc($conn, $nome) . "'";
+$descE  = ($descrizione !== '') ? ("'" . esc($conn, $descrizione) . "'") : 'NULL';
+$catE   = ($categoria_id !== null) ? (string)(int)$categoria_id : 'NULL';
+$unitaE = "'" . esc($conn, $unita) . "'";
 
 try {
   if ($id > 0) {
-    $sql = "UPDATE prodotti
-            SET id_magazzino=:mid, id_categoria=:cat, nome=:nome, descrizione=:descr, unita=:unita
-            WHERE id=:id
+    $sql = "UPDATE magazzino_prodotti
+            SET nome=$nomeE,
+                descrizione=$descE,
+                categoria_id=$catE,
+                unita=$unitaE
+            WHERE id=$id
             LIMIT 1";
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute([
-      ':mid' => $mid,
-      ':cat' => $id_categoria,
-      ':nome' => $nome,
-      ':descr' => ($descrizione !== '' ? $descrizione : null),
-      ':unita' => $unita,
-      ':id' => $id,
-    ]);
+
+    if (!mysqli_query($conn, $sql)) {
+      throw new RuntimeException(mysqli_error($conn) ?: 'query failed');
+    }
+
     flash_set('success', 'Prodotto aggiornato');
+    mag_redirect('product_form.php?id=' . $id . ($mid > 0 ? ('&mid=' . $mid) : ''));
   } else {
-    $sql = "INSERT INTO prodotti
-            (id_magazzino, id_categoria, nome, descrizione, unita)
-            VALUES
-            (:mid, :cat, :nome, :descr, :unita)";
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute([
-      ':mid' => $mid,
-      ':cat' => $id_categoria,
-      ':nome' => $nome,
-      ':descr' => ($descrizione !== '' ? $descrizione : null),
-      ':unita' => $unita,
-    ]);
-    flash_set('success', 'Prodotto creato');
+    $sql = "INSERT INTO magazzino_prodotti (nome, descrizione, categoria_id, unita, attivo)
+            VALUES ($nomeE, $descE, $catE, $unitaE, 1)";
+
+    if (!mysqli_query($conn, $sql)) {
+      throw new RuntimeException(mysqli_error($conn) ?: 'query failed');
+    }
+
+    $newId = (int)mysqli_insert_id($conn);
+    flash_set('success', 'Prodotto creato. Ora aggiungi i lotti.');
+    mag_redirect('product_form.php?id=' . $newId . ($mid > 0 ? ('&mid=' . $mid) : ''));
   }
 } catch (Throwable $e) {
-  error_log("prodotto_save.php: ".$e->getMessage());
+  error_log('product_save.php: ' . $e->getMessage());
   flash_set('danger', 'Errore salvataggio (controlla error_log PHP).');
-  mag_redirect('product_form.php?mid='.$mid.($id>0?'&id='.$id:''));
+  mag_redirect('product_form.php' . ($id > 0 ? ('?id=' . $id) : ''));
 }
-
-mag_redirect('magazzini.php?mid='.$mid);

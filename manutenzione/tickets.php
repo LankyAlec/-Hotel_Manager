@@ -12,32 +12,10 @@ include __DIR__ . '/../includes/header.php';
 
 <style>
   /* ===== Top bar modern ===== */
-.topbar{
-  display:flex;
-  align-items:flex-start;
-  justify-content:space-between;
-  gap:16px;
-  flex-wrap:wrap;
-  padding:14px 14px;  
-}
-
-.topbar-left h3{
-  margin:0;
-  font-weight:800;
-  letter-spacing:-.02em;
-}
-.topbar-left .sub{
-  margin-top:4px;
-  color:#6b7280;
-  font-size:.9rem;
-}
-
-.topbar-right{
-  display:flex;
-  gap:10px;
-  align-items:center;
-  flex-wrap:wrap;
-}
+.topbar{ display:flex; gap:14px; flex-wrap:wrap; align-items:flex-start; justify-content:space-between; }
+.topbar .left h3{ margin:0; }
+.topbar .left .sub{ color:#6c757d; font-size:.9rem; margin-top:4px; }
+.topbar .right{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; justify-content:flex-end; }
 
 /* pill group */
 .pillbar{
@@ -429,7 +407,7 @@ include __DIR__ . '/../includes/header.php';
           </div>
 
           <!-- SOLO IN EDIT: annullamento / ripristino -->
-          <div class="col-md-6 d-none" id="editOnlyBox">
+          <div class="col-md-4 d-none" id="editOnlyBox">
             <label class="form-label">Gestione annullamento</label>
             <div class="d-flex gap-2">
               <select class="form-select" id="editStato">
@@ -440,7 +418,6 @@ include __DIR__ . '/../includes/header.php';
                 <option value="RISOLTO">Ripristina in: RISOLTO</option>
               </select>
             </div>
-            <div class="tiny-help mt-1">Lo stato normale si gestisce dalla plancia.</div>
           </div>
         </div>
 

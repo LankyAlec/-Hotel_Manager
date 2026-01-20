@@ -19,9 +19,7 @@ function json_response(bool $ok, string $message, array $data = [], int $statusC
 function column_exists(mysqli $db, string $table, string $column): bool {
     static $cache = [];
     $key = $table . '.' . $column;
-    if (isset($cache[$key])) {
-        return $cache[$key];
-    }
+    if (isset($cache[$key])) return $cache[$key];
 
     $stmt = $db->prepare("
         SELECT 1
@@ -31,10 +29,7 @@ function column_exists(mysqli $db, string $table, string $column): bool {
           AND COLUMN_NAME = ?
         LIMIT 1
     ");
-
-    if (!$stmt) {
-        return false;
-    }
+    if (!$stmt) return $cache[$key] = false;
 
     $stmt->bind_param('ss', $table, $column);
     $stmt->execute();
@@ -55,9 +50,18 @@ function get_action(): string {
     if (is_array($input)) {
         $_POST = array_merge($_POST, $input);
     }
-
     $action = $_GET['action'] ?? $_POST['action'] ?? '';
     return strtolower((string)$action);
+}
+
+/** ospiti può arrivare come array o come JSON string */
+function normalize_ospiti($raw): array {
+    if (is_array($raw)) return $raw;
+    if (is_string($raw) && trim($raw) !== '') {
+        $j = json_decode($raw, true);
+        return is_array($j) ? $j : [];
+    }
+    return [];
 }
 
 function is_range_available(mysqli $db, int $cameraId, string $checkin, string $checkout, ?int $excludeId = null): bool {
@@ -68,15 +72,10 @@ function is_range_available(mysqli $db, int $cameraId, string $checkin, string $
           AND stato IN ('prenotato','occupato')
           AND NOT (? >= data_checkout OR ? <= data_checkin)
     ";
-
-    if ($excludeId) {
-        $sql .= " AND id <> ?";
-    }
+    if ($excludeId) $sql .= " AND id <> ?";
 
     $stmt = $db->prepare($sql);
-    if (!$stmt) {
-        return false;
-    }
+    if (!$stmt) return false;
 
     if ($excludeId) {
         $stmt->bind_param('issi', $cameraId, $checkin, $checkout, $excludeId);
@@ -96,10 +95,9 @@ function get_camere(mysqli $db): array {
         $hasAttiva = column_exists($db, 'struttura_camere', 'attiva');
         $selectNome = $hasNome ? ', nome' : ', NULL AS nome';
         $selectAttiva = $hasAttiva ? ', attiva' : ', 1 AS attiva';
+
         $res = $db->query("SELECT id, codice{$selectNome}{$selectAttiva} FROM struttura_camere ORDER BY codice ASC");
-        if (!$res) {
-            return [];
-        }
+        if (!$res) return [];
 
         $rows = [];
         while ($r = $res->fetch_assoc()) {
@@ -113,21 +111,23 @@ function get_camere(mysqli $db): array {
         return $rows;
     }
 
-    $res = $db->query("SELECT id, codice, nome, capienza_base FROM camere ORDER BY codice ASC");
-    if (!$res) {
-        return [];
+    // fallback: typo fix (strattura_camere -> struttura_camere)
+    if (table_exists($db, 'strattura_camere')) {
+        $res = $db->query("SELECT id, codice, nome, capienza_base FROM strattura_camere ORDER BY codice ASC");
+        if (!$res) return [];
+        $rows = [];
+        while ($r = $res->fetch_assoc()) {
+            $rows[] = [
+                'id' => (int)$r['id'],
+                'codice' => (string)$r['codice'],
+                'nome' => (string)($r['nome'] ?? ''),
+                'capienza' => (int)($r['capienza_base'] ?? 0),
+            ];
+        }
+        return $rows;
     }
 
-    $rows = [];
-    while ($r = $res->fetch_assoc()) {
-        $rows[] = [
-            'id' => (int)$r['id'],
-            'codice' => (string)$r['codice'],
-            'nome' => (string)($r['nome'] ?? ''),
-            'capienza' => (int)($r['capienza_base'] ?? 0),
-        ];
-    }
-    return $rows;
+    return [];
 }
 
 function list_bookings(mysqli $db): void {
@@ -163,12 +163,12 @@ function list_bookings(mysqli $db): void {
     foreach ($rows as $row) {
         $bookingId = (int)$row['id'];
 
+        // ✅ FIX: qui prima usavi alias c inesistente
         $stmtGuests = $db->prepare("
             SELECT
-                CONCAT(COALESCE(c.nome,''), ' ', COALESCE(c.cognome,'')) AS nominativo,
-                c.id
+                TRIM(CONCAT(COALESCE(sc.nome,''), ' ', COALESCE(sc.cognome,''))) AS nominativo,
+                sc.id
             FROM soggiorni_clienti sc
-            JOIN clienti c ON c.id = sc.cliente_id
             WHERE sc.soggiorno_id = ?
             ORDER BY sc.id ASC
         ");
@@ -176,15 +176,19 @@ function list_bookings(mysqli $db): void {
         $stmtGuests?->execute();
         $guestsRes = $stmtGuests ? $stmtGuests->get_result() : null;
 
-        $firstGuest = $guestsRes && $guestsRes->num_rows > 0 ? ($guestsRes->fetch_assoc()['nominativo'] ?? '') : '';
+        $firstGuest = $guestsRes && $guestsRes->num_rows > 0 ? ((string)($guestsRes->fetch_assoc()['nominativo'] ?? '')) : '';
         $guestsCount = $guestsRes ? $guestsRes->num_rows : 0;
 
-        $stmtCamera = $db->prepare("SELECT codice, nome FROM camere WHERE id = ?");
+        // ✅ FIX: tabella camere corretta
         $cameraId = (int)$row['camera_id'];
-        $stmtCamera?->bind_param('i', $cameraId);
-        $stmtCamera?->execute();
-        $cameraRes = $stmtCamera ? $stmtCamera->get_result() : null;
-        $camera = $cameraRes ? $cameraRes->fetch_assoc() : null;
+        $camera = null;
+        if ($cameraId > 0 && table_exists($db, 'struttura_camere')) {
+            $stmtCamera = $db->prepare("SELECT codice, nome FROM struttura_camere WHERE id = ? LIMIT 1");
+            $stmtCamera?->bind_param('i', $cameraId);
+            $stmtCamera?->execute();
+            $cameraRes = $stmtCamera ? $stmtCamera->get_result() : null;
+            $camera = $cameraRes ? $cameraRes->fetch_assoc() : null;
+        }
 
         $bookings[] = [
             'id' => $bookingId,
@@ -204,6 +208,52 @@ function list_bookings(mysqli $db): void {
     json_response(true, 'OK', ['bookings' => $bookings]);
 }
 
+function insert_guests_for_booking(mysqli $db, int $soggiornoId, array $ospiti): void {
+    // Colonne consentite (solo se esistono davvero)
+    $allowed = [
+        'nome', 'cognome', 'data_nascita', 'nazionalita', 'indirizzo',
+        'documento_tipo', 'documento_numero', 'email', 'telefono', 'note'
+    ];
+
+    foreach ($ospiti as $o) {
+        if (!is_array($o)) continue;
+
+        $nome = trim((string)($o['nome'] ?? ''));
+        $cognome = trim((string)($o['cognome'] ?? ''));
+        if ($nome === '' || $cognome === '') continue;
+
+        $cols = ['soggiorno_id'];
+        $ph   = ['?'];
+        $types = 'i';
+        $vals  = [$soggiornoId];
+
+        foreach ($allowed as $k) {
+            if (!array_key_exists($k, $o)) continue;
+            if (!column_exists($db, 'soggiorni_clienti', $k)) continue;
+            $cols[] = $k;
+            $ph[] = '?';
+            $types .= 's';
+            $vals[] = (string)$o[$k];
+        }
+
+        // Se per qualche motivo non sono entrati nome/cognome nella mappa, li forzo
+        if (!in_array('nome', $cols, true) && column_exists($db,'soggiorni_clienti','nome')) {
+            $cols[] = 'nome'; $ph[]='?'; $types.='s'; $vals[]=$nome;
+        }
+        if (!in_array('cognome', $cols, true) && column_exists($db,'soggiorni_clienti','cognome')) {
+            $cols[] = 'cognome'; $ph[]='?'; $types.='s'; $vals[]=$cognome;
+        }
+
+        $sql = "INSERT INTO soggiorni_clienti (" . implode(',', $cols) . ") VALUES (" . implode(',', $ph) . ")";
+        $stmt = $db->prepare($sql);
+        if (!$stmt) {
+            throw new RuntimeException('Errore DB (insert ospiti): ' . $db->error);
+        }
+        $stmt->bind_param($types, ...$vals);
+        $stmt->execute();
+    }
+}
+
 function save_booking(mysqli $db, array $payload): void {
     $id = (int)($payload['id'] ?? 0);
 
@@ -213,104 +263,93 @@ function save_booking(mysqli $db, array $payload): void {
     $stato = $payload['stato'] ?? null;
     $referente = $payload['referente'] ?? null;
     $note = $payload['note'] ?? null;
+
     $pasto = $payload['piano_pasto_sigla'] ?? null;
     $hb = $payload['hb_servizio'] ?? null;
 
+    // opzionali se esistono nel DB
+    $hb_da = $payload['hb_da'] ?? null;
+    $hb_a  = $payload['hb_a'] ?? null;
+
+    // ✅ Regole date
     if ($checkin && $checkout && $checkin >= $checkout) {
         json_response(false, 'La data di check-out deve essere successiva al check-in', ['toast' => ['variant' => 'warning']]);
     }
 
+    // ✅ Disponibilità camera
     if ($cameraId && $checkin && $checkout && !is_range_available($db, $cameraId, $checkin, $checkout, $id ?: null)) {
         json_response(false, 'La camera non è disponibile per l\'intervallo selezionato', ['conflict' => true, 'toast' => ['variant' => 'danger']]);
+    }
+
+    // ✅ Validazione pasto/HB
+    if ($pasto !== null && $pasto !== '' && $pasto === 'HB') {
+        if (!in_array((string)$hb, ['PRANZO','CENA'], true)) {
+            json_response(false, 'Per HB devi specificare PRANZO o CENA', ['toast' => ['variant' => 'warning']]);
+        }
+        // se ci sono hb_da/hb_a e arrivano, verifico coerenza
+        if ($hb_da && $hb_a && $hb_da > $hb_a) {
+            json_response(false, 'Intervallo HB non valido (da > a)', ['toast' => ['variant' => 'warning']]);
+        }
+    }
+
+    // ✅ Blocco: non creare prenotazione senza ospiti
+    // (solo creazione, aggiornamento lo lasciamo libero)
+    $ospiti = normalize_ospiti($payload['ospiti'] ?? null);
+    if ($id <= 0) {
+        // almeno 1 ospite con nome e cognome
+        $valid = 0;
+        foreach ($ospiti as $o) {
+            if (is_array($o) && trim((string)($o['nome'] ?? '')) !== '' && trim((string)($o['cognome'] ?? '')) !== '') {
+                $valid++;
+            }
+        }
+        if ($valid < 1) {
+            json_response(false, 'Prima di salvare la prenotazione devi inserire almeno 1 ospite', ['toast' => ['variant' => 'warning']]);
+        }
     }
 
     $fields = [];
     $values = [];
     $types = '';
 
-    if ($cameraId !== null) {
-        $fields[] = 'camera_id = ?';
-        $values[] = $cameraId;
-        $types .= 'i';
-    }
-    if ($stato !== null) {
-        $fields[] = 'stato = ?';
-        $values[] = $stato;
-        $types .= 's';
-    }
-    if ($checkin !== null) {
-        $fields[] = 'data_checkin = ?';
-        $values[] = $checkin;
-        $types .= 's';
-    }
-    if ($checkout !== null) {
-        $fields[] = 'data_checkout = ?';
-        $values[] = $checkout;
-        $types .= 's';
-    }
-    if ($referente !== null && column_exists($db, 'soggiorni', 'referente')) {
-        $fields[] = 'referente = ?';
-        $values[] = $referente;
-        $types .= 's';
-    }
-    if ($note !== null && column_exists($db, 'soggiorni', 'note')) {
-        $fields[] = 'note = ?';
-        $values[] = $note;
-        $types .= 's';
-    }
-    if ($pasto !== null && column_exists($db, 'soggiorni', 'piano_pasto_sigla')) {
-        $fields[] = 'piano_pasto_sigla = ?';
-        $values[] = $pasto;
-        $types .= 's';
-    }
-    if ($hb !== null && column_exists($db, 'soggiorni', 'hb_servizio')) {
-        $fields[] = 'hb_servizio = ?';
-        $values[] = $hb;
-        $types .= 's';
-    }
+    if ($cameraId !== null) { $fields[] = 'camera_id = ?'; $values[] = $cameraId; $types .= 'i'; }
+    if ($stato !== null) { $fields[] = 'stato = ?'; $values[] = $stato; $types .= 's'; }
+    if ($checkin !== null) { $fields[] = 'data_checkin = ?'; $values[] = $checkin; $types .= 's'; }
+    if ($checkout !== null) { $fields[] = 'data_checkout = ?'; $values[] = $checkout; $types .= 's'; }
 
-    if (empty($fields)) {
-        json_response(false, 'Nessun campo da aggiornare');
-    }
+    if ($referente !== null && column_exists($db, 'soggiorni', 'referente')) { $fields[] = 'referente = ?'; $values[] = $referente; $types .= 's'; }
+    if ($note !== null && column_exists($db, 'soggiorni', 'note')) { $fields[] = 'note = ?'; $values[] = $note; $types .= 's'; }
+    if ($pasto !== null && column_exists($db, 'soggiorni', 'piano_pasto_sigla')) { $fields[] = 'piano_pasto_sigla = ?'; $values[] = $pasto; $types .= 's'; }
+    if ($hb !== null && column_exists($db, 'soggiorni', 'hb_servizio')) { $fields[] = 'hb_servizio = ?'; $values[] = $hb; $types .= 's'; }
+
+    if ($hb_da !== null && column_exists($db, 'soggiorni', 'hb_da')) { $fields[] = 'hb_da = ?'; $values[] = $hb_da; $types .= 's'; }
+    if ($hb_a !== null && column_exists($db, 'soggiorni', 'hb_a')) { $fields[] = 'hb_a = ?'; $values[] = $hb_a; $types .= 's'; }
 
     if ($id > 0) {
+        if (empty($fields)) json_response(false, 'Nessun campo da aggiornare');
         $sql = "UPDATE soggiorni SET " . implode(', ', $fields) . " WHERE id = ?";
-        $values[] = $id;
-        $types .= 'i';
+        $values[] = $id; $types .= 'i';
+
         $stmt = $db->prepare($sql);
-        if (!$stmt) {
-            json_response(false, 'Errore DB: ' . $db->error, [], 500);
-        }
+        if (!$stmt) json_response(false, 'Errore DB: ' . $db->error, [], 500);
+
         $stmt->bind_param($types, ...$values);
         $stmt->execute();
         json_response(true, 'Prenotazione aggiornata', ['toast' => ['variant' => 'success']]);
     }
 
+    // INSERT
     if ($cameraId === null || $checkin === null || $checkout === null) {
         json_response(false, 'Camera, check-in e check-out sono obbligatori per creare una prenotazione');
     }
 
-    $columns = ['camera_id', 'data_checkin', 'data_checkout'];
-    $placeholders = ['?', '?', '?'];
-    $insertTypes = 'iss';
-    $insertValues = [$cameraId, $checkin, $checkout];
+    $columns = ['camera_id', 'data_checkin', 'data_checkout', 'stato'];
+    $placeholders = ['?', '?', '?', '?'];
+    $insertTypes = 'isss';
+    $insertValues = [$cameraId, $checkin, $checkout, ($stato !== null ? $stato : 'prenotato')];
 
-    if ($stato !== null) {
-        $columns[] = 'stato';
-        $placeholders[] = '?';
-        $insertTypes .= 's';
-        $insertValues[] = $stato;
-    } else {
-        $columns[] = 'stato';
-        $placeholders[] = '?';
-        $insertTypes .= 's';
-        $insertValues[] = 'prenotato';
-    }
     if ($referente !== null && column_exists($db, 'soggiorni', 'referente')) {
-        $columns[] = 'referente';
-        $placeholders[] = '?';
-        $insertTypes .= 's';
-        $insertValues[] = $referente;
+        $columns[] = 'referente'; $placeholders[] = '?'; $insertTypes .= 's'; $insertValues[] = $referente;
     }
     if ($note !== null && column_exists($db, 'soggiorni', 'note')) {
         $columns[] = 'note';
@@ -318,29 +357,39 @@ function save_booking(mysqli $db, array $payload): void {
         $insertTypes .= 's';
         $insertValues[] = $note;
     }
+
     if ($pasto !== null && column_exists($db, 'soggiorni', 'piano_pasto_sigla')) {
-        $columns[] = 'piano_pasto_sigla';
-        $placeholders[] = '?';
-        $insertTypes .= 's';
-        $insertValues[] = $pasto;
+        $columns[] = 'piano_pasto_sigla'; $placeholders[] = '?'; $insertTypes .= 's'; $insertValues[] = $pasto;
     }
     if ($hb !== null && column_exists($db, 'soggiorni', 'hb_servizio')) {
-        $columns[] = 'hb_servizio';
-        $placeholders[] = '?';
-        $insertTypes .= 's';
-        $insertValues[] = $hb;
+        $columns[] = 'hb_servizio'; $placeholders[] = '?'; $insertTypes .= 's'; $insertValues[] = $hb;
+    }
+    if ($hb_da !== null && column_exists($db, 'soggiorni', 'hb_da')) {
+        $columns[] = 'hb_da'; $placeholders[] = '?'; $insertTypes .= 's'; $insertValues[] = $hb_da;
+    }
+    if ($hb_a !== null && column_exists($db, 'soggiorni', 'hb_a')) {
+        $columns[] = 'hb_a'; $placeholders[] = '?'; $insertTypes .= 's'; $insertValues[] = $hb_a;
     }
 
-    $sql = "INSERT INTO soggiorni (" . implode(',', $columns) . ") VALUES (" . implode(',', $placeholders) . ")";
-    $stmt = $db->prepare($sql);
-    if (!$stmt) {
-        json_response(false, 'Errore DB: ' . $db->error, [], 500);
-    }
-    $stmt->bind_param($insertTypes, ...$insertValues);
-    $stmt->execute();
-    $newId = $stmt->insert_id;
+    // transazione: creo soggiorno + creo ospiti
+    $db->begin_transaction();
+    try {
+        $sql = "INSERT INTO soggiorni (" . implode(',', $columns) . ") VALUES (" . implode(',', $placeholders) . ")";
+        $stmt = $db->prepare($sql);
+        if (!$stmt) throw new RuntimeException('Errore DB: ' . $db->error);
+        $stmt->bind_param($insertTypes, ...$insertValues);
+        $stmt->execute();
+        $newId = (int)$stmt->insert_id;
 
-    json_response(true, 'Prenotazione creata', ['id' => $newId, 'toast' => ['variant' => 'success']]);
+        // ✅ inserisco ospiti (obbligatori)
+        insert_guests_for_booking($db, $newId, $ospiti);
+
+        $db->commit();
+        json_response(true, 'Prenotazione creata', ['id' => $newId, 'toast' => ['variant' => 'success']]);
+    } catch (Throwable $e) {
+        $db->rollback();
+        json_response(false, 'Errore durante il salvataggio: ' . $e->getMessage(), [], 500);
+    }
 }
 
 function check_availability(mysqli $db, array $payload): void {

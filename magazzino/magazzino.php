@@ -43,9 +43,9 @@ if (($_POST['action'] ?? '') === 'delete') {
   $id = (int)($_POST['id'] ?? 0);
   if ($id > 0) {
     mysqli_begin_transaction($conn);
-    $ok = mysqli_query($conn, "DELETE FROM movimenti WHERE prodotto_id=$id");
-    if ($ok) $ok = mysqli_query($conn, "DELETE FROM lotti WHERE prodotto_id=$id");
-    if ($ok) $ok = mysqli_query($conn, "DELETE FROM prodotti WHERE id=$id LIMIT 1");
+    $ok = mysqli_query($conn, "DELETE FROM magazzino_movimenti WHERE prodotto_id=$id");
+    if ($ok) $ok = mysqli_query($conn, "DELETE FROM magazzino_lotti WHERE prodotto_id=$id");
+    if ($ok) $ok = mysqli_query($conn, "DELETE FROM magazzino_prodotti WHERE id=$id LIMIT 1");
     if ($ok) {
       mysqli_commit($conn);
       mag_redirect('magazzino.php?msg=' . urlencode('Prodotto eliminato'));
@@ -64,25 +64,24 @@ $res = mysqli_query($conn, "SELECT id, nome FROM magazzini WHERE attivo=1 ORDER 
 while ($res && ($r = mysqli_fetch_assoc($res))) $mag[] = $r;
 
 $cat = [];
-$res = mysqli_query($conn, "SELECT id, nome, tipo FROM categorie WHERE attivo=1 ORDER BY tipo ASC, nome ASC");
+$res = mysqli_query($conn, "SELECT id, nome, tipo FROM magazzino_categorie WHERE attivo=1 ORDER BY tipo ASC, nome ASC");
 while ($res && ($r = mysqli_fetch_assoc($res))) $cat[] = $r;
 
 $destinazioni = [];
-$res = mysqli_query($conn, "SELECT id, nome FROM destinazioni ORDER BY nome ASC");
+$res = mysqli_query($conn, "SELECT id, nome FROM magazzino_destinazioni ORDER BY nome ASC");
 while ($res && ($r = mysqli_fetch_assoc($res))) $destinazioni[] = $r;
 
 /* =========================
  * WHERE (prodotti + match su lotti)
  * ======================= */
 $where = ["p.attivo=1"];
+// Giacenza totale prodotto (somma su tutti i lotti). Se filtriamo per magazzino,
+// la giacenza è calcolata SOLO sui lotti di quel magazzino.
 $stockExpr = "COALESCE((
-  SELECT SUM(
-    (SELECT COALESCE(SUM(CASE WHEN mv.tipo='CARICO' THEN mv.quantita ELSE -mv.quantita END),0)
-     FROM movimenti mv
-     WHERE mv.lotto_id = l0.id)
-  )
-  FROM lotti l0
-  WHERE l0.prodotto_id = p.id
+  SELECT SUM(CASE WHEN mv.tipo='CARICO' THEN mv.quantita ELSE -mv.quantita END)
+  FROM magazzino_movimenti mv
+  JOIN magazzino_lotti l0 ON l0.id = mv.lotto_id
+  WHERE mv.prodotto_id = p.id" . ($magazzino_id > 0 ? " AND l0.magazzino_id=".(int)$magazzino_id : "") . "
 ),0)";
 
 if ($q !== '') {
@@ -93,7 +92,7 @@ if ($q !== '') {
     OR p.unita LIKE '%$qq%'
     OR EXISTS (
       SELECT 1
-      FROM lotti lx
+      FROM magazzino_lotti lx
       WHERE lx.prodotto_id = p.id
         AND (
           lx.scaffale LIKE '%$qq%'
@@ -103,13 +102,15 @@ if ($q !== '') {
   )";
 }
 
-if ($magazzino_id > 0) $where[] = "p.magazzino_id=".(int)$magazzino_id;
+if ($magazzino_id > 0) {
+  $where[] = "EXISTS (SELECT 1 FROM magazzino_lotti lmx WHERE lmx.prodotto_id=p.id AND lmx.magazzino_id=".(int)$magazzino_id.")";
+}
 if ($categoria_id > 0) $where[] = "p.categoria_id=".(int)$categoria_id;
 if ($hide_zero === 1) $where[] = "$stockExpr <> 0";
 
 if ($expiring === 1) {
   $where[] = "EXISTS (
-    SELECT 1 FROM lotti l2
+    SELECT 1 FROM magazzino_lotti l2
     WHERE l2.prodotto_id = p.id
       AND l2.data_scadenza IS NOT NULL
       AND l2.data_scadenza <= DATE_ADD(CURDATE(), INTERVAL $days DAY)
@@ -123,9 +124,8 @@ $w = 'WHERE ' . implode(' AND ', $where);
  * ======================= */
 $sqlCount = "
 SELECT COUNT(DISTINCT p.id) AS n
-FROM prodotti p
-JOIN magazzini m ON m.id = p.magazzino_id
-LEFT JOIN categorie c ON c.id = p.categoria_id
+FROM magazzino_prodotti p
+LEFT JOIN magazzino_categorie c ON c.id = p.categoria_id
 $w
 ";
 $res = mysqli_query($conn, $sqlCount);
@@ -141,12 +141,10 @@ if ($page > $total_pages) { $page = $total_pages; $offset = ($page - 1) * $per_p
 $sql = "
 SELECT
   p.*,
-  m.nome AS magazzino_nome,
   c.nome AS categoria_nome,
   c.tipo AS categoria_tipo
-FROM prodotti p
-JOIN magazzini m ON m.id = p.magazzino_id
-LEFT JOIN categorie c ON c.id = p.categoria_id
+FROM magazzino_prodotti p
+LEFT JOIN magazzino_categorie c ON c.id = p.categoria_id
 $w
 ORDER BY p.nome ASC
 LIMIT $per_page OFFSET $offset
@@ -168,34 +166,31 @@ if ($ids) {
   SELECT
     l.id,
     l.prodotto_id,
+    l.magazzino_id,
+    mz.nome AS magazzino_nome,
     l.scaffale,
     l.ripiano,
     l.data_scadenza,
-
-    COALESCE(SUM(
-      CASE
-        WHEN mv.tipo='CARICO'  THEN mv.quantita
-        WHEN mv.tipo='SCARICO' THEN -mv.quantita
-        ELSE 0
-      END
+    COALESCE((
+      SELECT SUM(CASE WHEN mv.tipo='CARICO' THEN mv.quantita ELSE -mv.quantita END)
+      FROM magazzino_movimenti mv
+      WHERE mv.lotto_id = l.id
     ),0) AS giacenza,
-
     (
       SELECT mv2.prezzo
-      FROM movimenti mv2
+      FROM magazzino_movimenti mv2
       WHERE mv2.lotto_id = l.id
         AND mv2.tipo='CARICO'
         AND mv2.prezzo IS NOT NULL
       ORDER BY mv2.ts DESC, mv2.id DESC
       LIMIT 1
     ) AS ultimo_prezzo
-
-  FROM lotti l
-  LEFT JOIN movimenti mv ON mv.lotto_id = l.id
-  WHERE l.prodotto_id IN ($idList)
-  GROUP BY l.id
+  FROM magazzino_lotti l
+  JOIN magazzini mz ON mz.id = l.magazzino_id
+  WHERE l.prodotto_id IN ($idList)" . ($magazzino_id > 0 ? " AND l.magazzino_id=".(int)$magazzino_id : "") . "
   " . ($hide_zero === 1 ? "HAVING giacenza <> 0" : "") . "
   ORDER BY
+    l.prodotto_id ASC,
     (l.data_scadenza IS NULL) ASC,
     l.data_scadenza ASC,
     l.id ASC
@@ -347,13 +342,13 @@ require __DIR__ . '/../includes/header.php';
         <tr>
           <th>Prodotto</th>
           <th style="width:240px">Categoria</th>
-          <th style="width:220px">Magazzino</th>
 
           <th style="min-width:560px" class="text-center">
             Lotti
             <div class="small text-secondary">Clicca una riga lotto per modificarla</div>
 
             <div class="of-lots-head mt-2">
+              <span>Magazzino</span>
               <span>Qtà</span>
               <span>Prezzo</span>
               <span>Scaffale</span>
@@ -397,7 +392,6 @@ require __DIR__ . '/../includes/header.php';
           </td>
 
           <td><?= h($catTxt) ?></td>
-          <td><?= h($r['magazzino_nome']) ?></td>
 
           <td>
             <?php if (!$lots): ?>
@@ -437,6 +431,7 @@ require __DIR__ . '/../includes/header.php';
                   <a class="of-lotrow"
                      href="product_form.php?id=<?= $pid ?>&lotto_id=<?= $lottoId ?>#movimenti"
                      title="Modifica lotto">
+                    <span class="text-truncate"><?= h((string)$l['magazzino_nome']) ?></span>
                     <span class="fw-semibold"><?= $qty ?> <?= h($r['unita']) ?></span>
                     <span><?= h($prezzo) ?></span>
                     <span><?= h($scaff) ?></span>
@@ -564,18 +559,6 @@ require __DIR__ . '/../includes/header.php';
     border-radius: 1rem;
   }
 
-  .of-lots-head{
-    display: grid;
-    grid-template-columns: 1.1fr .9fr .9fr .9fr 1fr;
-    gap: .5rem;
-    padding: .35rem .6rem;
-    font-weight: 800;
-    color: #6c757d;
-    background: rgba(0,0,0,.02);
-    border: 1px solid rgba(0,0,0,.06);
-    border-radius: .75rem;
-  }
-
   .of-lots-badge{
     display: inline-block;
     padding: .35rem .6rem;
@@ -596,10 +579,6 @@ require __DIR__ . '/../includes/header.php';
     transition: all .12s ease;
     box-shadow: 0 1px 0 rgba(0,0,0,.02);
   }
-  .of-lotrow:hover{
-    background: rgba(13,110,253,.04);
-    border-color: rgba(13,110,253,.25);
-  }
 
   .of-exp{
     padding: .18rem .55rem;
@@ -615,11 +594,44 @@ require __DIR__ . '/../includes/header.php';
   .of-exp-bad  { background: rgba(220,53,69,.14);   color:#dc3545; }
   .of-exp-na   { background: rgba(108,117,125,.12); color:#6c757d; }
 
+  .of-lots-head{
+    display: grid;
+    grid-template-columns: 1.2fr .8fr .8fr .9fr .9fr 1fr; /* 6 colonne */
+    gap: .5rem;
+    padding: .35rem .6rem;
+    font-weight: 800;
+    color: #6c757d;
+    background: rgba(0,0,0,.02);
+    border: 1px solid rgba(0,0,0,.06);
+    border-radius: .75rem;
+  }
+
+  .of-lotrow{
+    display: grid;
+    grid-template-columns: 1.2fr .8fr .8fr .9fr .9fr 1fr; /* 6 colonne */
+    gap: .5rem;
+    align-items: center;
+    padding: .48rem .6rem;
+    border: 1px solid rgba(0,0,0,.08);
+    border-radius: .75rem;
+    background: #fff;
+    text-decoration: none;
+    transition: all .12s ease;
+    box-shadow: 0 1px 0 rgba(0,0,0,.02);
+  }
+
+  /* IMPORTANTISSIMO per far funzionare text-truncate dentro CSS grid */
+  .of-lots-head > span,
+  .of-lotrow > span{
+    min-width: 0;
+  }
+
   @media (max-width: 992px){
     .of-lots-head, .of-lotrow{
-      grid-template-columns: 1fr 1fr 1fr 1fr 1fr;
+      grid-template-columns: 1fr 1fr 1fr 1fr 1fr 1fr; /* 6 colonne */
     }
   }
+
 </style>
 
 <script>
