@@ -171,32 +171,59 @@ if ($roomIds) {
         $hasCodice = column_exists($mysqli, $bookingTable, 'codice');
         $hasStato  = column_exists($mysqli, $bookingTable, 'stato');
         $hasReferente = column_exists($mysqli, $bookingTable, 'referente');
+        $hasPasto = column_exists($mysqli, $bookingTable, 'piano_pasto_sigla');
+        $hasHb = column_exists($mysqli, $bookingTable, 'hb_servizio');
+        $hasHbDa = column_exists($mysqli, $bookingTable, 'hb_da');
+        $hasHbA = column_exists($mysqli, $bookingTable, 'hb_a');
 
         $selectCodice = $hasCodice ? ', b.codice' : ', NULL AS codice';
         $selectStato  = $hasStato  ? ', b.stato'  : ', NULL AS stato';
 
-        // ✅ referente: se esiste colonna, usa b.referente, altrimenti fallback su soggiorni_clienti
-        if ($hasReferente) {
-            $selectReferente = ", b.referente AS referente";
-        } else {
-            $canFallback = table_exists($mysqli, 'soggiorni_clienti')
-                && column_exists($mysqli, 'soggiorni_clienti', 'soggiorno_id')
-                && column_exists($mysqli, 'soggiorni_clienti', 'nome')
-                && column_exists($mysqli, 'soggiorni_clienti', 'cognome');
+        $canFallback = table_exists($mysqli, 'soggiorni_clienti')
+            && column_exists($mysqli, 'soggiorni_clienti', 'soggiorno_id')
+            && column_exists($mysqli, 'soggiorni_clienti', 'nome')
+            && column_exists($mysqli, 'soggiorni_clienti', 'cognome');
 
-            if ($canFallback) {
-                $selectReferente = ",
+        // ✅ referente: se esiste colonna, usa b.referente, altrimenti fallback su soggiorni_clienti
+        if ($hasReferente && $canFallback) {
+            $selectReferente = ",
+                COALESCE(
+                    NULLIF(b.referente, ''),
                     (
                         SELECT TRIM(CONCAT(COALESCE(sc.cognome,''), ' ', COALESCE(sc.nome,'')))
                         FROM soggiorni_clienti sc
                         WHERE sc.soggiorno_id = b.id
                         ORDER BY sc.id ASC
                         LIMIT 1
-                    ) AS referente
-                ";
-            } else {
-                $selectReferente = ", NULL AS referente";
-            }
+                    )
+                ) AS referente
+            ";
+        } elseif ($hasReferente) {
+            $selectReferente = ", b.referente AS referente";
+        } elseif ($canFallback) {
+            $selectReferente = ",
+                (
+                    SELECT TRIM(CONCAT(COALESCE(sc.cognome,''), ' ', COALESCE(sc.nome,'')))
+                    FROM soggiorni_clienti sc
+                    WHERE sc.soggiorno_id = b.id
+                    ORDER BY sc.id ASC
+                    LIMIT 1
+                ) AS referente
+            ";
+        } else {
+            $selectReferente = ", NULL AS referente";
+        }
+
+        $selectPasto = $hasPasto ? ', b.piano_pasto_sigla' : ', NULL AS piano_pasto_sigla';
+        $selectHb = $hasHb ? ', b.hb_servizio' : ', NULL AS hb_servizio';
+        $selectHbDa = $hasHbDa ? ', b.hb_da' : ', NULL AS hb_da';
+        $selectHbA = $hasHbA ? ', b.hb_a' : ', NULL AS hb_a';
+        if (column_exists($mysqli, $bookingTable, 'servizi_json')) {
+            $selectServizi = ', b.servizi_json';
+        } elseif (column_exists($mysqli, $bookingTable, 'servizi')) {
+            $selectServizi = ', b.servizi';
+        } else {
+            $selectServizi = ', NULL AS servizi_json';
         }
 
         $sqlBook = "
@@ -205,6 +232,11 @@ if ($roomIds) {
                 {$selectCodice}
                 {$selectStato}
                 {$selectReferente}
+                {$selectPasto}
+                {$selectHb}
+                {$selectHbDa}
+                {$selectHbA}
+                {$selectServizi}
             FROM {$bookingTable} b
             WHERE b.camera_id IN ({$ph})
               AND NOT (? >= b.data_checkout OR ? <= b.data_checkin)
@@ -222,6 +254,12 @@ if ($roomIds) {
             $stmtBook->execute();
             $resBook = $stmtBook->get_result();
             while ($row = $resBook->fetch_assoc()) {
+                $serviziRaw = $row['servizi_json'] ?? $row['servizi'] ?? null;
+                $serviziParsed = [];
+                if (is_string($serviziRaw) && $serviziRaw !== '') {
+                    $decoded = json_decode($serviziRaw, true);
+                    if (is_array($decoded)) $serviziParsed = $decoded;
+                }
                 $bookings[] = [
                     'id'       => (int)$row['id'],
                     'camera_id' => (int)$row['camera_id'],
@@ -230,6 +268,11 @@ if ($roomIds) {
                     'codice'    => (string)($row['codice'] ?? ''),
                     'stato'     => (string)($row['stato'] ?? ''),
                     'referente' => (string)($row['referente'] ?? ''),
+                    'pasto' => (string)($row['piano_pasto_sigla'] ?? ''),
+                    'hb_servizio' => (string)($row['hb_servizio'] ?? ''),
+                    'hb_da' => (string)($row['hb_da'] ?? ''),
+                    'hb_a' => (string)($row['hb_a'] ?? ''),
+                    'servizi' => $serviziParsed,
                 ];
             }
             $stmtBook->close();
