@@ -895,6 +895,47 @@ function check_availability(mysqli $db, array $payload): void {
     ]);
 }
 
+function delete_booking(mysqli $db, array $payload): void {
+    $id = (int)($payload['id'] ?? 0);
+    if ($id <= 0) {
+        json_response(false, 'ID prenotazione non valido', [], 422);
+    }
+
+    $hasStato = column_exists($db, 'soggiorni', 'stato');
+
+    $db->begin_transaction();
+    try {
+        if ($hasStato) {
+            $stmt = $db->prepare("UPDATE soggiorni SET stato = 'annullato' WHERE id = ?");
+            if (!$stmt) throw new RuntimeException('Errore DB: ' . $db->error);
+            $stmt->bind_param('i', $id);
+            $stmt->execute();
+            $stmt->close();
+        } else {
+            $stmt = $db->prepare("DELETE FROM soggiorni WHERE id = ?");
+            if (!$stmt) throw new RuntimeException('Errore DB: ' . $db->error);
+            $stmt->bind_param('i', $id);
+            $stmt->execute();
+            $stmt->close();
+
+            if (table_exists($db, 'soggiorni_clienti') && column_exists($db, 'soggiorni_clienti', 'soggiorno_id')) {
+                $stmtGuests = $db->prepare("DELETE FROM soggiorni_clienti WHERE soggiorno_id = ?");
+                if ($stmtGuests) {
+                    $stmtGuests->bind_param('i', $id);
+                    $stmtGuests->execute();
+                    $stmtGuests->close();
+                }
+            }
+        }
+
+        $db->commit();
+        json_response(true, 'Prenotazione cancellata', ['toast' => ['variant' => 'success']]);
+    } catch (Throwable $e) {
+        $db->rollback();
+        json_response(false, 'Errore durante la cancellazione: ' . $e->getMessage(), [], 500);
+    }
+}
+
 function pricing_preview(mysqli $db, array $payload): void {
     $cameraId = (int)($payload['camera_id'] ?? 0);
     $checkin = $payload['data_checkin'] ?? null;
@@ -966,6 +1007,9 @@ switch ($action) {
     case 'assign_room':
     case 'save_booking':
         save_booking($mysqli, $_POST);
+        break;
+    case 'delete_booking':
+        delete_booking($mysqli, $_POST);
         break;
 
     default:
