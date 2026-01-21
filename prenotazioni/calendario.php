@@ -383,16 +383,6 @@ if ($pianoSel === 0 && $edificioSel > 0) {
             <input type="date" class="form-control" name="data_checkout" id="bookingCheckout" required>
           </div>
           <div class="col-12 col-md-4">
-            <label class="form-label small">Tipo soggiorno</label>
-            <select class="form-select" name="piano_pasto_sigla" id="bookingPasto">
-              <option value="">—</option>
-              <option value="BB">BB</option>
-              <option value="HB">HB</option>
-              <option value="FB">FB</option>
-            </select>
-          </div>
-          <div class="w-100 d-none d-md-block"></div>
-          <div class="col-12 col-md-4">
             <label class="form-label small">Tipologia camera</label>
             <select class="form-select" name="tipologia_camera" id="bookingTipologia">
               <option value="">—</option>
@@ -405,11 +395,24 @@ if ($pianoSel === 0 && $edificioSel > 0) {
               <option value="Suite">Suite</option>
             </select>
           </div>
-          <div class="col-6 col-md-2">
+          <div class="col-6 col-md-4">
             <label class="form-label small">Housekeeping</label>
             <input type="number" class="form-control" name="housekeeping" id="bookingHousekeeping" min="0" value="1">
           </div>
-
+          <div class="col-12" id="bookingNotesBox">
+            <label class="form-label small">Note soggiorno</label>
+            <textarea class="form-control" name="note" id="bookingNote" rows="2" placeholder="Note generali sul soggiorno"></textarea>
+          </div>
+          <div class="w-100 d-none d-md-block"></div>
+          <div class="col-12 col-md-4">
+            <label class="form-label small">Tipo soggiorno</label>
+            <select class="form-select" name="piano_pasto_sigla" id="bookingPasto">
+              <option value="">—</option>
+              <option value="BB">BB</option>
+              <option value="HB">HB</option>
+              <option value="FB">FB</option>
+            </select>
+          </div>
           <div class="col-12 col-md-6" id="hbBox" style="display:none;">
             <label class="form-label small">HB: tipo pasto</label>
             <div class="d-flex flex-wrap align-items-center gap-2 booking-hb-controls">
@@ -434,12 +437,6 @@ if ($pianoSel === 0 && $edificioSel > 0) {
               <div id="hbCustomList"></div>
             </div>
           </div>
-
-          <div class="col-12" id="bookingNotesBox">
-            <label class="form-label small">Note soggiorno</label>
-            <textarea class="form-control" name="note" id="bookingNote" rows="2" placeholder="Note generali sul soggiorno"></textarea>
-          </div>
-
           <div class="col-12">
             <label class="form-label small">Servizi</label>
             <div class="services-card">
