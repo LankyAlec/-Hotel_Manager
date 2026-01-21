@@ -187,6 +187,9 @@ if ($pianoSel === 0 && $edificioSel > 0) {
   .calendar-toolbar .form-control{ max-width:170px; }
 
   .booking-modal .form-label span.required{ color:#dc3545; }
+  .booking-hb-controls .btn-group{ flex-shrink:0; }
+  .booking-hb-controls .form-select{ min-width:140px; }
+  #changeRoomBox .form-text{ font-size:.75rem; }
 
   /* layer overlay sopra la tabella per le etichette centrate */
   #calendarContainer{ position:relative; }
@@ -358,7 +361,18 @@ if ($pianoSel === 0 && $edificioSel > 0) {
           <div class="col-12 col-md-4">
             <label class="form-label small">Camera</label>
             <input type="hidden" name="camera_id" id="bookingCamera" required>
-            <input type="text" class="form-control" id="bookingCameraLabel" readonly>
+            <div class="input-group">
+              <input type="text" class="form-control" id="bookingCameraLabel" readonly>
+              <button class="btn btn-outline-secondary" type="button" id="changeRoomBtn">
+                <i class="bi bi-arrow-repeat"></i> Cambia
+              </button>
+            </div>
+            <div class="mt-2 d-none" id="changeRoomBox">
+              <select class="form-select form-select-sm" id="bookingCameraSelect">
+                <option value="">Seleziona una camera</option>
+              </select>
+              <div class="form-text">Il cambio camera rispetta le disponibilità del periodo selezionato.</div>
+            </div>
           </div>
           <div class="col-6 col-md-4">
             <label class="form-label small">Check-in</label>
@@ -380,29 +394,25 @@ if ($pianoSel === 0 && $edificioSel > 0) {
           <div class="w-100 d-none d-md-block"></div>
           <div class="col-12 col-md-4">
             <label class="form-label small">Tipologia camera</label>
-            <div class="row g-2">
-              <div class="col-8">
-                <select class="form-select" name="tipologia_camera" id="bookingTipologia">
-                  <option value="">—</option>
-                  <option value="Singola">Singola</option>
-                  <option value="Doppia">Doppia</option>
-                  <option value="Matrimoniale">Matrimoniale</option>
-                  <option value="Tripla">Tripla</option>
-                  <option value="Quadrupla">Quadrupla</option>
-                  <option value="Family">Family</option>
-                  <option value="Suite">Suite</option>
-                </select>
-              </div>
-              <div class="col-4">
-                <label class="form-label small">Housekeeping</label>
-                <input type="number" class="form-control" name="housekeeping" id="bookingHousekeeping" min="0" value="1">
-              </div>
-            </div>
+            <select class="form-select" name="tipologia_camera" id="bookingTipologia">
+              <option value="">—</option>
+              <option value="Singola">Singola</option>
+              <option value="Doppia">Doppia</option>
+              <option value="Matrimoniale">Matrimoniale</option>
+              <option value="Tripla">Tripla</option>
+              <option value="Quadrupla">Quadrupla</option>
+              <option value="Family">Family</option>
+              <option value="Suite">Suite</option>
+            </select>
+          </div>
+          <div class="col-6 col-md-2">
+            <label class="form-label small">Housekeeping</label>
+            <input type="number" class="form-control" name="housekeeping" id="bookingHousekeeping" min="0" value="1">
           </div>
 
-          <div class="col-12 col-md-4" id="hbBox" style="display:none;">
+          <div class="col-12 col-md-6" id="hbBox" style="display:none;">
             <label class="form-label small">HB: tipo pasto</label>
-            <div class="d-flex flex-wrap align-items-center gap-2">
+            <div class="d-flex flex-wrap align-items-center gap-2 booking-hb-controls">
               <div class="btn-group btn-group-sm" role="group" aria-label="Modalità HB">
                 <input type="radio" class="btn-check" name="hb_modalita" id="hbModeAll" value="tutte" checked>
                 <label class="btn btn-outline-secondary" for="hbModeAll">Tutte</label>
@@ -425,9 +435,9 @@ if ($pianoSel === 0 && $edificioSel > 0) {
             </div>
           </div>
 
-          <div class="col-12" id="bookingNotesBox" style="display:none;">
-            <label class="form-label small">Note soggiorno (HB/FB)</label>
-            <textarea class="form-control" name="note" id="bookingNote" rows="2" placeholder="Note per il servizio pasti o richieste specifiche"></textarea>
+          <div class="col-12" id="bookingNotesBox">
+            <label class="form-label small">Note soggiorno</label>
+            <textarea class="form-control" name="note" id="bookingNote" rows="2" placeholder="Note generali sul soggiorno"></textarea>
           </div>
 
           <div class="col-12">
@@ -507,6 +517,9 @@ if ($pianoSel === 0 && $edificioSel > 0) {
     const bookingIdInput = document.getElementById('bookingId');
     const bookingCamera = document.getElementById('bookingCamera');
     const bookingCameraLabel = document.getElementById('bookingCameraLabel');
+    const changeRoomBtn = document.getElementById('changeRoomBtn');
+    const changeRoomBox = document.getElementById('changeRoomBox');
+    const bookingCameraSelect = document.getElementById('bookingCameraSelect');
     const bookingCheckin = document.getElementById('bookingCheckin');
     const bookingCheckout = document.getElementById('bookingCheckout');
     const bookingPasto = document.getElementById('bookingPasto');
@@ -519,7 +532,6 @@ if ($pianoSel === 0 && $edificioSel > 0) {
     const hbModeCustom = document.getElementById('hbModeCustom');
     const bookingHb = document.getElementById('bookingHb');
     const bookingHbDettagli = document.getElementById('bookingHbDettagli');
-    const bookingNotesBox = document.getElementById('bookingNotesBox');
     const bookingNote = document.getElementById('bookingNote');
     const servicesContainer = document.getElementById('servicesContainer');
     const servicesEmpty = document.getElementById('servicesEmpty');
@@ -659,8 +671,22 @@ if ($pianoSel === 0 && $edificioSel > 0) {
         if (bookingCamera.value) {
           bookingCameraLabel.value = getCameraLabel(bookingCamera.value);
         }
+        populateCameraSelect();
         renderServices(meta.servizi || []);
       }
+    }
+
+    function populateCameraSelect() {
+      if (!bookingCameraSelect) return;
+      bookingCameraSelect.innerHTML = '<option value="">Seleziona una camera</option>';
+      (meta.camere || []).forEach(camera => {
+        const option = document.createElement('option');
+        option.value = camera.id;
+        const label = `${camera.codice || ''}${camera.nome ? ' — ' + camera.nome : ''}`.trim();
+        option.textContent = label || `Camera ${camera.id}`;
+        bookingCameraSelect.appendChild(option);
+      });
+      bookingCameraSelect.value = bookingCamera.value || '';
     }
 
     function getCameraLabel(cameraId) {
@@ -673,6 +699,9 @@ if ($pianoSel === 0 && $edificioSel > 0) {
     function setCameraSelection(cameraId) {
       bookingCamera.value = cameraId || '';
       bookingCameraLabel.value = getCameraLabel(cameraId);
+      if (bookingCameraSelect) {
+        bookingCameraSelect.value = cameraId || '';
+      }
     }
 
     function applyCheckoutMinFromCheckin(checkinStr) {
@@ -759,14 +788,6 @@ if ($pianoSel === 0 && $edificioSel > 0) {
       }
     }
 
-    function toggleNotesField() {
-      const show = bookingPasto.value === 'HB' || bookingPasto.value === 'FB';
-      bookingNotesBox.style.display = show ? '' : 'none';
-      if (!show) {
-        bookingNote.value = '';
-      }
-    }
-
     function renderServices(list) {
       servicesContainer.innerHTML = '';
       if (!list || list.length === 0) {
@@ -824,6 +845,8 @@ if ($pianoSel === 0 && $edificioSel > 0) {
 
       if (cameraId) setCameraSelection(cameraId);
       else setCameraSelection('');
+      if (changeRoomBox) changeRoomBox.classList.add('d-none');
+      if (changeRoomBtn) changeRoomBtn.classList.remove('active');
 
       if (checkin) bookingCheckin.value = checkin;
       if (booking?.pasto) bookingPasto.value = booking.pasto;
@@ -841,7 +864,7 @@ if ($pianoSel === 0 && $edificioSel > 0) {
         bookingHbDettagli.value = '';
         hbModeAll.checked = true;
       }
-      if (booking?.note) bookingNote.value = booking.note;
+      bookingNote.value = booking?.note ?? '';
 
       if (booking?.servizi) {
         setServicesSelection(booking.servizi);
@@ -849,7 +872,6 @@ if ($pianoSel === 0 && $edificioSel > 0) {
         setServicesSelection([]);
       }
       toggleHbFields();
-      toggleNotesField();
 
       if (currentBookingId) {
         if (checkout) bookingCheckout.value = checkout;
@@ -1624,11 +1646,23 @@ if ($pianoSel === 0 && $edificioSel > 0) {
       updatePricePreview();
     });
     bookingCamera?.addEventListener('change', updatePricePreview);
+    changeRoomBtn?.addEventListener('click', () => {
+      if (!changeRoomBox) return;
+      changeRoomBox.classList.toggle('d-none');
+      changeRoomBtn.classList.toggle('active');
+      if (!changeRoomBox.classList.contains('d-none')) {
+        bookingCameraSelect?.focus();
+      }
+    });
+    bookingCameraSelect?.addEventListener('change', () => {
+      if (!bookingCameraSelect.value) return;
+      setCameraSelection(bookingCameraSelect.value);
+      updatePricePreview();
+    });
     bookingTipologia?.addEventListener('change', updatePricePreview);
     servicesContainer?.addEventListener('change', updatePricePreview);
 
     bookingPasto?.addEventListener('change', toggleHbFields);
-    bookingPasto?.addEventListener('change', toggleNotesField);
     hbModeAll?.addEventListener('change', toggleHbFields);
     hbModeCustom?.addEventListener('change', toggleHbFields);
 
@@ -1692,10 +1726,12 @@ if ($pianoSel === 0 && $edificioSel > 0) {
       guestSearchResults.classList.add('d-none');
       guestSearchResults.innerHTML = '';
       bookingCameraLabel.value = '';
+      if (bookingCameraSelect) bookingCameraSelect.value = '';
+      if (changeRoomBox) changeRoomBox.classList.add('d-none');
+      if (changeRoomBtn) changeRoomBtn.classList.remove('active');
       bookingCheckout.min = '';
       renderServices(meta.servizi || []);
       toggleHbFields();
-      toggleNotesField();
       pricePreviewBody.textContent = 'Seleziona camera e date per vedere il totale.';
     });
 
