@@ -67,6 +67,25 @@ if ($pianoSel === 0 && $edificioSel > 0) {
   }
   .calendar-table .room-sub{ font-weight:400; color:#6c757d; font-size:.82rem; display:flex; flex-direction:column; gap:2px; }
   .calendar-table .room-note{ font-size:.78rem; color:#495057; }
+  .calendar-table .status-col{
+    width:70px;
+    min-width:70px;
+    background:#fff;
+    font-weight:600;
+  }
+  .calendar-table .status-cell{
+    background:#fff;
+  }
+  .status-dot{
+    width:14px;
+    height:14px;
+    border-radius:50%;
+    display:inline-block;
+    box-shadow:0 0 0 1px rgba(0,0,0,.1) inset;
+  }
+  .status-dot.ok{ background:#198754; }
+  .status-dot.warn{ background:#fd7e14; }
+  .status-dot.bad{ background:#dc3545; }
 
   /* =========================
    * CELLA (contenitore)
@@ -405,6 +424,7 @@ if ($pianoSel === 0 && $edificioSel > 0) {
             <label class="form-label small">Tipo soggiorno</label>
             <select class="form-select" name="piano_pasto_sigla" id="bookingPasto">
               <option value="">—</option>
+              <option value="SP">Solo pernottamento</option>
               <option value="BB">BB</option>
               <option value="HB">HB</option>
               <option value="FB">FB</option>
@@ -484,6 +504,9 @@ if ($pianoSel === 0 && $edificioSel > 0) {
       </div>
       <div class="modal-footer">
         <button class="btn btn-outline-secondary" data-bs-dismiss="modal">Chiudi</button>
+        <button class="btn btn-outline-danger" type="button" id="deleteBookingBtn" style="display:none;">
+          <i class="bi bi-x-circle"></i> Cancella prenotazione
+        </button>
         <button class="btn btn-primary" id="saveBookingBtn"><i class="bi bi-save"></i> Salva prenotazione</button>
       </div>
     </div>
@@ -508,6 +531,7 @@ if ($pianoSel === 0 && $edificioSel > 0) {
     const bookingModalEl = document.getElementById('bookingModal');
     const bookingForm = document.getElementById('bookingForm');
     const bookingIdInput = document.getElementById('bookingId');
+    const deleteBookingBtn = document.getElementById('deleteBookingBtn');
     const bookingCamera = document.getElementById('bookingCamera');
     const bookingCameraLabel = document.getElementById('bookingCameraLabel');
     const changeRoomBtn = document.getElementById('changeRoomBtn');
@@ -615,6 +639,30 @@ if ($pianoSel === 0 && $edificioSel > 0) {
     function statusInitial(label) {
       if (!label) return '';
       return label.trim().charAt(0).toUpperCase();
+    }
+
+    function getStatusDotConfig(rawStatus, fallbackLabel = 'Pulita') {
+      if (!rawStatus) {
+        return { className: 'ok', label: fallbackLabel };
+      }
+      const status = rawStatus.toString().toUpperCase();
+      if (status.includes('IN_CORSO')) {
+        return { className: 'warn', label: 'In corso' };
+      }
+      if (status.includes('COMPLET') || status.includes('RISOLT')) {
+        return { className: 'ok', label: fallbackLabel };
+      }
+      if (status.includes('DA_FARE') || status.includes('DA_PULIRE') || status.includes('APERTO')) {
+        return { className: 'bad', label: 'Da rifare' };
+      }
+      return { className: 'bad', label: 'Da rifare' };
+    }
+
+    function renderStatusDot(list, fallbackLabel, entityLabel) {
+      const stato = list?.[0]?.stato || '';
+      const { className, label } = getStatusDotConfig(stato, fallbackLabel);
+      const tooltip = `${entityLabel}: ${label}`;
+      return `<span class="status-dot ${className}" data-bs-toggle="tooltip" title="${tooltip.replace(/"/g, '&quot;')}"></span>`;
     }
 
     function dateLabel(dateStr) {
@@ -900,6 +948,9 @@ if ($pianoSel === 0 && $edificioSel > 0) {
     function openBookingModal({ bookingId = null, cameraId, checkin, checkout, booking = null } = {}) {
       currentBookingId = bookingId;
       bookingIdInput.value = bookingId || '';
+      if (deleteBookingBtn) {
+        deleteBookingBtn.style.display = currentBookingId ? '' : 'none';
+      }
 
       if (cameraId) setCameraSelection(cameraId);
       else setCameraSelection('');
@@ -1440,6 +1491,8 @@ if ($pianoSel === 0 && $edificioSel > 0) {
 
       let html = '<table class="table table-bordered calendar-table">';
       html += '<thead><tr><th class="room-col">Camera</th>';
+      html += '<th class="status-col">Housekeeping</th>';
+      html += '<th class="status-col">Manutenzione</th>';
       days.forEach(day => {
         html += `<th>${dateLabel(day)}</th>`;
       });
@@ -1461,6 +1514,12 @@ if ($pianoSel === 0 && $edificioSel > 0) {
         // attiva/disattiva camera
         const attivaVal = parseInt((room.attiva ?? 1), 10);
         const isDisattivaCamera = (Number.isNaN(attivaVal) ? true : attivaVal !== 1);
+
+        const housekeepingDot = renderStatusDot(puliziaListAll, 'Pulita', 'Housekeeping');
+        const manutenzioneDot = renderStatusDot(manutListAll, 'Pulita', 'Manutenzione');
+
+        html += `<td class="status-cell">${housekeepingDot}</td>`;
+        html += `<td class="status-cell">${manutenzioneDot}</td>`;
 
         days.forEach(day => {
           let status = 'libera';
@@ -1794,6 +1853,21 @@ if ($pianoSel === 0 && $edificioSel > 0) {
     });
 
     saveBookingBtn?.addEventListener('click', saveBooking);
+    deleteBookingBtn?.addEventListener('click', async () => {
+      if (!currentBookingId) return;
+      const confirmDelete = confirm('Confermi la cancellazione della prenotazione?');
+      if (!confirmDelete) return;
+      const res = await fetchJson('prenotazioni_ajax.php', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'delete_booking', id: currentBookingId })
+      });
+      showToast(res.message || 'Prenotazione cancellata', res.toast?.variant || (res.ok ? 'success' : 'danger'));
+      if (res.ok) {
+        const modal = bootstrap.Modal.getInstance(bookingModalEl);
+        modal?.hide();
+        loadCalendar();
+      }
+    });
 
     // ✅ aggiorna min checkout quando cambia check-in manualmente nel modal
     bookingCheckin?.addEventListener('change', () => {
@@ -1866,6 +1940,7 @@ if ($pianoSel === 0 && $edificioSel > 0) {
       guestsContainer.innerHTML = '';
       guestsEmpty.classList.add('d-none');
       currentBookingId = null;
+      if (deleteBookingBtn) deleteBookingBtn.style.display = 'none';
       guestSearchInput.value = '';
       guestSearchResults.classList.add('d-none');
       guestSearchResults.innerHTML = '';
