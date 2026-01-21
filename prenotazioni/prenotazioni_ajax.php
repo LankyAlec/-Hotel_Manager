@@ -99,6 +99,14 @@ function get_hb_dettagli_column(mysqli $db): ?string {
     return null;
 }
 
+function get_pasto_note_column(mysqli $db): ?string {
+    $candidates = ['note_pasti', 'note_pasto', 'pasto_note'];
+    foreach ($candidates as $col) {
+        if (column_exists($db, 'soggiorni', $col)) return $col;
+    }
+    return null;
+}
+
 function get_tariffe_tipologia_column(mysqli $db): ?string {
     if (!table_exists($db, 'soggiorni_tariffe')) return null;
     if (column_exists($db, 'soggiorni_tariffe', 'tipologia_camera')) return 'tipologia_camera';
@@ -114,6 +122,131 @@ function get_soggiorni_tariffe_price_column(mysqli $db): ?string {
         if (column_exists($db, 'soggiorni_tariffe', $col)) return $col;
     }
     return null;
+}
+
+function get_tipologie_letti(mysqli $db): array {
+    if (!table_exists($db, 'soggiorni_tipologie_letti')) return [];
+    $res = $db->query("SELECT id, codice, descrizione FROM soggiorni_tipologie_letti ORDER BY id ASC");
+    if (!$res) return [];
+    $rows = [];
+    while ($r = $res->fetch_assoc()) {
+        $rows[] = [
+            'id' => (int)$r['id'],
+            'codice' => (string)$r['codice'],
+            'descrizione' => (string)($r['descrizione'] ?? ''),
+        ];
+    }
+    return $rows;
+}
+
+function get_tipologie_prezzi_table(mysqli $db): ?array {
+    $candidates = [
+        'soggiorni_tipologie_letti_prezzi',
+        'soggiorni_tipologie_letti_tariffe',
+        'soggiorni_tipologie_letti_tariffario',
+    ];
+    $requiredIdCols = ['soggiorni_tipologie_letti_ID', 'tipologia_letti_id', 'tipologia_id'];
+    $dateFromCols = ['data_da', 'dal'];
+    $dateToCols = ['data_a', 'al'];
+    $priceCols = ['prezzo', 'tariffa'];
+
+    foreach ($candidates as $table) {
+        if (!table_exists($db, $table)) continue;
+
+        $idCol = null;
+        foreach ($requiredIdCols as $col) {
+            if (column_exists($db, $table, $col)) {
+                $idCol = $col;
+                break;
+            }
+        }
+        if (!$idCol) continue;
+
+        $fromCol = null;
+        foreach ($dateFromCols as $col) {
+            if (column_exists($db, $table, $col)) {
+                $fromCol = $col;
+                break;
+            }
+        }
+        $toCol = null;
+        foreach ($dateToCols as $col) {
+            if (column_exists($db, $table, $col)) {
+                $toCol = $col;
+                break;
+            }
+        }
+        $priceCol = null;
+        foreach ($priceCols as $col) {
+            if (column_exists($db, $table, $col)) {
+                $priceCol = $col;
+                break;
+            }
+        }
+        if (!$fromCol || !$toCol || !$priceCol) continue;
+
+        $currencyCol = column_exists($db, $table, 'valuta') ? 'valuta' : null;
+        return [
+            'table' => $table,
+            'id_col' => $idCol,
+            'from_col' => $fromCol,
+            'to_col' => $toCol,
+            'price_col' => $priceCol,
+            'currency_col' => $currencyCol,
+        ];
+    }
+
+    return null;
+}
+
+function get_tipologia_pricing_preview(mysqli $db, int $tipologiaId, string $checkin, string $checkout, array $tableInfo): array {
+    $start = DateTime::createFromFormat('Y-m-d', $checkin);
+    $end = DateTime::createFromFormat('Y-m-d', $checkout);
+    if (!$start || !$end || $start >= $end) {
+        return ['breakdown' => [], 'total' => 0.0, 'currency' => null];
+    }
+
+    $breakdown = [];
+    $total = 0.0;
+    $currency = null;
+    $iter = clone $start;
+    while ($iter < $end) {
+        $date = $iter->format('Y-m-d');
+        $conditions = [
+            "{$tableInfo['id_col']} = ?",
+            "{$tableInfo['from_col']} <= ?",
+            "{$tableInfo['to_col']} >= ?",
+        ];
+        $types = 'iss';
+        $params = [$tipologiaId, $date, $date];
+
+        $sql = "SELECT {$tableInfo['price_col']} AS prezzo";
+        if ($tableInfo['currency_col']) {
+            $sql .= ", {$tableInfo['currency_col']} AS valuta";
+        }
+        $sql .= " FROM {$tableInfo['table']} WHERE " . implode(' AND ', $conditions) . " ORDER BY {$tableInfo['from_col']} DESC LIMIT 1";
+
+        $price = null;
+        $valuta = null;
+        $stmt = $db->prepare($sql);
+        if ($stmt) {
+            $stmt->bind_param($types, ...$params);
+            $stmt->execute();
+            $row = $stmt->get_result()->fetch_assoc();
+            if ($row && $row['prezzo'] !== null) {
+                $price = (float)$row['prezzo'];
+                $valuta = $row['valuta'] ?? null;
+            }
+            $stmt->close();
+        }
+
+        $breakdown[] = ['date' => $date, 'price' => $price];
+        if ($price !== null) $total += $price;
+        if ($valuta && !$currency) $currency = (string)$valuta;
+        $iter->modify('+1 day');
+    }
+
+    return ['breakdown' => $breakdown, 'total' => $total, 'currency' => $currency];
 }
 
 function get_servizi(mysqli $db): array {
@@ -383,6 +516,8 @@ function get_camere(mysqli $db): array {
 
 function list_bookings(mysqli $db): void {
     $selectNote = column_exists($db, 'soggiorni', 'note') ? ', s.note' : '';
+    $pastoNoteCol = get_pasto_note_column($db);
+    $selectPastoNote = $pastoNoteCol ? ", s.{$pastoNoteCol} AS note_pasti" : ', NULL AS note_pasti';
     $selectLead = column_exists($db, 'soggiorni', 'referente') ? ', s.referente' : '';
     $selectPasto = column_exists($db, 'soggiorni', 'piano_pasto_sigla') ? ', s.piano_pasto_sigla' : '';
     $selectHb = column_exists($db, 'soggiorni', 'hb_servizio') ? ', s.hb_servizio' : '';
@@ -397,6 +532,7 @@ function list_bookings(mysqli $db): void {
             s.data_checkin,
             s.data_checkout
             $selectNote
+            $selectPastoNote
             $selectLead
             $selectPasto
             $selectHb
@@ -452,6 +588,7 @@ function list_bookings(mysqli $db): void {
             'checkin' => (string)$row['data_checkin'],
             'checkout' => (string)$row['data_checkout'],
             'note' => $row['note'] ?? '',
+            'note_pasti' => $row['note_pasti'] ?? '',
             'referente' => $row['referente'] ?? $firstGuest,
             'pasto' => $row['piano_pasto_sigla'] ?? '',
             'hb' => $row['hb_servizio'] ?? '',
@@ -519,6 +656,7 @@ function save_booking(mysqli $db, array $payload): void {
     $stato = $payload['stato'] ?? null;
     $referente = $payload['referente'] ?? null;
     $note = $payload['note'] ?? null;
+    $notePasti = $payload['note_pasti'] ?? ($payload['note_pasto'] ?? null);
 
     $pasto = $payload['piano_pasto_sigla'] ?? null;
     $hb = $payload['hb_servizio'] ?? null;
@@ -617,6 +755,10 @@ function save_booking(mysqli $db, array $payload): void {
 
     if ($referente !== null && column_exists($db, 'soggiorni', 'referente')) { $fields[] = 'referente = ?'; $values[] = $referente; $types .= 's'; }
     if ($note !== null && column_exists($db, 'soggiorni', 'note')) { $fields[] = 'note = ?'; $values[] = $note; $types .= 's'; }
+    if ($notePasti !== null) {
+        $pastoNoteCol = get_pasto_note_column($db);
+        if ($pastoNoteCol) { $fields[] = "{$pastoNoteCol} = ?"; $values[] = $notePasti; $types .= 's'; }
+    }
     if ($pasto !== null && column_exists($db, 'soggiorni', 'piano_pasto_sigla')) { $fields[] = 'piano_pasto_sigla = ?'; $values[] = $pasto; $types .= 's'; }
     if ($hb !== null && column_exists($db, 'soggiorni', 'hb_servizio')) { $fields[] = 'hb_servizio = ?'; $values[] = $hb; $types .= 's'; }
     if ($tipologiaCamera !== null) {
@@ -670,6 +812,15 @@ function save_booking(mysqli $db, array $payload): void {
         $placeholders[] = '?';
         $insertTypes .= 's';
         $insertValues[] = $note;
+    }
+    if ($notePasti !== null) {
+        $pastoNoteCol = get_pasto_note_column($db);
+        if ($pastoNoteCol) {
+            $columns[] = $pastoNoteCol;
+            $placeholders[] = '?';
+            $insertTypes .= 's';
+            $insertValues[] = $notePasti;
+        }
     }
 
     if ($pasto !== null && column_exists($db, 'soggiorni', 'piano_pasto_sigla')) {
@@ -776,9 +927,32 @@ switch ($action) {
     case 'metadata':
         json_response(true, 'OK', [
             'camere' => get_camere($mysqli),
+            'tipologie_letti' => get_tipologie_letti($mysqli),
             'stati' => ['prenotato', 'occupato', 'annullato', 'checkout'],
             'servizi' => get_servizi($mysqli),
         ]);
+        break;
+
+    case 'tipologie_prezzi':
+        $checkin = $_POST['data_checkin'] ?? null;
+        $checkout = $_POST['data_checkout'] ?? null;
+        if (!$checkin || !$checkout) {
+            json_response(false, 'Parametri mancanti per il calcolo prezzi tipologie');
+        }
+        $tableInfo = get_tipologie_prezzi_table($mysqli);
+        if (!$tableInfo) {
+            json_response(true, 'OK', ['prices' => []]);
+        }
+        $tipologie = get_tipologie_letti($mysqli);
+        $prices = [];
+        foreach ($tipologie as $tipologia) {
+            $preview = get_tipologia_pricing_preview($mysqli, (int)$tipologia['id'], $checkin, $checkout, $tableInfo);
+            $prices[$tipologia['id']] = [
+                'total' => $preview['total'] ?? 0.0,
+                'currency' => $preview['currency'] ?? null,
+            ];
+        }
+        json_response(true, 'OK', ['prices' => $prices]);
         break;
 
     case 'pricing_preview':
