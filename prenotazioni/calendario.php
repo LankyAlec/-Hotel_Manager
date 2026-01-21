@@ -371,7 +371,7 @@ if ($pianoSel === 0 && $edificioSel > 0) {
               <select class="form-select form-select-sm" id="bookingCameraSelect">
                 <option value="">Seleziona una camera</option>
               </select>
-              <div class="form-text">Il cambio camera rispetta le disponibilità del periodo selezionato.</div>
+              <div class="form-text">Mostra tutte le camere (anche occupate, disattive o in manutenzione). La disponibilità viene verificata al salvataggio.</div>
             </div>
           </div>
           <div class="col-6 col-md-4">
@@ -382,17 +382,14 @@ if ($pianoSel === 0 && $edificioSel > 0) {
             <label class="form-label small">Check-out</label>
             <input type="date" class="form-control" name="data_checkout" id="bookingCheckout" required>
           </div>
-          <div class="col-12 col-md-4">
+          <div class="col-6 col-md-4">
+            <label class="form-label small">Numero ospiti</label>
+            <input type="number" class="form-control" name="numero_ospiti" id="bookingGuestCount" min="1" value="1" required>
+          </div>
+          <div class="col-6 col-md-4">
             <label class="form-label small">Tipologia camera</label>
             <select class="form-select" name="tipologia_camera" id="bookingTipologia">
               <option value="">—</option>
-              <option value="Singola">Singola</option>
-              <option value="Doppia">Doppia</option>
-              <option value="Matrimoniale">Matrimoniale</option>
-              <option value="Tripla">Tripla</option>
-              <option value="Quadrupla">Quadrupla</option>
-              <option value="Family">Family</option>
-              <option value="Suite">Suite</option>
             </select>
           </div>
           <div class="col-6 col-md-4">
@@ -412,6 +409,10 @@ if ($pianoSel === 0 && $edificioSel > 0) {
               <option value="HB">HB</option>
               <option value="FB">FB</option>
             </select>
+          </div>
+          <div class="col-12 col-md-8">
+            <label class="form-label small">Note pasti</label>
+            <input class="form-control" name="note_pasti" id="bookingPastoNote" placeholder="Note per i pasti">
           </div>
           <div class="col-12 col-md-6" id="hbBox" style="display:none;">
             <label class="form-label small">HB: tipo pasto</label>
@@ -458,11 +459,6 @@ if ($pianoSel === 0 && $edificioSel > 0) {
             <div>
               <h6 class="mb-1">Ospiti</h6>
               <div class="text-muted small">Compila i dati richiesti per ogni ospite della camera.</div>
-            </div>
-            <div class="d-flex gap-2">
-              <button class="btn btn-outline-secondary btn-sm" type="button" id="addGuestBtn">
-                <i class="bi bi-person-plus"></i> Aggiungi ospite
-              </button>
             </div>
           </div>
 
@@ -521,6 +517,7 @@ if ($pianoSel === 0 && $edificioSel > 0) {
     const bookingCheckout = document.getElementById('bookingCheckout');
     const bookingPasto = document.getElementById('bookingPasto');
     const bookingTipologia = document.getElementById('bookingTipologia');
+    const bookingGuestCount = document.getElementById('bookingGuestCount');
     const bookingHousekeeping = document.getElementById('bookingHousekeeping');
     const hbBox = document.getElementById('hbBox');
     const hbCustomBox = document.getElementById('hbCustomBox');
@@ -530,13 +527,13 @@ if ($pianoSel === 0 && $edificioSel > 0) {
     const bookingHb = document.getElementById('bookingHb');
     const bookingHbDettagli = document.getElementById('bookingHbDettagli');
     const bookingNote = document.getElementById('bookingNote');
+    const bookingPastoNote = document.getElementById('bookingPastoNote');
     const servicesContainer = document.getElementById('servicesContainer');
     const servicesEmpty = document.getElementById('servicesEmpty');
     const saveBookingBtn = document.getElementById('saveBookingBtn');
     const pricePreviewBody = document.getElementById('pricePreviewBody');
     const guestsContainer = document.getElementById('guestsContainer');
     const guestsEmpty = document.getElementById('guestsEmpty');
-    const addGuestBtn = document.getElementById('addGuestBtn');
     const guestSearchInput = document.getElementById('guestSearchInput');
     const guestSearchBtn = document.getElementById('guestSearchBtn');
     const guestSearchResults = document.getElementById('guestSearchResults');
@@ -668,22 +665,72 @@ if ($pianoSel === 0 && $edificioSel > 0) {
         if (bookingCamera.value) {
           bookingCameraLabel.value = getCameraLabel(bookingCamera.value);
         }
-        populateCameraSelect();
+        populateChangeRoomSelect();
+        populateTipologiaSelect();
         renderServices(meta.servizi || []);
       }
     }
 
-    function populateCameraSelect() {
+    function populateChangeRoomSelect() {
       if (!bookingCameraSelect) return;
       bookingCameraSelect.innerHTML = '<option value="">Seleziona una camera</option>';
+      const currentId = bookingCamera.value || '';
       (meta.camere || []).forEach(camera => {
+        if (currentId && String(camera.id) === String(currentId)) return;
         const option = document.createElement('option');
         option.value = camera.id;
-        const label = `${camera.codice || ''}${camera.nome ? ' — ' + camera.nome : ''}`.trim();
-        option.textContent = label || `Camera ${camera.id}`;
+        const baseLabel = `${camera.codice || ''}${camera.nome ? ' — ' + camera.nome : ''}`.trim() || `Camera ${camera.id}`;
+        const statusLabels = getRoomStatusLabels(camera, bookingCheckin.value, bookingCheckout.value);
+        option.textContent = statusLabels.length ? `${baseLabel} (${statusLabels.join(', ')})` : baseLabel;
         bookingCameraSelect.appendChild(option);
       });
-      bookingCameraSelect.value = bookingCamera.value || '';
+      bookingCameraSelect.value = '';
+    }
+
+    function populateTipologiaSelect(prices = {}) {
+      if (!bookingTipologia) return;
+      const currentValue = bookingTipologia.value;
+      bookingTipologia.innerHTML = '<option value="">—</option>';
+      (meta.tipologie_letti || []).forEach(tipologia => {
+        const option = document.createElement('option');
+        option.value = tipologia.codice || '';
+        option.dataset.tipologiaId = tipologia.id;
+        const baseLabel = tipologia.descrizione || tipologia.codice || `Tipologia ${tipologia.id}`;
+        option.dataset.baseLabel = baseLabel;
+        const priceInfo = prices[tipologia.id];
+        if (priceInfo && typeof priceInfo.total !== 'undefined') {
+          const priceLabel = formatCurrencyWithCurrency(priceInfo.total, priceInfo.currency);
+          option.textContent = `${baseLabel} • ${priceLabel}`;
+        } else {
+          option.textContent = baseLabel;
+        }
+        bookingTipologia.appendChild(option);
+      });
+      bookingTipologia.value = currentValue || '';
+    }
+
+    function getRoomStatusLabels(camera, checkin, checkout) {
+      const labels = [];
+      const attivaVal = parseInt((camera?.attiva ?? 1), 10);
+      if (!Number.isNaN(attivaVal) && attivaVal !== 1) labels.push('Disattiva');
+
+      const manutenzioni = window.currentCalendarManutenzioni || [];
+      if (manutenzioni.some(m => String(m.camera_id) === String(camera.id))) labels.push('Manutenzione');
+
+      const pulizie = window.currentCalendarPulizie || [];
+      if (pulizie.some(p => String(p.camera_id) === String(camera.id))) labels.push('Pulizia');
+
+      if (checkin && checkout) {
+        const bookings = window.currentCalendarBookings || [];
+        const hasOverlap = bookings.some(b => {
+          if (String(b.camera_id) !== String(camera.id)) return false;
+          if (currentBookingId && String(b.id) === String(currentBookingId)) return false;
+          return !(checkout <= b.checkin || checkin >= b.checkout);
+        });
+        if (hasOverlap) labels.push('Occupata');
+      }
+
+      return labels;
     }
 
     function getCameraLabel(cameraId) {
@@ -697,8 +744,9 @@ if ($pianoSel === 0 && $edificioSel > 0) {
       bookingCamera.value = cameraId || '';
       bookingCameraLabel.value = getCameraLabel(cameraId);
       if (bookingCameraSelect) {
-        bookingCameraSelect.value = cameraId || '';
+        bookingCameraSelect.value = '';
       }
+      populateChangeRoomSelect();
     }
 
     function applyCheckoutMinFromCheckin(checkinStr) {
@@ -715,6 +763,19 @@ if ($pianoSel === 0 && $edificioSel > 0) {
     function formatCurrency(amount) {
       if (amount === null || amount === undefined || Number.isNaN(amount)) return '—';
       return new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(amount);
+    }
+
+    function formatCurrencyWithCurrency(amount, currency) {
+      if (amount === null || amount === undefined || Number.isNaN(amount)) return '—';
+      const curr = currency || 'EUR';
+      return new Intl.NumberFormat('it-IT', { style: 'currency', currency: curr }).format(amount);
+    }
+
+    function formatDisplayDate(dateStr) {
+      if (!dateStr) return '';
+      const [y, m, d] = dateStr.split('-');
+      if (!y || !m || !d) return dateStr;
+      return `${d}/${m}/${y}`;
     }
 
     function getHbMode() {
@@ -742,7 +803,7 @@ if ($pianoSel === 0 && $edificioSel > 0) {
         row.className = 'row g-2 align-items-center mb-2';
         row.dataset.hbDate = day;
         row.innerHTML = `
-          <div class="col-4 col-md-3 text-muted small">${day}</div>
+          <div class="col-4 col-md-3 text-muted small">${formatDisplayDate(day)}</div>
           <div class="col-8 col-md-4">
             <select class="form-select form-select-sm hb-day-select">
               <option value="">—</option>
@@ -847,11 +908,16 @@ if ($pianoSel === 0 && $edificioSel > 0) {
 
       if (checkin) bookingCheckin.value = checkin;
       if (booking?.pasto) bookingPasto.value = booking.pasto;
+      if (bookingPastoNote) bookingPastoNote.value = booking?.note_pasti ?? '';
       if (booking?.tipologia_camera) bookingTipologia.value = booking.tipologia_camera;
       if (booking?.housekeeping !== undefined && booking?.housekeeping !== null) {
         bookingHousekeeping.value = booking.housekeeping;
       } else {
         bookingHousekeeping.value = 1;
+      }
+      if (bookingGuestCount) {
+        const baseCount = booking?.ospiti ?? (currentBookingId ? bookingGuestCount.value : 1);
+        bookingGuestCount.value = Math.max(1, parseInt(baseCount, 10) || 1);
       }
       if (booking?.hb_servizio) bookingHb.value = booking.hb_servizio;
       if (booking?.hb_dettagli) {
@@ -878,7 +944,7 @@ if ($pianoSel === 0 && $edificioSel > 0) {
         bookingCheckout.value = checkout || '';
         guestsContainer.innerHTML = '';
         guestsEmpty.classList.add('d-none');
-        renderGuestCard({}, true);
+        syncGuestCards();
         applyCheckoutMinFromCheckin(bookingCheckin.value);
         setTimeout(() => bookingCheckout.focus(), 150);
       }
@@ -888,6 +954,8 @@ if ($pianoSel === 0 && $edificioSel > 0) {
       const modal = new bootstrap.Modal(bookingModalEl);
       modal.show();
       updatePricePreview();
+      updateTipologiaPrices();
+      populateChangeRoomSelect();
     }
 
     function renderGuestCard(guest, isNew = false) {
@@ -955,9 +1023,6 @@ if ($pianoSel === 0 && $edificioSel > 0) {
           </div>
         </div>
         <div class="guest-actions mt-2">
-          <button class="btn btn-outline-secondary btn-sm guest-remove js-remove-guest" type="button">
-            <i class="bi bi-x-lg"></i> Chiudi
-          </button>
           ${shouldShowSave ? `
             <button class="btn btn-outline-primary btn-sm js-save-guest" ${idAttr}>
               <i class="bi bi-save"></i> Salva ospite
@@ -966,6 +1031,61 @@ if ($pianoSel === 0 && $edificioSel > 0) {
         </div>
       `;
       guestsContainer.appendChild(card);
+    }
+
+    function getTargetGuestCount() {
+      if (!bookingGuestCount) return 1;
+      return Math.max(1, parseInt(bookingGuestCount.value, 10) || 1);
+    }
+
+    function findEmptyGuestCard() {
+      const cards = Array.from(guestsContainer.querySelectorAll('.guest-card'));
+      return cards.find(card => {
+        const nome = card.querySelector('input[name="nome"]')?.value?.trim() || '';
+        const cognome = card.querySelector('input[name="cognome"]')?.value?.trim() || '';
+        return !nome && !cognome;
+      });
+    }
+
+    function fillGuestCard(card, guest) {
+      if (!card) return;
+      card.querySelector('input[name="nome"]').value = guest.nome || '';
+      card.querySelector('input[name="cognome"]').value = guest.cognome || '';
+      card.querySelector('input[name="data_nascita"]').value = guest.data_nascita || '';
+      card.querySelector('input[name="nazionalita"]').value = guest.nazionalita || '';
+      card.querySelector('input[name="indirizzo"]').value = guest.indirizzo || '';
+      card.querySelector('select[name="documento_tipo"]').value = guest.documento_tipo || '';
+      card.querySelector('input[name="documento_numero"]').value = guest.documento_numero || '';
+      card.querySelector('input[name="email"]').value = guest.email || '';
+      card.querySelector('input[name="telefono"]').value = guest.telefono || '';
+      card.querySelector('input[name="note"]').value = guest.note || '';
+      card.querySelector('.guest-title').textContent = `${guest.nome || ''} ${guest.cognome || ''}`.trim();
+    }
+
+    async function syncGuestCards(targetCount = getTargetGuestCount()) {
+      const cards = Array.from(guestsContainer.querySelectorAll('.guest-card'));
+      if (cards.length < targetCount) {
+        for (let i = cards.length; i < targetCount; i++) {
+          renderGuestCard({}, true);
+        }
+      } else if (cards.length > targetCount) {
+        const toRemove = cards.slice(targetCount);
+        for (const card of toRemove) {
+          const guestId = card.dataset.guestId ? parseInt(card.dataset.guestId, 10) : null;
+          if (guestId && currentBookingId) {
+            await fetchJson('ospiti_ajax.php', {
+              method: 'POST',
+              body: JSON.stringify({ action: 'delete_guest', soggiorno_id: currentBookingId, cliente_id: guestId })
+            });
+          }
+          card.remove();
+        }
+      }
+      if (!guestsContainer.querySelector('.guest-card')) {
+        guestsEmpty.classList.remove('d-none');
+      } else {
+        guestsEmpty.classList.add('d-none');
+      }
     }
 
     async function loadGuests(bookingId) {
@@ -982,11 +1102,16 @@ if ($pianoSel === 0 && $edificioSel > 0) {
 
       guestsContainer.innerHTML = '';
       if (!res.ospiti || res.ospiti.length === 0) {
-        guestsContainer.innerHTML = '<div class="alert alert-info">Nessun ospite associato.</div>';
+        if (bookingGuestCount) bookingGuestCount.value = 1;
+        syncGuestCards();
         return;
       }
 
       res.ospiti.forEach(o => renderGuestCard(o));
+      if (bookingGuestCount) {
+        bookingGuestCount.value = Math.max(1, res.ospiti.length);
+      }
+      syncGuestCards(getTargetGuestCount());
     }
 
     function collectGuestsFromUI() {
@@ -1038,6 +1163,12 @@ if ($pianoSel === 0 && $edificioSel > 0) {
 
       // ✅ ospiti sempre raccolti (servono soprattutto per nuova prenotazione)
       const guests = collectGuestsFromUI();
+      const targetGuests = getTargetGuestCount();
+      if (guests.length < targetGuests) {
+        showToast('Inserisci tutti gli ospiti richiesti prima di salvare.', 'warning');
+        guestsEmpty.classList.remove('d-none');
+        return;
+      }
       if (!currentBookingId && guests.length < 1) {
         showToast('Devi inserire almeno 1 ospite (nome e cognome) prima di salvare', 'warning');
         guestsEmpty.classList.remove('d-none');
@@ -1108,7 +1239,7 @@ if ($pianoSel === 0 && $edificioSel > 0) {
         <div class="d-flex justify-content-between align-items-center px-2 py-2 border-bottom result-row" data-cliente="${r.id}">
           <div>
             <div class="fw-semibold">${escapeHtml(r.nome ?? '')} ${escapeHtml(r.cognome ?? '')}</div>
-            <div class="small text-muted">${escapeHtml(r.data_nascita ?? '')} ${r.documento_numero ? '· ' + escapeHtml(r.documento_numero) : ''}</div>
+            <div class="small text-muted">${escapeHtml(formatDisplayDate(r.data_nascita ?? ''))} ${r.documento_numero ? '· ' + escapeHtml(r.documento_numero) : ''}</div>
           </div>
           <button class="btn btn-outline-primary btn-sm js-attach-guest">Aggiungi</button>
         </div>
@@ -1117,6 +1248,12 @@ if ($pianoSel === 0 && $edificioSel > 0) {
     }
 
     async function attachGuest(clienteId) {
+      const targetGuests = getTargetGuestCount();
+      const currentCards = guestsContainer.querySelectorAll('.guest-card').length;
+      if (currentCards >= targetGuests && !findEmptyGuestCard()) {
+        showToast('Hai già raggiunto il numero massimo di ospiti.', 'warning');
+        return;
+      }
       // se non ho ancora salvato, non posso associare lato DB: creo card locale
       if (!currentBookingId) {
         const row = guestSearchResults.querySelector(`[data-cliente="${clienteId}"]`);
@@ -1135,7 +1272,12 @@ if ($pianoSel === 0 && $edificioSel > 0) {
         };
 
         guestsEmpty.classList.add('d-none');
-        renderGuestCard(guest, true);
+        const emptyCard = findEmptyGuestCard();
+        if (emptyCard) {
+          fillGuestCard(emptyCard, guest);
+        } else {
+          renderGuestCard(guest, true);
+        }
         showToast('Ospite copiato. Ora salva la prenotazione.', 'info');
         return;
       }
@@ -1293,6 +1435,8 @@ if ($pianoSel === 0 && $edificioSel > 0) {
       const pulizie = mapSet(data.pulizie || []);
       const bookings = mapSet(data.bookings || []);
       window.currentCalendarBookings = data.bookings || [];
+      window.currentCalendarManutenzioni = data.manutenzioni || [];
+      window.currentCalendarPulizie = data.pulizie || [];
 
       let html = '<table class="table table-bordered calendar-table">';
       html += '<thead><tr><th class="room-col">Camera</th>';
@@ -1342,7 +1486,7 @@ if ($pianoSel === 0 && $edificioSel > 0) {
             status = 'occupata';
             bookingId = match.id;
             bookingPayload = match;
-            tooltipParts.push(`Soggiorno ${match.checkin} → ${match.checkout}`);
+            tooltipParts.push(`Soggiorno ${formatDisplayDate(match.checkin)} → ${formatDisplayDate(match.checkout)}`);
           } else {
             if (isDisattivaCamera) status = 'disattiva';
             else if (manutListAll.length) status = 'manutenzione';
@@ -1481,6 +1625,8 @@ if ($pianoSel === 0 && $edificioSel > 0) {
       if (!data.ok) {
         calendarContainer.innerHTML = `<div class="calendar-empty">${data.message || 'Errore nel caricamento del calendario.'}</div>`;
         window.currentCalendarBookings = [];
+        window.currentCalendarManutenzioni = [];
+        window.currentCalendarPulizie = [];
         return;
       }
       renderCalendar(data);
@@ -1513,7 +1659,7 @@ if ($pianoSel === 0 && $edificioSel > 0) {
       const total = res.total ?? (cameraTotal + serviziTotal);
       const cameraRows = (res.camera?.breakdown || []).map(r => `
         <tr>
-          <td>${r.date}</td>
+          <td>${formatDisplayDate(r.date)}</td>
           <td class="text-end">${formatCurrency(r.price)}</td>
         </tr>
       `).join('') || `
@@ -1563,6 +1709,27 @@ if ($pianoSel === 0 && $edificioSel > 0) {
           <strong>${formatCurrency(total)}</strong>
         </div>
       `;
+    }
+
+    async function updateTipologiaPrices() {
+      if (!bookingCheckin.value || !bookingCheckout.value) {
+        populateTipologiaSelect();
+        return;
+      }
+      const payload = {
+        action: 'tipologie_prezzi',
+        data_checkin: bookingCheckin.value,
+        data_checkout: bookingCheckout.value,
+      };
+      const res = await fetchJson('prenotazioni_ajax.php', {
+        method: 'POST',
+        body: JSON.stringify(payload)
+      });
+      if (!res.ok) {
+        populateTipologiaSelect();
+        return;
+      }
+      populateTipologiaSelect(res.prices || {});
     }
 
     selEdificio?.addEventListener('change', () => {
@@ -1634,12 +1801,16 @@ if ($pianoSel === 0 && $edificioSel > 0) {
       if (getHbMode() === 'personalizzato') {
         buildHbCustomList(bookingHbDettagli.value ? JSON.parse(bookingHbDettagli.value) : {});
       }
+      updateTipologiaPrices();
+      populateChangeRoomSelect();
       updatePricePreview();
     });
     bookingCheckout?.addEventListener('change', () => {
       if (getHbMode() === 'personalizzato') {
         buildHbCustomList(bookingHbDettagli.value ? JSON.parse(bookingHbDettagli.value) : {});
       }
+      updateTipologiaPrices();
+      populateChangeRoomSelect();
       updatePricePreview();
     });
     bookingCamera?.addEventListener('change', updatePricePreview);
@@ -1648,6 +1819,7 @@ if ($pianoSel === 0 && $edificioSel > 0) {
       changeRoomBox.classList.toggle('d-none');
       changeRoomBtn.classList.toggle('active');
       if (!changeRoomBox.classList.contains('d-none')) {
+        populateChangeRoomSelect();
         bookingCameraSelect?.focus();
       }
     });
@@ -1658,6 +1830,9 @@ if ($pianoSel === 0 && $edificioSel > 0) {
     });
     bookingTipologia?.addEventListener('change', updatePricePreview);
     servicesContainer?.addEventListener('change', updatePricePreview);
+    bookingGuestCount?.addEventListener('change', () => {
+      syncGuestCards();
+    });
 
     bookingPasto?.addEventListener('change', toggleHbFields);
     hbModeAll?.addEventListener('change', toggleHbFields);
@@ -1669,34 +1844,6 @@ if ($pianoSel === 0 && $edificioSel > 0) {
       const card = btn.closest('.guest-card');
       saveGuest(card);
     });
-
-    guestsContainer.addEventListener('click', async (ev) => {
-      const btn = ev.target.closest('.js-remove-guest');
-      if (!btn) return;
-      const card = btn.closest('.guest-card');
-      if (!card) return;
-      const guestId = card.dataset.guestId ? parseInt(card.dataset.guestId, 10) : null;
-      if (!guestId || !currentBookingId) {
-        card.remove();
-        if (!guestsContainer.querySelector('.guest-card')) {
-          guestsEmpty.classList.remove('d-none');
-        }
-        return;
-      }
-      const res = await fetchJson('ospiti_ajax.php', {
-        method: 'POST',
-        body: JSON.stringify({ action: 'delete_guest', soggiorno_id: currentBookingId, cliente_id: guestId })
-      });
-      showToast(res.message || 'Ospite rimosso', res.toast?.variant || (res.ok ? 'success' : 'danger'));
-      if (res.ok) loadGuests(currentBookingId);
-    });
-
-    addGuestBtn?.addEventListener('click', () => {
-      // ✅ ora posso aggiungere ospiti anche prima del salvataggio prenotazione
-      guestsEmpty.classList.add('d-none');
-      renderGuestCard({}, true);
-    });
-
 
     guestSearchBtn?.addEventListener('click', searchGuests);
     guestSearchInput?.addEventListener('keydown', (ev) => {

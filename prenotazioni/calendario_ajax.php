@@ -181,6 +181,9 @@ if ($roomIds) {
         $hasHbDettagli = column_exists($mysqli, $bookingTable, 'hb_dettagli')
             || column_exists($mysqli, $bookingTable, 'hb_dettagli_json');
         $hasNote = column_exists($mysqli, $bookingTable, 'note');
+        $hasPastoNote = column_exists($mysqli, $bookingTable, 'note_pasti')
+            || column_exists($mysqli, $bookingTable, 'note_pasto')
+            || column_exists($mysqli, $bookingTable, 'pasto_note');
         $hasTipoCamera = column_exists($mysqli, $bookingTable, 'tipologia_camera')
             || column_exists($mysqli, $bookingTable, 'tipo_camera')
             || column_exists($mysqli, $bookingTable, 'camera_tipo');
@@ -248,6 +251,17 @@ if ($roomIds) {
             $selectHbDettagli = ', NULL AS hb_dettagli';
         }
         $selectNote = $hasNote ? ', b.note' : ', NULL AS note';
+        if ($hasPastoNote) {
+            if (column_exists($mysqli, $bookingTable, 'note_pasti')) {
+                $selectPastoNote = ', b.note_pasti AS note_pasti';
+            } elseif (column_exists($mysqli, $bookingTable, 'note_pasto')) {
+                $selectPastoNote = ', b.note_pasto AS note_pasti';
+            } else {
+                $selectPastoNote = ', b.pasto_note AS note_pasti';
+            }
+        } else {
+            $selectPastoNote = ', NULL AS note_pasti';
+        }
         if ($hasTipoCamera) {
             if (column_exists($mysqli, $bookingTable, 'tipologia_camera')) {
                 $selectTipoCamera = ', b.tipologia_camera AS tipologia_camera';
@@ -280,6 +294,7 @@ if ($roomIds) {
                 {$selectHousekeeping}
                 {$selectHbDettagli}
                 {$selectNote}
+                {$selectPastoNote}
                 {$selectTipoCamera}
                 {$selectServizi}
             FROM {$bookingTable} b
@@ -320,6 +335,7 @@ if ($roomIds) {
                     'housekeeping' => $row['housekeeping'] !== null ? (int)$row['housekeeping'] : null,
                     'hb_dettagli' => (string)($row['hb_dettagli'] ?? ''),
                     'note' => (string)($row['note'] ?? ''),
+                    'note_pasti' => (string)($row['note_pasti'] ?? ''),
                     'tipologia_camera' => (string)($row['tipologia_camera'] ?? ''),
                     'servizi' => $serviziParsed,
                 ];
