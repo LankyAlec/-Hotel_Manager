@@ -33,7 +33,6 @@ $hbDa = $booking['hb_da'] ?? '';
 $hbA = $booking['hb_a'] ?? '';
 $tipologiaCamera = $booking['tipologia_camera'] ?? ($booking['tipo_camera'] ?? ($booking['camera_tipo'] ?? ''));
 $noteSoggiorno = $booking['note'] ?? '';
-$showNote = in_array($pasto, ['HB', 'FB'], true);
 ?>
 
 <div class="d-flex align-items-center justify-content-between mb-4">
@@ -103,12 +102,10 @@ $showNote = in_array($pasto, ['HB', 'FB'], true);
                         <div class="text-secondary text-uppercase small">Stato</div>
                         <div class="fw-semibold"><?= render_booking_badge($booking) ?></div>
                     </div>
-                    <?php if ($showNote): ?>
-                        <div class="col-12">
-                            <div class="text-secondary text-uppercase small">Note soggiorno</div>
-                            <div class="fw-semibold"><?= $noteSoggiorno !== '' ? h((string)$noteSoggiorno) : '—' ?></div>
-                        </div>
-                    <?php endif; ?>
+                    <div class="col-12">
+                        <div class="text-secondary text-uppercase small">Note soggiorno</div>
+                        <div class="fw-semibold"><?= $noteSoggiorno !== '' ? h((string)$noteSoggiorno) : '—' ?></div>
+                    </div>
                 </div>
             </div>
         </div>
