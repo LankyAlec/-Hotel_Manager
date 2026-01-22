@@ -726,13 +726,11 @@ if ($pianoSel === 0 && $edificioSel > 0) {
         if (currentId && String(camera.id) === String(currentId)) return;
         const attivaVal = parseInt((camera?.attiva ?? 1), 10);
         const isDisattiva = !Number.isNaN(attivaVal) && attivaVal !== 1;
-        const manutenzioni = window.currentCalendarManutenzioni || [];
-        const isInManutenzione = manutenzioni.some(m => String(m.camera_id) === String(camera.id));
-        if (isDisattiva || isInManutenzione) return;
+        const statusLabels = getRoomStatusLabels(camera, bookingCheckin.value, bookingCheckout.value);
+        if (isDisattiva || statusLabels.includes('Manutenzione')) return;
         const option = document.createElement('option');
         option.value = camera.id;
         const baseLabel = `${camera.codice || ''}${camera.nome ? ' — ' + camera.nome : ''}`.trim() || `Camera ${camera.id}`;
-        const statusLabels = getRoomStatusLabels(camera, bookingCheckin.value, bookingCheckout.value);
         option.textContent = statusLabels.length ? `${baseLabel} (${statusLabels.join(', ')})` : baseLabel;
         bookingCameraSelect.appendChild(option);
       });
@@ -1553,7 +1551,8 @@ if ($pianoSel === 0 && $edificioSel > 0) {
 
           // tooltip
           const tooltip = tooltipParts.filter(Boolean).join(' · ');
-          const tooltipAttr = tooltip ? ` data-bs-toggle="tooltip" title="${tooltip.replace(/"/g, '&quot;')}"` : '';
+          const shouldShowTooltip = tooltip && status !== 'pulizia' && status !== 'manutenzione';
+          const tooltipAttr = shouldShowTooltip ? ` data-bs-toggle="tooltip" title="${tooltip.replace(/"/g, '&quot;')}"` : '';
 
           // data-attr per click
           const defaultCheckin = day;
