@@ -126,7 +126,7 @@ function in_gruppo($codice){
                     <ul class="dropdown-menu">
                         <li><a class="dropdown-item" href="<?= BASE_URL ?>/prenotazioni/calendario.php">Calendario prenotazioni</a></li>
                         <li><a class="dropdown-item" href="<?= BASE_URL ?>/prenotazioni/calendario.php">Calendario</a></li>
-                        <li><a class="dropdown-item" href="<?= BASE_URL ?>/clienti/clienti.php">Clienti</a></li>
+                        <li><a class="dropdown-item" href="<?= BASE_URL ?>/prenotazioni/clienti.php">Clienti</a></li>
                     </ul>
                 </li>
                 <?php endif; ?>
