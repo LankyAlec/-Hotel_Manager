@@ -501,7 +501,6 @@ if ($pianoSel === 0 && $edificioSel > 0) {
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn btn-outline-secondary" data-bs-dismiss="modal">Chiudi</button>
         <button class="btn btn-outline-danger" type="button" id="deleteBookingBtn" style="display:none;">
           <i class="bi bi-x-circle"></i> Cancella prenotazione
         </button>
