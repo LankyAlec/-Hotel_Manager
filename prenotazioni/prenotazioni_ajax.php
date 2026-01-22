@@ -992,11 +992,14 @@ function pricing_preview(mysqli $db, array $payload): void {
     $pasto = $payload['piano_pasto_sigla'] ?? null;
     $servizi = normalize_servizi($payload['servizi'] ?? null);
 
-    if (!$cameraId || !$checkin || !$checkout) {
+    if (!$checkin || !$checkout) {
         json_response(false, 'Parametri mancanti per il calcolo prezzi');
     }
 
-    $cameraPreview = get_camera_pricing_preview($db, $cameraId, $tipologia, $pasto, $checkin, $checkout);
+    $cameraPreview = ['breakdown' => [], 'total' => 0.0];
+    if ($tipologia) {
+        $cameraPreview = get_camera_pricing_preview($db, $cameraId, $tipologia, $pasto, $checkin, $checkout);
+    }
     $serviziPreview = get_servizi_pricing_preview($db, $servizi, $checkin);
     $total = (float)($cameraPreview['total'] ?? 0) + (float)($serviziPreview['total'] ?? 0);
 

@@ -467,7 +467,7 @@ if ($pianoSel === 0 && $edificioSel > 0) {
           <div class="col-12">
             <label class="form-label small">Anteprima costi</label>
             <div class="price-preview-card" id="pricePreviewBox">
-              <div id="pricePreviewBody" class="text-muted small">Seleziona camera e date per vedere il totale.</div>
+              <div id="pricePreviewBody" class="text-muted small">Seleziona le date per vedere il totale.</div>
             </div>
           </div>
         </form>
@@ -1681,23 +1681,24 @@ if ($pianoSel === 0 && $edificioSel > 0) {
     }
 
     async function updatePricePreview() {
-      if (!bookingCheckin.value || !bookingCheckout.value || !bookingCamera.value) {
-        pricePreviewBody.textContent = 'Seleziona camera e date per vedere il totale.';
+      const selectedServices = collectServicesFromUI();
+      if (!bookingCheckin.value || !bookingCheckout.value) {
+        pricePreviewBody.textContent = 'Seleziona le date per vedere il totale.';
         return;
       }
-      if (!bookingTipologia.value) {
+      if (!bookingTipologia.value && selectedServices.length === 0) {
         pricePreviewBody.textContent = 'Seleziona la tipologia di camera per vedere il totale.';
         return;
       }
       pricePreviewBody.textContent = 'Calcolo in corso...';
       const payload = {
         action: 'pricing_preview',
-        camera_id: bookingCamera.value,
+        camera_id: bookingCamera.value || 0,
         data_checkin: bookingCheckin.value,
         data_checkout: bookingCheckout.value,
-        tipologia_camera: bookingTipologia.value,
+        tipologia_camera: bookingTipologia.value || null,
         piano_pasto_sigla: bookingPasto.value,
-        servizi: collectServicesFromUI(),
+        servizi: selectedServices,
       };
       const res = await fetchJson('prenotazioni_ajax.php', {
         method: 'POST',
@@ -1710,6 +1711,7 @@ if ($pianoSel === 0 && $edificioSel > 0) {
       const nights = (res.camera?.breakdown || []).length;
       const cameraTotal = res.camera?.total ?? 0;
       const serviziTotal = res.servizi?.total ?? 0;
+      const tipologiaMissing = !bookingTipologia.value;
       const defaultNightlyRate = nights > 0 ? (cameraTotal / nights) : 0;
       const cameraDates = (res.camera?.breakdown || []).map(r => r.date);
       const serviziRows = (res.servizi?.items || []).map(r => `
@@ -1723,26 +1725,30 @@ if ($pianoSel === 0 && $edificioSel > 0) {
       const renderPreview = (nightlyRate) => {
         const cameraTotalComputed = nightlyRate * nights;
         const totalComputed = cameraTotalComputed + serviziTotal;
-        const cameraRows = cameraDates.length ? cameraDates.map(date => `
+        const cameraRows = tipologiaMissing ? `
+          <tr><td colspan="2" class="text-muted small">Seleziona la tipologia di camera per calcolare la tariffa.</td></tr>
+        ` : (cameraDates.length ? cameraDates.map(date => `
           <tr>
             <td>${formatDisplayDate(date)}</td>
             <td class="text-end">${formatCurrency(nightlyRate)}</td>
           </tr>
         `).join('') : `
           <tr><td colspan="2" class="text-muted small">Nessuna tariffa trovata.</td></tr>
-        `;
+        `);
         pricePreviewBody.innerHTML = `
           <div class="row g-3">
             <div class="col-12 col-lg-6">
               <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
                 <div class="fw-semibold">Camera</div>
-                <div class="d-flex align-items-center gap-2">
-                  <label class="small text-muted" for="pricePerNightInput">Costo per notte</label>
-                  <div class="input-group input-group-sm" style="max-width: 160px;">
-                    <input type="number" class="form-control" id="pricePerNightInput" min="0" step="0.01" value="${Number.isFinite(nightlyRate) ? nightlyRate.toFixed(2) : '0.00'}">
-                    <span class="input-group-text">€</span>
+                ${tipologiaMissing ? '<div class="text-muted small">Seleziona tipologia e piano pasto.</div>' : `
+                  <div class="d-flex align-items-center gap-2">
+                    <label class="small text-muted" for="pricePerNightInput">Costo per notte</label>
+                    <div class="input-group input-group-sm" style="max-width: 160px;">
+                      <input type="number" class="form-control" id="pricePerNightInput" min="0" step="0.01" value="${Number.isFinite(nightlyRate) ? nightlyRate.toFixed(2) : '0.00'}">
+                      <span class="input-group-text">€</span>
+                    </div>
                   </div>
-                </div>
+                `}
               </div>
               <table class="table table-sm">
                 <tbody>
@@ -1776,7 +1782,7 @@ if ($pianoSel === 0 && $edificioSel > 0) {
             <strong>${formatCurrency(totalComputed)}</strong>
           </div>
         `;
-        const priceInput = document.getElementById('pricePerNightInput');
+        const priceInput = tipologiaMissing ? null : document.getElementById('pricePerNightInput');
         if (priceInput) {
           priceInput.addEventListener('input', () => {
             const nextRate = parseFloat(priceInput.value);
@@ -1926,7 +1932,11 @@ if ($pianoSel === 0 && $edificioSel > 0) {
       syncGuestCards();
     });
 
-    bookingPasto?.addEventListener('change', toggleHbFields);
+    bookingPasto?.addEventListener('change', () => {
+      toggleHbFields();
+      updateTipologiaPrices();
+      updatePricePreview();
+    });
     hbModeAll?.addEventListener('change', toggleHbFields);
     hbModeCustom?.addEventListener('change', toggleHbFields);
 
@@ -1969,7 +1979,7 @@ if ($pianoSel === 0 && $edificioSel > 0) {
       bookingCheckout.min = '';
       renderServices(meta.servizi || []);
       toggleHbFields();
-      pricePreviewBody.textContent = 'Seleziona camera e date per vedere il totale.';
+      pricePreviewBody.textContent = 'Seleziona le date per vedere il totale.';
     });
 
     renderPianiOptions();
