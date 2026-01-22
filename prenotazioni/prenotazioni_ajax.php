@@ -163,7 +163,7 @@ function get_tipologie_tariffe(mysqli $db): array {
     } else {
         $sql .= ", NULL AS descrizione";
     }
-    $sql .= " FROM soggiorni_tariffe GROUP BY {$tipologiaCol} ORDER BY {$tipologiaCol} ASC";
+    $sql .= " FROM soggiorni_tariffe GROUP BY {$tipologiaCol} ORDER BY prezzo_solo_pernottamento ASC";
 
     $res = $db->query($sql);
     if (!$res) return [];
