@@ -70,6 +70,22 @@ function in_gruppo($codice){
           line-height:1;
         }
         .of-csvbtn:hover{ background:rgba(13,110,253,.06); }
+        .app-footer {
+            background: #fff;
+            border-top: 1px solid rgba(0,0,0,.08);
+            box-shadow: 0 -6px 18px rgba(0,0,0,.04);
+        }
+        .app-footer .footer-brand { font-weight: 600; }
+        .app-footer .footer-pill {
+            background: #f1f3f5;
+            border-radius: 999px;
+            padding: .3rem .75rem;
+        }
+        .app-footer .footer-link {
+            color: #6c757d;
+            text-decoration: none;
+        }
+        .app-footer .footer-link:hover { color: #0d6efd; }
     </style>
       <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
 

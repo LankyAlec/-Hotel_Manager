@@ -246,10 +246,13 @@ if ($stmt) {
   <div class="col-12 col-lg-6">
     <div class="card shadow-sm border-0 h-100">
       <div class="card-body">
-        <div class="d-flex justify-content-between align-items-start">
+        <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
           <div>
             <h5 class="mb-1"><i class="bi bi-door-open"></i> Camere</h5>
           </div>
+          <a class="btn btn-primary btn-sm btn-icon" href="<?= BASE_URL ?>/prenotazioni/calendario.php">
+            <i class="bi bi-lightning-charge"></i> Prenotazione veloce
+          </a>
         </div>
 
         <div class="row g-3 mt-2">
@@ -302,7 +305,7 @@ if ($stmt) {
       <div class="card-body">
         <div class="d-flex justify-content-between align-items-start">
           <div>
-            <div class="text-muted small">Check-in attesi</div>
+            <div class="text-muted small">Check-in oggi</div>
             <div class="display-6 mb-0"><?= $checkin_attesi ?></div>
           </div>
           <i class="bi bi-box-arrow-in-right fs-3 text-success"></i>
@@ -316,7 +319,7 @@ if ($stmt) {
       <div class="card-body">
         <div class="d-flex justify-content-between align-items-start">
           <div>
-            <div class="text-muted small">Check-out attesi</div>
+            <div class="text-muted small">Check-out oggi</div>
             <div class="display-6 mb-0"><?= $checkout_attesi ?></div>
           </div>
           <i class="bi bi-box-arrow-left fs-3 text-warning"></i>
@@ -330,7 +333,7 @@ if ($stmt) {
       <div class="card-body">
         <div class="d-flex justify-content-between align-items-start">
           <div>
-            <div class="text-muted small">Camere da rifare</div>
+            <div class="text-muted small">Housekeeping oggi</div>
             <div class="display-6 mb-0"><?= $camere_da_rifare ?></div>
           </div>
           <i class="bi bi-bucket fs-3 text-info"></i>
