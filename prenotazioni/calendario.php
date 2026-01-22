@@ -1561,9 +1561,6 @@ if ($pianoSel === 0 && $edificioSel > 0) {
             return dayDate >= start && dayDate < end;
           });
 
-          // per tooltip (solo informativo)
-          if (isDisattivaCamera) tooltipParts.push('Camera disattivata');
-
           // Stato cella: prima la prenotazione (se c'è), altrimenti disattiva/manut/pulizia/libera
           if (match) {
             status = 'occupata';
