@@ -1701,6 +1701,7 @@ if ($pianoSel === 0 && $edificioSel > 0) {
         data_checkin: bookingCheckin.value,
         data_checkout: bookingCheckout.value,
         tipologia_camera: bookingTipologia.value,
+        piano_pasto_sigla: bookingPasto.value,
         servizi: collectServicesFromUI(),
       };
       const res = await fetchJson('prenotazioni_ajax.php', {
@@ -1777,6 +1778,7 @@ if ($pianoSel === 0 && $edificioSel > 0) {
         action: 'tipologie_prezzi',
         data_checkin: bookingCheckin.value,
         data_checkout: bookingCheckout.value,
+        piano_pasto_sigla: bookingPasto.value,
       };
       const res = await fetchJson('prenotazioni_ajax.php', {
         method: 'POST',
