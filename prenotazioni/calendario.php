@@ -564,7 +564,6 @@ if ($pianoSel === 0 && $edificioSel > 0) {
     let pianoSel = <?= (int)$pianoSel ?>;
     let meta = { camere: [] };
     let currentBookingId = null;
-    let pricePreviewOverride = null;
 
     // ✅ formato locale YYYY-MM-DD (NO UTC, NO toISOString per date "giorno")
     function formatLocalYMD(d) {
@@ -1712,7 +1711,6 @@ if ($pianoSel === 0 && $edificioSel > 0) {
       const cameraTotal = res.camera?.total ?? 0;
       const serviziTotal = res.servizi?.total ?? 0;
       const defaultNightlyRate = nights > 0 ? (cameraTotal / nights) : 0;
-      const initialNightlyRate = Number.isFinite(pricePreviewOverride) ? pricePreviewOverride : defaultNightlyRate;
       const cameraDates = (res.camera?.breakdown || []).map(r => r.date);
       const serviziRows = (res.servizi?.items || []).map(r => `
         <tr>
@@ -1741,7 +1739,7 @@ if ($pianoSel === 0 && $edificioSel > 0) {
                 <div class="d-flex align-items-center gap-2">
                   <label class="small text-muted" for="pricePerNightInput">Costo per notte</label>
                   <div class="input-group input-group-sm" style="max-width: 160px;">
-                    <input type="number" class="form-control" id="pricePerNightInput" min="0" step="0.01" inputmode="decimal" lang="en" value="${Number.isFinite(nightlyRate) ? nightlyRate.toFixed(2) : '0.00'}">
+                    <input type="number" class="form-control" id="pricePerNightInput" min="0" step="0.01" value="${Number.isFinite(nightlyRate) ? nightlyRate.toFixed(2) : '0.00'}">
                     <span class="input-group-text">€</span>
                   </div>
                 </div>
@@ -1782,12 +1780,11 @@ if ($pianoSel === 0 && $edificioSel > 0) {
         if (priceInput) {
           priceInput.addEventListener('input', () => {
             const nextRate = parseFloat(priceInput.value);
-            pricePreviewOverride = Number.isFinite(nextRate) ? nextRate : null;
             renderPreview(Number.isFinite(nextRate) ? nextRate : 0);
-          });
+          }, { once: true });
         }
       };
-      renderPreview(initialNightlyRate);
+      renderPreview(defaultNightlyRate);
     }
 
     async function updateTipologiaPrices() {
