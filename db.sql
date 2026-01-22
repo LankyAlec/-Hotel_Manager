@@ -722,6 +722,31 @@ CREATE TABLE `utenti_privilegi` (
   `gruppo_id` smallint(5) UNSIGNED NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- --------------------------------------------------------
+
+--
+-- Struttura della tabella `gruppi_arrivi`
+--
+
+CREATE TABLE `gruppi_arrivi` (
+  `id` int(10) UNSIGNED NOT NULL,
+  `nome_gruppo` varchar(120) NOT NULL,
+  `referente` varchar(120) NOT NULL,
+  `agenzia` varchar(120) NOT NULL,
+  `telefono` varchar(40) NOT NULL,
+  `email` varchar(120) NOT NULL,
+  `data_arrivo` date DEFAULT NULL,
+  `data_partenza` date DEFAULT NULL,
+  `numero_persone` int(10) UNSIGNED NOT NULL DEFAULT 0,
+  `tipologia_camere` varchar(120) DEFAULT NULL,
+  `area_preferita` varchar(120) DEFAULT NULL,
+  `note_operativa` text DEFAULT NULL,
+  `pasti_json` longtext DEFAULT NULL,
+  `extra_json` longtext DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
+  `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 --
 -- Dump dei dati per la tabella `utenti_privilegi`
 --
@@ -893,6 +918,14 @@ ALTER TABLE `ticket_manutenzione`
   ADD KEY `fk_tm_chiuso` (`chiuso_da`);
 
 --
+-- Indici per le tabelle `gruppi_arrivi`
+--
+ALTER TABLE `gruppi_arrivi`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_gruppi_arrivi_nome` (`nome_gruppo`),
+  ADD KEY `idx_gruppi_arrivi_data` (`data_arrivo`);
+
+--
 -- Indici per le tabelle `utenti`
 --
 ALTER TABLE `utenti`
@@ -1027,6 +1060,12 @@ ALTER TABLE `struttura_piani`
 --
 ALTER TABLE `ticket_manutenzione`
   MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+
+--
+-- AUTO_INCREMENT per la tabella `gruppi_arrivi`
+--
+ALTER TABLE `gruppi_arrivi`
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT per la tabella `utenti`
