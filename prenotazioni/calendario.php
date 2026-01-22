@@ -1569,7 +1569,7 @@ if ($pianoSel === 0 && $edificioSel > 0) {
             status = 'occupata';
             bookingId = match.id;
             bookingPayload = match;
-            tooltipParts.push(`Soggiorno ${formatDisplayDate(match.checkin)} → ${formatDisplayDate(match.checkout)}`);
+            tooltipParts.push(`${formatDisplayDate(match.checkin)} → ${formatDisplayDate(match.checkout)}`);
           } else {
             if (isDisattivaCamera) status = 'disattiva';
             else if (manutListAll.length) status = 'manutenzione';
