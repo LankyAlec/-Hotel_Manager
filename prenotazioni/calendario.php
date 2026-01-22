@@ -335,8 +335,6 @@ if ($pianoSel === 0 && $edificioSel > 0) {
         </div>
         <div class="col-12 col-md-4">
           <div class="legend">
-            <div class="item"><span class="dot" style="background:#dc3545"></span> Manutenzione</div>
-            <div class="item"><span class="dot" style="background:#ffc107"></span> Pulizia</div>
             <div class="item"><span class="dot" style="background:#6c757d"></span> Disattiva</div>
           </div>
         </div>
@@ -1491,8 +1489,8 @@ if ($pianoSel === 0 && $edificioSel > 0) {
 
       let html = '<table class="table table-bordered calendar-table">';
       html += '<thead><tr><th class="room-col">Camera</th>';
-      html += '<th class="status-col">Housekeeping</th>';
-      html += '<th class="status-col">Manutenzione</th>';
+      html += '<th class="status-col"><i class="bi bi-bucket"></i></th>';
+      html += '<th class="status-col"><i class="bi bi-tools"></i></th>';
       days.forEach(day => {
         html += `<th>${dateLabel(day)}</th>`;
       });

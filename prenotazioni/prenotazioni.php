@@ -33,6 +33,7 @@ $hbDa = $booking['hb_da'] ?? '';
 $hbA = $booking['hb_a'] ?? '';
 $tipologiaCamera = $booking['tipologia_camera'] ?? ($booking['tipo_camera'] ?? ($booking['camera_tipo'] ?? ''));
 $noteSoggiorno = $booking['note'] ?? '';
+$showNote = in_array($pasto, ['HB', 'FB'], true);
 ?>
 
 <div class="d-flex align-items-center justify-content-between mb-4">
