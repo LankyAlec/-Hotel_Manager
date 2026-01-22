@@ -187,20 +187,43 @@ if ($currentId > 0) {
 }
 
 $search = trim($_GET['search'] ?? '');
+$page = max(1, (int)($_GET['page'] ?? 1));
+$perPage = 10;
 $records = [];
 if ($search !== '') {
     $like = '%' . $search . '%';
+    $countStmt = $mysqli->prepare("SELECT COUNT(*) AS total
+        FROM gruppi_arrivi
+        WHERE nome_gruppo LIKE ? OR referente LIKE ? OR agenzia LIKE ?");
+    $countStmt->bind_param("sss", $like, $like, $like);
+    $countStmt->execute();
+    $countRes = $countStmt->get_result();
+    $totalRecords = $countRes ? (int)($countRes->fetch_assoc()['total'] ?? 0) : 0;
+    $countStmt->close();
+
+    $totalPages = max(1, (int)ceil($totalRecords / $perPage));
+    $page = min($page, $totalPages);
+    $offset = ($page - 1) * $perPage;
+
     $stmt = $mysqli->prepare("SELECT id, nome_gruppo, referente, data_arrivo, data_partenza, numero_persone
         FROM gruppi_arrivi
         WHERE nome_gruppo LIKE ? OR referente LIKE ? OR agenzia LIKE ?
         ORDER BY data_arrivo DESC, id DESC
-        LIMIT 50");
-    $stmt->bind_param("sss", $like, $like, $like);
+        LIMIT ? OFFSET ?");
+    $stmt->bind_param("sssii", $like, $like, $like, $perPage, $offset);
 } else {
+    $countRes = $mysqli->query("SELECT COUNT(*) AS total FROM gruppi_arrivi");
+    $totalRecords = $countRes ? (int)($countRes->fetch_assoc()['total'] ?? 0) : 0;
+
+    $totalPages = max(1, (int)ceil($totalRecords / $perPage));
+    $page = min($page, $totalPages);
+    $offset = ($page - 1) * $perPage;
+
     $stmt = $mysqli->prepare("SELECT id, nome_gruppo, referente, data_arrivo, data_partenza, numero_persone
         FROM gruppi_arrivi
-        ORDER BY created_at DESC, id DESC
-        LIMIT 50");
+        ORDER BY data_arrivo DESC, id DESC
+        LIMIT ? OFFSET ?");
+    $stmt->bind_param("ii", $perPage, $offset);
 }
 $stmt->execute();
 $res = $stmt->get_result();
@@ -209,6 +232,7 @@ $stmt->close();
 
 $pastiData = json_decode($currentData['pasti_json'] ?? '[]', true) ?: [];
 $extraData = json_decode($currentData['extra_json'] ?? '[]', true) ?: [];
+$queryBase = $search !== '' ? 'search=' . urlencode($search) . '&' : '';
 ?>
 
 <?php if ($alert): ?>
@@ -217,9 +241,29 @@ $extraData = json_decode($currentData['extra_json'] ?? '[]', true) ?: [];
 </div>
 <?php endif; ?>
 
+<div class="card table-card mb-4">
+    <div class="card-body">
+        <div class="d-flex flex-column flex-lg-row align-items-lg-center justify-content-between gap-3">
+            <div>
+                <h4 class="mb-1">Scheda gruppi in arrivo</h4>
+                <p class="text-muted mb-0">Cerca rapidamente, gestisci le schede e crea una nuova registrazione.</p>
+            </div>
+            <div class="d-flex flex-wrap gap-2">
+                <form class="d-flex gap-2" method="get">
+                    <input type="text" class="form-control" name="search" placeholder="Cerca gruppo, referente o agenzia" value="<?= h($search) ?>">
+                    <button class="btn btn-outline-primary" type="submit"><i class="bi bi-search"></i> Cerca</button>
+                </form>
+                <a class="btn btn-primary" href="<?= BASE_URL ?>/admin/gruppi_arrivi.php">
+                    <i class="bi bi-plus-circle"></i> Nuova scheda
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="row g-4">
-    <div class="col-12 col-xxl-5">
-        <div class="card toolbar-card h-100">
+    <div class="col-12">
+        <div class="card toolbar-card">
             <div class="card-body">
                 <div class="d-flex align-items-center justify-content-between mb-3">
                     <div>
@@ -229,11 +273,11 @@ $extraData = json_decode($currentData['extra_json'] ?? '[]', true) ?: [];
                     <span class="badge badge-soft"><i class="bi bi-stars"></i> Smart</span>
                 </div>
 
-                <form id="gruppoForm" class="vstack gap-4" method="post">
+                <form id="gruppoForm" class="vstack gap-3" method="post">
                     <input type="hidden" name="action" value="save">
                     <input type="hidden" name="id" value="<?= (int)$currentId ?>">
-                    <div>
-                        <h6 class="text-uppercase text-muted">Anagrafica gruppo</h6>
+                    <div class="border rounded-4 p-3">
+                        <h6 class="text-uppercase text-muted mb-3">Anagrafica gruppo</h6>
                         <div class="row g-3">
                             <div class="col-12">
                                 <label class="form-label">Nome gruppo *</label>
@@ -258,8 +302,8 @@ $extraData = json_decode($currentData['extra_json'] ?? '[]', true) ?: [];
                         </div>
                     </div>
 
-                    <div>
-                        <h6 class="text-uppercase text-muted">Soggiorno</h6>
+                    <div class="border rounded-4 p-3">
+                        <h6 class="text-uppercase text-muted mb-3">Soggiorno</h6>
                         <div class="row g-3">
                             <div class="col-md-6">
                                 <label class="form-label">Arrivo</label>
@@ -288,15 +332,15 @@ $extraData = json_decode($currentData['extra_json'] ?? '[]', true) ?: [];
                         </div>
                     </div>
 
-                    <div>
-                        <div class="d-flex align-items-center justify-content-between">
+                    <div class="border rounded-4 p-3">
+                        <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
                             <h6 class="text-uppercase text-muted mb-0">Pasti programmati</h6>
                             <button class="btn btn-outline-primary btn-sm" type="button" id="aggiungiPasto">
                                 <i class="bi bi-plus-circle"></i> Aggiungi pasto
                             </button>
                         </div>
                         <div class="table-responsive mt-3">
-                            <table class="table table-sm align-middle" id="pastiTable">
+                            <table class="table table-sm align-middle mb-0" id="pastiTable">
                                 <thead>
                                     <tr>
                                         <th>Data</th>
@@ -311,15 +355,15 @@ $extraData = json_decode($currentData['extra_json'] ?? '[]', true) ?: [];
                         </div>
                     </div>
 
-                    <div>
-                        <div class="d-flex align-items-center justify-content-between">
+                    <div class="border rounded-4 p-3">
+                        <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
                             <h6 class="text-uppercase text-muted mb-0">Attività / extra</h6>
                             <button class="btn btn-outline-primary btn-sm" type="button" id="aggiungiExtra">
                                 <i class="bi bi-plus-circle"></i> Aggiungi attività
                             </button>
                         </div>
                         <div class="table-responsive mt-3">
-                            <table class="table table-sm align-middle" id="extraTable">
+                            <table class="table table-sm align-middle mb-0" id="extraTable">
                                 <thead>
                                     <tr>
                                         <th>Data</th>
@@ -349,94 +393,82 @@ $extraData = json_decode($currentData['extra_json'] ?? '[]', true) ?: [];
             </div>
         </div>
     </div>
+</div>
 
-    <div class="col-12 col-xxl-7">
-        <div class="card table-card h-100">
-            <div class="card-body">
-                <div class="d-flex align-items-center justify-content-between mb-3">
-                    <div>
-                        <h5 class="mb-1">Anteprima scheda gruppo</h5>
-                        <p class="text-muted mb-0">Questa anteprima verrà esportata in PDF.</p>
-                    </div>
-                    <span class="badge badge-soft"><i class="bi bi-printer"></i> Preview</span>
-                </div>
+<div class="position-absolute top-0 start-0 opacity-0" style="pointer-events: none; z-index: -1; width: 1000px;">
+    <div id="schedaPreview" class="p-4 border rounded-4 bg-white">
+        <div class="d-flex align-items-center justify-content-between">
+            <div>
+                <h3 class="mb-1" id="previewNome">Nome gruppo</h3>
+                <p class="text-muted mb-0" id="previewAgenzia">Agenzia / Ente</p>
+            </div>
+            <div class="text-end">
+                <div class="fw-semibold" id="previewPeriodo">Arrivo - Partenza</div>
+                <small class="text-muted" id="previewPartecipanti">0 partecipanti</small>
+            </div>
+        </div>
 
-                <div id="schedaPreview" class="p-4 border rounded-4 bg-white">
-                    <div class="d-flex align-items-center justify-content-between">
-                        <div>
-                            <h3 class="mb-1" id="previewNome">Nome gruppo</h3>
-                            <p class="text-muted mb-0" id="previewAgenzia">Agenzia / Ente</p>
-                        </div>
-                        <div class="text-end">
-                            <div class="fw-semibold" id="previewPeriodo">Arrivo - Partenza</div>
-                            <small class="text-muted" id="previewPartecipanti">0 partecipanti</small>
-                        </div>
-                    </div>
+        <hr class="my-4">
 
-                    <hr class="my-4">
+        <div class="row g-4">
+            <div class="col-md-6">
+                <h6 class="text-uppercase text-muted">Referente</h6>
+                <p class="mb-1" id="previewReferente">Nome referente</p>
+                <p class="mb-1" id="previewTelefono">Telefono</p>
+                <p class="mb-0" id="previewEmail">Email</p>
+            </div>
+            <div class="col-md-6">
+                <h6 class="text-uppercase text-muted">Logistica camere</h6>
+                <p class="mb-1" id="previewCamere">Tipologia camere</p>
+                <p class="mb-0" id="previewArea">Area preferita</p>
+            </div>
+            <div class="col-12">
+                <h6 class="text-uppercase text-muted">Note operative</h6>
+                <p class="mb-0" id="previewNote">Inserisci eventuali note operative.</p>
+            </div>
+        </div>
 
-                    <div class="row g-4">
-                        <div class="col-md-6">
-                            <h6 class="text-uppercase text-muted">Referente</h6>
-                            <p class="mb-1" id="previewReferente">Nome referente</p>
-                            <p class="mb-1" id="previewTelefono">Telefono</p>
-                            <p class="mb-0" id="previewEmail">Email</p>
-                        </div>
-                        <div class="col-md-6">
-                            <h6 class="text-uppercase text-muted">Logistica camere</h6>
-                            <p class="mb-1" id="previewCamere">Tipologia camere</p>
-                            <p class="mb-0" id="previewArea">Area preferita</p>
-                        </div>
-                        <div class="col-12">
-                            <h6 class="text-uppercase text-muted">Note operative</h6>
-                            <p class="mb-0" id="previewNote">Inserisci eventuali note operative.</p>
-                        </div>
-                    </div>
+        <hr class="my-4">
 
-                    <hr class="my-4">
+        <div>
+            <h6 class="text-uppercase text-muted">Pasti programmati</h6>
+            <div class="table-responsive">
+                <table class="table table-sm" id="previewPasti">
+                    <thead>
+                        <tr>
+                            <th>Data</th>
+                            <th>Tipo</th>
+                            <th>Ora</th>
+                            <th>Note</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td colspan="4" class="text-muted">Nessun pasto inserito.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
 
-                    <div>
-                        <h6 class="text-uppercase text-muted">Pasti programmati</h6>
-                        <div class="table-responsive">
-                            <table class="table table-sm" id="previewPasti">
-                                <thead>
-                                    <tr>
-                                        <th>Data</th>
-                                        <th>Tipo</th>
-                                        <th>Ora</th>
-                                        <th>Note</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <tr>
-                                        <td colspan="4" class="text-muted">Nessun pasto inserito.</td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-
-                    <div class="mt-4">
-                        <h6 class="text-uppercase text-muted">Attività / extra</h6>
-                        <div class="table-responsive">
-                            <table class="table table-sm" id="previewExtra">
-                                <thead>
-                                    <tr>
-                                        <th>Data</th>
-                                        <th>Descrizione</th>
-                                        <th>Orario</th>
-                                        <th>Note</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <tr>
-                                        <td colspan="4" class="text-muted">Nessuna attività inserita.</td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
+        <div class="mt-4">
+            <h6 class="text-uppercase text-muted">Attività / extra</h6>
+            <div class="table-responsive">
+                <table class="table table-sm" id="previewExtra">
+                    <thead>
+                        <tr>
+                            <th>Data</th>
+                            <th>Descrizione</th>
+                            <th>Orario</th>
+                            <th>Note</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td colspan="4" class="text-muted">Nessuna attività inserita.</td>
+                        </tr>
+                    </tbody>
+                </table>
             </div>
         </div>
     </div>
@@ -444,69 +476,73 @@ $extraData = json_decode($currentData['extra_json'] ?? '[]', true) ?: [];
 
 <div class="card table-card mt-4">
     <div class="card-body">
-        <div class="d-flex flex-column flex-lg-row align-items-lg-center justify-content-between gap-3">
+        <div class="d-flex align-items-center justify-content-between mb-3">
             <div>
                 <h5 class="mb-1">Schede salvate</h5>
-                <p class="text-muted mb-0">Ricerca, modifica o elimina le schede già registrate.</p>
+                <p class="text-muted mb-0">Elenco ordinato per data di arrivo (decrescente).</p>
             </div>
-            <form class="d-flex gap-2" method="get">
-                <input type="text" class="form-control" name="search" placeholder="Cerca gruppo, referente o agenzia" value="<?= h($search) ?>">
-                <button class="btn btn-outline-primary" type="submit"><i class="bi bi-search"></i></button>
-            </form>
+            <span class="badge badge-soft"><i class="bi bi-calendar-event"></i> <?= (int)$totalRecords ?> schede</span>
         </div>
 
-        <div class="table-responsive mt-3">
-            <table class="table table-sm align-middle">
-                <thead>
-                    <tr>
-                        <th>Gruppo</th>
-                        <th>Referente</th>
-                        <th>Periodo</th>
-                        <th>Partecipanti</th>
-                        <th class="text-end">Azioni</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php if (empty($records)): ?>
-                        <tr>
-                            <td colspan="5" class="text-muted">Nessuna scheda trovata.</td>
-                        </tr>
-                    <?php else: ?>
-                        <?php foreach ($records as $record): ?>
-                            <?php
-                                $periodo = '—';
-                                if (!empty($record['data_arrivo']) || !empty($record['data_partenza'])) {
-                                    $arrivo = !empty($record['data_arrivo']) ? date('d/m/Y', strtotime($record['data_arrivo'])) : '—';
-                                    $partenza = !empty($record['data_partenza']) ? date('d/m/Y', strtotime($record['data_partenza'])) : '—';
-                                    $periodo = $arrivo . ' → ' . $partenza;
-                                }
-                            ?>
-                            <tr>
-                                <td>
-                                    <div class="fw-semibold"><?= h($record['nome_gruppo']) ?></div>
-                                    <div class="text-muted small">ID #<?= (int)$record['id'] ?></div>
-                                </td>
-                                <td><?= h($record['referente']) ?></td>
-                                <td><?= h($periodo) ?></td>
-                                <td><?= (int)$record['numero_persone'] ?></td>
-                                <td class="text-end">
-                                    <a class="btn btn-sm btn-outline-primary" href="<?= BASE_URL ?>/admin/gruppi_arrivi.php?id=<?= (int)$record['id'] ?>">
-                                        <i class="bi bi-pencil-square"></i> Modifica
-                                    </a>
-                                    <form method="post" class="d-inline" onsubmit="return confirm('Confermi l\'eliminazione della scheda?');">
-                                        <input type="hidden" name="action" value="delete">
-                                        <input type="hidden" name="delete_id" value="<?= (int)$record['id'] ?>">
-                                        <button class="btn btn-sm btn-outline-danger" type="submit">
-                                            <i class="bi bi-trash"></i> Elimina
-                                        </button>
-                                    </form>
-                                </td>
-                            </tr>
-                        <?php endforeach; ?>
-                    <?php endif; ?>
-                </tbody>
-            </table>
-        </div>
+        <?php if (empty($records)): ?>
+            <div class="text-muted">Nessuna scheda trovata.</div>
+        <?php else: ?>
+            <div class="vstack gap-3">
+                <?php foreach ($records as $record): ?>
+                    <?php
+                        $periodo = '—';
+                        if (!empty($record['data_arrivo']) || !empty($record['data_partenza'])) {
+                            $arrivo = !empty($record['data_arrivo']) ? date('d/m/Y', strtotime($record['data_arrivo'])) : '—';
+                            $partenza = !empty($record['data_partenza']) ? date('d/m/Y', strtotime($record['data_partenza'])) : '—';
+                            $periodo = $arrivo . ' → ' . $partenza;
+                        }
+                    ?>
+                    <div class="border rounded-4 p-3 d-flex flex-column flex-md-row justify-content-between gap-3">
+                        <div>
+                            <div class="fw-semibold fs-5"><?= h($record['nome_gruppo']) ?></div>
+                            <div class="text-muted">Referente: <?= h($record['referente']) ?></div>
+                            <div class="text-muted">Periodo: <?= h($periodo) ?></div>
+                            <div class="text-muted">Partecipanti: <?= (int)$record['numero_persone'] ?></div>
+                            <div class="text-muted small">ID #<?= (int)$record['id'] ?></div>
+                        </div>
+                        <div class="d-flex flex-wrap gap-2 align-items-start justify-content-md-end">
+                            <a class="btn btn-sm btn-outline-primary" href="<?= BASE_URL ?>/admin/gruppi_arrivi.php?id=<?= (int)$record['id'] ?>">
+                                <i class="bi bi-pencil-square"></i> Modifica
+                            </a>
+                            <form method="post" class="d-inline" onsubmit="return confirm('Confermi l\'eliminazione della scheda?');">
+                                <input type="hidden" name="action" value="delete">
+                                <input type="hidden" name="delete_id" value="<?= (int)$record['id'] ?>">
+                                <button class="btn btn-sm btn-outline-danger" type="submit">
+                                    <i class="bi bi-trash"></i> Elimina
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+        <?php endif; ?>
+
+        <?php if ($totalPages > 1): ?>
+            <nav class="mt-4" aria-label="Paginazione schede">
+                <ul class="pagination mb-0">
+                    <li class="page-item <?= $page <= 1 ? 'disabled' : '' ?>">
+                        <a class="page-link" href="?<?= $queryBase ?>page=<?= max(1, $page - 1) ?>" aria-label="Pagina precedente">
+                            <span aria-hidden="true">&laquo;</span>
+                        </a>
+                    </li>
+                    <?php for ($i = 1; $i <= $totalPages; $i++): ?>
+                        <li class="page-item <?= $i === $page ? 'active' : '' ?>">
+                            <a class="page-link" href="?<?= $queryBase ?>page=<?= $i ?>"><?= $i ?></a>
+                        </li>
+                    <?php endfor; ?>
+                    <li class="page-item <?= $page >= $totalPages ? 'disabled' : '' ?>">
+                        <a class="page-link" href="?<?= $queryBase ?>page=<?= min($totalPages, $page + 1) ?>" aria-label="Pagina successiva">
+                            <span aria-hidden="true">&raquo;</span>
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+        <?php endif; ?>
     </div>
 </div>
 
