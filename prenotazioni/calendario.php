@@ -1563,8 +1563,6 @@ if ($pianoSel === 0 && $edificioSel > 0) {
 
           // per tooltip (solo informativo)
           if (isDisattivaCamera) tooltipParts.push('Camera disattivata');
-          if (manutListAll.length) tooltipParts.push(manutListAll[0]?.stato ? `${formatStatus(manutListAll[0].stato)}` : 'Manutenzione');
-          if (puliziaListAll.length) tooltipParts.push(puliziaListAll[0]?.stato ? `${formatStatus(puliziaListAll[0].stato)}` : 'Pulizia');
 
           // Stato cella: prima la prenotazione (se c'è), altrimenti disattiva/manut/pulizia/libera
           if (match) {
