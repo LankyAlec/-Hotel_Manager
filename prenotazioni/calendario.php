@@ -127,7 +127,7 @@ if ($pianoSel === 0 && $edificioSel > 0) {
   /* colori */
   .stayseg.occ { background: rgba(13,110,253,.18); color:#084298; }
   .stayseg.mnt { background: transparent;  color:#842029; box-shadow:none; }
-  .stayseg.pul { background: rgba(255,193,7,.26);  color:#664d03; }
+  .stayseg.pul { background: transparent;  color:#842029; box-shadow:none;  }
   .stayseg.dis { background: transparent;color:#6c757d; box-shadow:none; }
 
   /* 100% cella (giorni in mezzo) */
@@ -390,7 +390,6 @@ if ($pianoSel === 0 && $edificioSel > 0) {
               <select class="form-select form-select-sm" id="bookingCameraSelect">
                 <option value="">Seleziona una camera</option>
               </select>
-              <div class="form-text">Mostra tutte le camere disponibili (escluse disattive o in manutenzione). La disponibilità viene verificata al salvataggio.</div>
             </div>
           </div>
           <div class="col-6 col-md-4">
