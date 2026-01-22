@@ -45,6 +45,7 @@ function in_gruppo($codice){
 
     <style>
         body { background-color:#f8f9fa; }
+        .navbar { position: sticky; top: 0; z-index: 1030; }
         .navbar-brand { font-weight:600; }
         .nav-section-title {
             font-size:.75rem;
