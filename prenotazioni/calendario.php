@@ -195,6 +195,11 @@ if ($pianoSel === 0 && $edificioSel > 0) {
     z-index: 3;
   }
   .cell .badge{ font-size:.62rem; }
+  .cell-disattiva .cell-meta{
+    top:50%;
+    bottom:auto;
+    transform:translate(-50%,-50%);
+  }
 
   /* disattiva vecchi overlay */
   .cell::before, .cell::after{ content:none !important; }
@@ -1624,35 +1629,35 @@ if ($pianoSel === 0 && $edificioSel > 0) {
           if (status === 'libera') {
             // se è libera ma ha un CO (check-out) vogliamo comunque disegnarlo a sinistra
             if (hasCO) {
-              insideHtml += `<div class="stayseg ${segColor} co"> </div>`;
+              insideHtml += `<div class="stayseg ${segColor} co"${tooltipAttr}> </div>`;
             }
             // se è libera ma ha un CI (caso raro: booking che parte ma match non trovato) disegna CI
             if (hasCI) {
-              insideHtml += `<div class="stayseg ${segColor} ci"> </div>`;
+              insideHtml += `<div class="stayseg ${segColor} ci"${tooltipAttr}> </div>`;
             }
             // bottone prenota
             insideHtml += `<button class="btn btn-outline-primary btn-sm">Prenota</button>`;
           } else if (status === 'pulizia') {
-            insideHtml += `<div class="stayseg ${segColor} full"> </div>`;
+            insideHtml += `<div class="stayseg ${segColor} full"${tooltipAttr}> </div>`;
             insideHtml += `<button class="btn btn-outline-primary btn-sm">Prenota</button>`;
           } else if (status === 'occupata') {
             const labelHtml = '';
 
             if (hasCI && !hasCO) {
-              insideHtml += `<div class="stayseg occ ci">${labelHtml}</div>`;
+              insideHtml += `<div class="stayseg occ ci"${tooltipAttr}>${labelHtml}</div>`;
             }
             else if (!hasCI && !hasCO) {
-              insideHtml += `<div class="stayseg occ full">${labelHtml}</div>`;
+              insideHtml += `<div class="stayseg occ full"${tooltipAttr}>${labelHtml}</div>`;
             }
             else if (isTurnover) {
-              insideHtml += `<div class="stayseg occ co turnover"></div>`;
-              insideHtml += `<div class="stayseg occ ci turnover">${labelHtml}</div>`;
+              insideHtml += `<div class="stayseg occ co turnover"${tooltipAttr}></div>`;
+              insideHtml += `<div class="stayseg occ ci turnover"${tooltipAttr}>${labelHtml}</div>`;
             }
             else {
-              insideHtml += `<div class="stayseg occ full">${labelHtml}</div>`;
+              insideHtml += `<div class="stayseg occ full"${tooltipAttr}>${labelHtml}</div>`;
             }
           } else if (status === 'manutenzione' || status === 'disattiva') {
-            insideHtml += `<div class="stayseg ${segColor} full"> </div>`;
+            insideHtml += `<div class="stayseg ${segColor} full"${tooltipAttr}> </div>`;
           }
 
 
@@ -1667,7 +1672,7 @@ if ($pianoSel === 0 && $edificioSel > 0) {
                  data-checkin="${defaultCheckin}"
                  data-checkout="${datasetCheckout}"
                  data-checkout-suggest="${checkoutSuggest}"
-                 ${bookingIdAttr}${tooltipAttr}>
+                 ${bookingIdAttr}>
               ${insideHtml}
               ${metaTags}
             </div>
