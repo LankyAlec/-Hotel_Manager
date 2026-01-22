@@ -169,7 +169,8 @@ if ($pianoSel === 0 && $edificioSel > 0) {
   /* =========================
    * PRENOTA al centro
    * ======================= */
-  .cell-libera .btn{
+  .cell-libera .btn,
+  .cell-pulizia .btn{
     position:absolute;
     top:50%; left:50%;
     transform:translate(-50%,-50%);
@@ -178,6 +179,7 @@ if ($pianoSel === 0 && $edificioSel > 0) {
     font-size:.72rem;
     font-weight:800;
     box-shadow:0 .25rem .65rem rgba(13,110,253,.18);
+    z-index:2;
   }
 
   /* meta badges */
@@ -388,7 +390,7 @@ if ($pianoSel === 0 && $edificioSel > 0) {
               <select class="form-select form-select-sm" id="bookingCameraSelect">
                 <option value="">Seleziona una camera</option>
               </select>
-              <div class="form-text">Mostra tutte le camere (anche occupate, disattive o in manutenzione). La disponibilità viene verificata al salvataggio.</div>
+              <div class="form-text">Mostra tutte le camere disponibili (escluse disattive o in manutenzione). La disponibilità viene verificata al salvataggio.</div>
             </div>
           </div>
           <div class="col-6 col-md-4">
@@ -722,6 +724,11 @@ if ($pianoSel === 0 && $edificioSel > 0) {
       const currentId = bookingCamera.value || '';
       (meta.camere || []).forEach(camera => {
         if (currentId && String(camera.id) === String(currentId)) return;
+        const attivaVal = parseInt((camera?.attiva ?? 1), 10);
+        const isDisattiva = !Number.isNaN(attivaVal) && attivaVal !== 1;
+        const manutenzioni = window.currentCalendarManutenzioni || [];
+        const isInManutenzione = manutenzioni.some(m => String(m.camera_id) === String(camera.id));
+        if (isDisattiva || isInManutenzione) return;
         const option = document.createElement('option');
         option.value = camera.id;
         const baseLabel = `${camera.codice || ''}${camera.nome ? ' — ' + camera.nome : ''}`.trim() || `Camera ${camera.id}`;
@@ -1601,6 +1608,9 @@ if ($pianoSel === 0 && $edificioSel > 0) {
             }
             // bottone prenota
             insideHtml += `<button class="btn btn-outline-primary btn-sm">Prenota</button>`;
+          } else if (status === 'pulizia') {
+            insideHtml += `<div class="stayseg ${segColor} full"> </div>`;
+            insideHtml += `<button class="btn btn-outline-primary btn-sm">Prenota</button>`;
           } else if (status === 'occupata') {
             const labelHtml = '';
 
@@ -1617,6 +1627,8 @@ if ($pianoSel === 0 && $edificioSel > 0) {
             else {
               insideHtml += `<div class="stayseg occ full">${labelHtml}</div>`;
             }
+          } else if (status === 'manutenzione' || status === 'disattiva') {
+            insideHtml += `<div class="stayseg ${segColor} full"> </div>`;
           }
 
 
