@@ -722,7 +722,8 @@ if ($pianoSel === 0 && $edificioSel > 0) {
       if (!bookingCameraSelect) return;
       bookingCameraSelect.innerHTML = '<option value="">Seleziona una camera</option>';
       const currentId = bookingCamera.value || '';
-      (meta.camere || []).forEach(camera => {
+      const sortedCameras = [...(meta.camere || [])].sort(compareRoomCodes);
+      sortedCameras.forEach(camera => {
         if (currentId && String(camera.id) === String(currentId)) return;
         const attivaVal = parseInt((camera?.attiva ?? 1), 10);
         const isDisattiva = !Number.isNaN(attivaVal) && attivaVal !== 1;
@@ -735,6 +736,31 @@ if ($pianoSel === 0 && $edificioSel > 0) {
         bookingCameraSelect.appendChild(option);
       });
       bookingCameraSelect.value = '';
+    }
+
+    function compareRoomCodes(a, b) {
+      const aKey = getRoomSortKey(a);
+      const bKey = getRoomSortKey(b);
+      if (aKey.isNumeric !== bKey.isNumeric) return aKey.isNumeric ? -1 : 1;
+      if (aKey.isNumeric) {
+        return aKey.numericValue - bKey.numericValue
+          || aKey.label.localeCompare(bKey.label, 'it', { numeric: true, sensitivity: 'base' });
+      }
+      return aKey.label.localeCompare(bKey.label, 'it', { numeric: true, sensitivity: 'base' });
+    }
+
+    function getRoomSortKey(camera) {
+      const codeRaw = String(camera?.codice ?? '').trim();
+      const fallbackCode = String(camera?.id ?? '').trim();
+      const code = codeRaw || fallbackCode;
+      const baseLabel = `${camera.codice || ''}${camera.nome ? ' — ' + camera.nome : ''}`.trim();
+      const label = (code || baseLabel || '').toString();
+      const isNumeric = /^\d+$/.test(code);
+      return {
+        isNumeric,
+        numericValue: isNumeric ? parseInt(code, 10) : Number.NaN,
+        label
+      };
     }
 
     function populateTipologiaSelect(prices = {}) {
