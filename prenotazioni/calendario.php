@@ -195,6 +195,11 @@ if ($pianoSel === 0 && $edificioSel > 0) {
     z-index: 3;
   }
   .cell .badge{ font-size:.62rem; }
+  .cell-disattiva .cell-meta{
+    top:50%;
+    bottom:auto;
+    transform:translate(-50%,-50%);
+  }
 
   /* disattiva vecchi overlay */
   .cell::before, .cell::after{ content:none !important; }
