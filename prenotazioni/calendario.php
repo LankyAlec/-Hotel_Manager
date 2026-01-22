@@ -564,6 +564,7 @@ if ($pianoSel === 0 && $edificioSel > 0) {
     let pianoSel = <?= (int)$pianoSel ?>;
     let meta = { camere: [] };
     let currentBookingId = null;
+    let pricePreviewOverride = null;
 
     // ✅ formato locale YYYY-MM-DD (NO UTC, NO toISOString per date "giorno")
     function formatLocalYMD(d) {
@@ -742,13 +743,7 @@ if ($pianoSel === 0 && $edificioSel > 0) {
         option.dataset.tipologiaId = tipologia.id;
         const baseLabel = tipologia.descrizione || tipologia.codice || `Tipologia ${tipologia.id}`;
         option.dataset.baseLabel = baseLabel;
-        const priceInfo = prices[tipologia.id];
-        if (priceInfo && typeof priceInfo.total !== 'undefined') {
-          const priceLabel = formatCurrencyWithCurrency(priceInfo.total, priceInfo.currency);
-          option.textContent = `${baseLabel} • ${priceLabel}`;
-        } else {
-          option.textContent = baseLabel;
-        }
+        option.textContent = baseLabel;
         bookingTipologia.appendChild(option);
       });
       bookingTipologia.value = currentValue || '';
@@ -1713,17 +1708,12 @@ if ($pianoSel === 0 && $edificioSel > 0) {
         pricePreviewBody.textContent = res.message || 'Errore nel calcolo dei prezzi.';
         return;
       }
+      const nights = (res.camera?.breakdown || []).length;
       const cameraTotal = res.camera?.total ?? 0;
       const serviziTotal = res.servizi?.total ?? 0;
-      const total = res.total ?? (cameraTotal + serviziTotal);
-      const cameraRows = (res.camera?.breakdown || []).map(r => `
-        <tr>
-          <td>${formatDisplayDate(r.date)}</td>
-          <td class="text-end">${formatCurrency(r.price)}</td>
-        </tr>
-      `).join('') || `
-        <tr><td colspan="2" class="text-muted small">Nessuna tariffa trovata.</td></tr>
-      `;
+      const defaultNightlyRate = nights > 0 ? (cameraTotal / nights) : 0;
+      const initialNightlyRate = Number.isFinite(pricePreviewOverride) ? pricePreviewOverride : defaultNightlyRate;
+      const cameraDates = (res.camera?.breakdown || []).map(r => r.date);
       const serviziRows = (res.servizi?.items || []).map(r => `
         <tr>
           <td>${escapeHtml(r.nome || '')} <span class="text-muted small">(${r.mode})</span></td>
@@ -1732,42 +1722,72 @@ if ($pianoSel === 0 && $edificioSel > 0) {
       `).join('') || `
         <tr><td colspan="2" class="text-muted small">Nessun servizio selezionato.</td></tr>
       `;
-      pricePreviewBody.innerHTML = `
-        <div class="row g-3">
-          <div class="col-12 col-lg-6">
-            <div class="fw-semibold mb-2">Camera</div>
-            <table class="table table-sm">
-              <tbody>
-                ${cameraRows}
-              </tbody>
-              <tfoot>
-                <tr>
-                  <th>Totale camera</th>
-                  <th class="text-end">${formatCurrency(cameraTotal)}</th>
-                </tr>
-              </tfoot>
-            </table>
+      const renderPreview = (nightlyRate) => {
+        const cameraTotalComputed = nightlyRate * nights;
+        const totalComputed = cameraTotalComputed + serviziTotal;
+        const cameraRows = cameraDates.length ? cameraDates.map(date => `
+          <tr>
+            <td>${formatDisplayDate(date)}</td>
+            <td class="text-end">${formatCurrency(nightlyRate)}</td>
+          </tr>
+        `).join('') : `
+          <tr><td colspan="2" class="text-muted small">Nessuna tariffa trovata.</td></tr>
+        `;
+        pricePreviewBody.innerHTML = `
+          <div class="row g-3">
+            <div class="col-12 col-lg-6">
+              <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+                <div class="fw-semibold">Camera</div>
+                <div class="d-flex align-items-center gap-2">
+                  <label class="small text-muted" for="pricePerNightInput">Costo per notte</label>
+                  <div class="input-group input-group-sm" style="max-width: 160px;">
+                    <input type="number" class="form-control" id="pricePerNightInput" min="0" step="0.01" inputmode="decimal" lang="en" value="${Number.isFinite(nightlyRate) ? nightlyRate.toFixed(2) : '0.00'}">
+                    <span class="input-group-text">€</span>
+                  </div>
+                </div>
+              </div>
+              <table class="table table-sm">
+                <tbody>
+                  ${cameraRows}
+                </tbody>
+                <tfoot>
+                  <tr>
+                    <th>Totale camera</th>
+                    <th class="text-end">${formatCurrency(cameraTotalComputed)}</th>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+            <div class="col-12 col-lg-6">
+              <div class="fw-semibold mb-2">Servizi</div>
+              <table class="table table-sm">
+                <tbody>
+                  ${serviziRows}
+                </tbody>
+                <tfoot>
+                  <tr>
+                    <th>Totale servizi</th>
+                    <th class="text-end">${formatCurrency(serviziTotal)}</th>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
           </div>
-          <div class="col-12 col-lg-6">
-            <div class="fw-semibold mb-2">Servizi</div>
-            <table class="table table-sm">
-              <tbody>
-                ${serviziRows}
-              </tbody>
-              <tfoot>
-                <tr>
-                  <th>Totale servizi</th>
-                  <th class="text-end">${formatCurrency(serviziTotal)}</th>
-                </tr>
-              </tfoot>
-            </table>
+          <div class="border-top pt-2 mt-2 d-flex justify-content-between">
+            <strong>Totale</strong>
+            <strong>${formatCurrency(totalComputed)}</strong>
           </div>
-        </div>
-        <div class="border-top pt-2 mt-2 d-flex justify-content-between">
-          <strong>Totale</strong>
-          <strong>${formatCurrency(total)}</strong>
-        </div>
-      `;
+        `;
+        const priceInput = document.getElementById('pricePerNightInput');
+        if (priceInput) {
+          priceInput.addEventListener('input', () => {
+            const nextRate = parseFloat(priceInput.value);
+            pricePreviewOverride = Number.isFinite(nextRate) ? nextRate : null;
+            renderPreview(Number.isFinite(nextRate) ? nextRate : 0);
+          });
+        }
+      };
+      renderPreview(initialNightlyRate);
     }
 
     async function updateTipologiaPrices() {
