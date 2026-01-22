@@ -126,9 +126,9 @@ if ($pianoSel === 0 && $edificioSel > 0) {
 
   /* colori */
   .stayseg.occ { background: rgba(13,110,253,.18); color:#084298; }
-  .stayseg.mnt { background: rgba(220,53,69,.18);  color:#842029; }
+  .stayseg.mnt { background: transparent;  color:#842029; box-shadow:none; }
   .stayseg.pul { background: rgba(255,193,7,.26);  color:#664d03; }
-  .stayseg.dis { background: rgba(108,117,125,.18);color:#6c757d; }
+  .stayseg.dis { background: transparent;color:#6c757d; box-shadow:none; }
 
   /* 100% cella (giorni in mezzo) */
   .stayseg.full{
@@ -726,13 +726,11 @@ if ($pianoSel === 0 && $edificioSel > 0) {
         if (currentId && String(camera.id) === String(currentId)) return;
         const attivaVal = parseInt((camera?.attiva ?? 1), 10);
         const isDisattiva = !Number.isNaN(attivaVal) && attivaVal !== 1;
-        const manutenzioni = window.currentCalendarManutenzioni || [];
-        const isInManutenzione = manutenzioni.some(m => String(m.camera_id) === String(camera.id));
-        if (isDisattiva || isInManutenzione) return;
+        const statusLabels = getRoomStatusLabels(camera, bookingCheckin.value, bookingCheckout.value);
+        if (isDisattiva || statusLabels.includes('Manutenzione')) return;
         const option = document.createElement('option');
         option.value = camera.id;
         const baseLabel = `${camera.codice || ''}${camera.nome ? ' — ' + camera.nome : ''}`.trim() || `Camera ${camera.id}`;
-        const statusLabels = getRoomStatusLabels(camera, bookingCheckin.value, bookingCheckout.value);
         option.textContent = statusLabels.length ? `${baseLabel} (${statusLabels.join(', ')})` : baseLabel;
         bookingCameraSelect.appendChild(option);
       });
@@ -1553,7 +1551,8 @@ if ($pianoSel === 0 && $edificioSel > 0) {
 
           // tooltip
           const tooltip = tooltipParts.filter(Boolean).join(' · ');
-          const tooltipAttr = tooltip ? ` data-bs-toggle="tooltip" title="${tooltip.replace(/"/g, '&quot;')}"` : '';
+          const shouldShowTooltip = tooltip && status !== 'pulizia' && status !== 'manutenzione';
+          const tooltipAttr = shouldShowTooltip ? ` data-bs-toggle="tooltip" title="${tooltip.replace(/"/g, '&quot;')}"` : '';
 
           // data-attr per click
           const defaultCheckin = day;
@@ -1860,6 +1859,7 @@ if ($pianoSel === 0 && $edificioSel > 0) {
     calendarContainer.addEventListener('click', (ev) => {
       const cell = ev.target.closest('.cell');
       if (!cell || cell.classList.contains('disabled')) return;
+      if (cell.classList.contains('cell-manutenzione') || cell.classList.contains('cell-disattiva') || cell.classList.contains('cell-pulizia')) return;
 
       const bookingId = cell.dataset.bookingId ? parseInt(cell.dataset.bookingId, 10) : null;
       const cameraId = parseInt(cell.dataset.cameraId, 10);
