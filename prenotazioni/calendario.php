@@ -1564,11 +1564,9 @@ if ($pianoSel === 0 && $edificioSel > 0) {
           // checkout suggerito (solo per celle libere, utile se vuoi pre-compilare)
           const checkoutSuggest = defaultCheckout;
 
-          // meta badges (solo M / PU / D)
+          // meta badges (solo D)
           const statusBadges = [];
           if (isDisattivaCamera) statusBadges.push('<span class="badge bg-secondary">D</span>');
-          if (manutListAll.length) statusBadges.push('<span class="badge bg-danger">M</span>');
-          if (puliziaListAll.length) statusBadges.push('<span class="badge bg-warning text-dark">PU</span>');
 
           const metaTags = statusBadges.length ? `<div class="cell-meta">${statusBadges.join('')}</div>` : '';
 
@@ -1691,6 +1689,10 @@ if ($pianoSel === 0 && $edificioSel > 0) {
     async function updatePricePreview() {
       if (!bookingCheckin.value || !bookingCheckout.value || !bookingCamera.value) {
         pricePreviewBody.textContent = 'Seleziona camera e date per vedere il totale.';
+        return;
+      }
+      if (!bookingTipologia.value) {
+        pricePreviewBody.textContent = 'Seleziona la tipologia di camera per vedere il totale.';
         return;
       }
       pricePreviewBody.textContent = 'Calcolo in corso...';
