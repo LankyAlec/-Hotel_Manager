@@ -127,7 +127,6 @@ function in_gruppo($codice){
                         <li><a class="dropdown-item" href="<?= BASE_URL ?>/prenotazioni/calendario.php">Calendario prenotazioni</a></li>
                         <li><a class="dropdown-item" href="<?= BASE_URL ?>/prenotazioni/calendario.php">Calendario</a></li>
                         <li><a class="dropdown-item" href="<?= BASE_URL ?>/prenotazioni/clienti.php">Clienti</a></li>
-                        <li><a class="dropdown-item" href="<?= BASE_URL ?>/prenotazioni/gruppi_arrivi.php">Scheda gruppi in arrivo</a></li>
                     </ul>
                 </li>
                 <?php endif; ?>
@@ -185,6 +184,7 @@ function in_gruppo($codice){
                         <li><a class="dropdown-item" href="<?= BASE_URL ?>/preventivi/preventivi.php">Preventivi</a></li>
                         <li><a class="dropdown-item" href="<?= BASE_URL ?>/struttura/struttura.php">Struttura</a></li>
                         <li><a class="dropdown-item" href="<?= BASE_URL ?>/magazzino/gestione_magazzini.php">Magazzini</a></li>
+                        <li><a class="dropdown-item" href="<?= BASE_URL ?>/admin/gruppi_arrivi.php">Scheda gruppi in arrivo</a></li>
                         <li><a class="dropdown-item" href="<?= BASE_URL ?>/admin/utenti.php">Utenti</a></li>
                     </ul>
                 </li>
