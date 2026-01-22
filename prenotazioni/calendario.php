@@ -126,9 +126,9 @@ if ($pianoSel === 0 && $edificioSel > 0) {
 
   /* colori */
   .stayseg.occ { background: rgba(13,110,253,.18); color:#084298; }
-  .stayseg.mnt { background: rgba(220,53,69,.18);  color:#842029; }
+  .stayseg.mnt { background: transparent;  color:#842029; box-shadow:none; }
   .stayseg.pul { background: rgba(255,193,7,.26);  color:#664d03; }
-  .stayseg.dis { background: rgba(108,117,125,.18);color:#6c757d; }
+  .stayseg.dis { background: transparent;color:#6c757d; box-shadow:none; }
 
   /* 100% cella (giorni in mezzo) */
   .stayseg.full{
@@ -1859,6 +1859,7 @@ if ($pianoSel === 0 && $edificioSel > 0) {
     calendarContainer.addEventListener('click', (ev) => {
       const cell = ev.target.closest('.cell');
       if (!cell || cell.classList.contains('disabled')) return;
+      if (cell.classList.contains('cell-manutenzione') || cell.classList.contains('cell-disattiva') || cell.classList.contains('cell-pulizia')) return;
 
       const bookingId = cell.dataset.bookingId ? parseInt(cell.dataset.bookingId, 10) : null;
       const cameraId = parseInt(cell.dataset.cameraId, 10);
