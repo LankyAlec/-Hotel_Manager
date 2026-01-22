@@ -727,7 +727,7 @@ if ($pianoSel === 0 && $edificioSel > 0) {
         const attivaVal = parseInt((camera?.attiva ?? 1), 10);
         const isDisattiva = !Number.isNaN(attivaVal) && attivaVal !== 1;
         const statusLabels = getRoomStatusLabels(camera, bookingCheckin.value, bookingCheckout.value);
-        if (isDisattiva || statusLabels.includes('Manutenzione')) return;
+        if (isDisattiva || statusLabels.includes('Manutenzione') || statusLabels.includes('Occupata')) return;
         const option = document.createElement('option');
         option.value = camera.id;
         const baseLabel = `${camera.codice || ''}${camera.nome ? ' — ' + camera.nome : ''}`.trim() || `Camera ${camera.id}`;
@@ -1884,7 +1884,7 @@ if ($pianoSel === 0 && $edificioSel > 0) {
     calendarContainer.addEventListener('click', (ev) => {
       const cell = ev.target.closest('.cell');
       if (!cell || cell.classList.contains('disabled')) return;
-      if (cell.classList.contains('cell-manutenzione') || cell.classList.contains('cell-disattiva') || cell.classList.contains('cell-pulizia')) return;
+      if (cell.classList.contains('cell-manutenzione') || cell.classList.contains('cell-disattiva')) return;
 
       const bookingId = cell.dataset.bookingId ? parseInt(cell.dataset.bookingId, 10) : null;
       const cameraId = parseInt(cell.dataset.cameraId, 10);
