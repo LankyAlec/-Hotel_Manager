@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: localhost
--- Creato il: Gen 22, 2026 alle 11:02
+-- Creato il: Gen 22, 2026 alle 11:27
 -- Versione del server: 10.11.11-MariaDB
 -- Versione PHP: 8.2.28
 
@@ -368,8 +368,8 @@ CREATE TABLE `servizi_tariffe` (
 --
 
 INSERT INTO `servizi_tariffe` (`id`, `servizio_id`, `dal`, `al`, `prezzo_slot`, `prezzo_extra`, `note`, `attiva`, `created_at`, `updated_at`) VALUES
-(1, 6, '2025-12-14', '2025-12-16', 10.00, 22.33, '', 1, '2025-12-14 11:00:53', '2025-12-14 11:20:03'),
-(2, 6, '2025-12-20', '2025-12-31', 1000.00, 10.00, '', 1, '2025-12-14 11:20:15', NULL),
+(1, 6, '2025-12-01', '2025-12-16', 10.00, 22.33, '', 1, '2025-12-14 11:00:53', '2026-01-22 11:26:23'),
+(2, 6, '2026-01-01', '2025-12-31', 1000.00, 10.00, '', 1, '2025-12-14 11:20:15', '2026-01-22 11:26:05'),
 (3, 3, '2025-12-14', NULL, 10.00, 10.00, '', 1, '2025-12-14 15:30:30', NULL),
 (4, 7, '2026-06-30', NULL, 10.00, 15.00, 'Cuffie € 3,00 - Sdraio € 3,00', 1, '2025-12-14 19:39:59', NULL);
 
@@ -446,10 +446,14 @@ INSERT INTO `soggiorni_clienti` (`id`, `soggiorno_id`, `nome`, `cognome`, `data_
 
 CREATE TABLE `soggiorni_tariffe` (
   `id` bigint(20) UNSIGNED NOT NULL,
-  `soggiorni_tipologie_letti_ID` int(10) UNSIGNED NOT NULL,
+  `codice` varchar(75) NOT NULL,
+  `descrizione` varchar(255) DEFAULT NULL,
   `data_da` date NOT NULL,
   `data_a` date DEFAULT NULL,
-  `prezzo` decimal(10,2) NOT NULL,
+  `prezzo_solo_pernottamento` decimal(10,2) NOT NULL,
+  `prezzo_BB` double(10,2) NOT NULL,
+  `prezzo_HB` double(10,2) NOT NULL,
+  `prezzo_FB` double(10,2) NOT NULL,
   `valuta` char(3) NOT NULL DEFAULT 'EUR',
   `note` text DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -458,35 +462,13 @@ CREATE TABLE `soggiorni_tariffe` (
 -- Dump dei dati per la tabella `soggiorni_tariffe`
 --
 
-INSERT INTO `soggiorni_tariffe` (`id`, `soggiorni_tipologie_letti_ID`, `data_da`, `data_a`, `prezzo`, `valuta`, `note`) VALUES
-(1, 1, '2026-01-01', NULL, 10.00, 'EUR', NULL),
-(2, 2, '2026-01-01', NULL, 20.00, 'EUR', NULL),
-(3, 3, '2026-01-01', NULL, 30.00, 'EUR', NULL),
-(4, 4, '2026-01-01', NULL, 40.00, 'EUR', NULL),
-(5, 5, '2026-01-01', NULL, 50.00, 'EUR', NULL);
-
--- --------------------------------------------------------
-
---
--- Struttura della tabella `soggiorni_tipologie_letti`
---
-
-CREATE TABLE `soggiorni_tipologie_letti` (
-  `id` smallint(5) UNSIGNED NOT NULL,
-  `codice` varchar(40) NOT NULL,
-  `descrizione` varchar(120) NOT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
---
--- Dump dei dati per la tabella `soggiorni_tipologie_letti`
---
-
-INSERT INTO `soggiorni_tipologie_letti` (`id`, `codice`, `descrizione`) VALUES
-(1, 'singola', 'Letto singolo'),
-(2, 'matrimoniale', 'Letto matrimoniale'),
-(3, 'matrimoniale_uso_singola', 'Matrimoniale uso singola'),
-(4, 'twin', 'Due letti singoli'),
-(5, 'doux', 'Letto francese');
+INSERT INTO `soggiorni_tariffe` (`id`, `codice`, `descrizione`, `data_da`, `data_a`, `prezzo_solo_pernottamento`, `prezzo_BB`, `prezzo_HB`, `prezzo_FB`, `valuta`, `note`) VALUES
+(1, 'singola', 'Letto singolo', '2026-01-01', NULL, 10.00, 70.00, 130.00, 190.00, 'EUR', NULL),
+(2, 'matrimoniale', 'Letto matrimoniale', '2026-01-01', NULL, 20.00, 80.00, 140.00, 200.00, 'EUR', NULL),
+(3, 'matrimoniale_uso_singola', 'Matrimoniale uso singola', '2026-01-01', NULL, 30.00, 90.00, 150.00, 210.00, 'EUR', NULL),
+(4, 'twin', 'singoli', '2026-01-01', NULL, 40.00, 100.00, 160.00, 220.00, 'EUR', NULL),
+(5, 'doux', 'Letto francese', '2026-01-01', NULL, 50.00, 110.00, 170.00, 230.00, 'EUR', NULL),
+(6, 'siute', 'suite', '2026-01-01', NULL, 60.00, 120.00, 180.00, 240.00, 'EUR', NULL);
 
 -- --------------------------------------------------------
 
@@ -876,13 +858,6 @@ ALTER TABLE `soggiorni_tariffe`
   ADD PRIMARY KEY (`id`);
 
 --
--- Indici per le tabelle `soggiorni_tipologie_letti`
---
-ALTER TABLE `soggiorni_tipologie_letti`
-  ADD PRIMARY KEY (`id`),
-  ADD UNIQUE KEY `uk_letto_codice` (`codice`);
-
---
 -- Indici per le tabelle `struttura_camere`
 --
 ALTER TABLE `struttura_camere`
@@ -1027,13 +1002,7 @@ ALTER TABLE `soggiorni_clienti`
 -- AUTO_INCREMENT per la tabella `soggiorni_tariffe`
 --
 ALTER TABLE `soggiorni_tariffe`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
-
---
--- AUTO_INCREMENT per la tabella `soggiorni_tipologie_letti`
---
-ALTER TABLE `soggiorni_tipologie_letti`
-  MODIFY `id` smallint(5) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
 
 --
 -- AUTO_INCREMENT per la tabella `struttura_camere`
