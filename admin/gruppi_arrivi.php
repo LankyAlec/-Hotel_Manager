@@ -505,8 +505,8 @@ $shouldShowModal = $shouldShowForm;
                             <input type="number" class="form-control" id="numeroTotale" value="<?= (int)$currentData['numero_persone'] ?>" readonly>
                         </div>
                         <div class="col-md-4">
-                            <label class="form-label">Piano / Area preferita</label>
-                            <input type="text" class="form-control" id="areaPreferita" name="area_preferita" value="<?= h($currentData['area_preferita']) ?>" placeholder="Es. 2° piano - vista lago">
+                            <label class="form-label">Area riservata</label>
+                            <input type="text" class="form-control" id="areaPreferita" name="area_preferita" value="<?= h($currentData['area_preferita']) ?>" placeholder="Es. 2° piano riservato">
                         </div>
                         <div class="col-12">
                             <label class="form-label">Composizione camere</label>
@@ -534,10 +534,6 @@ $shouldShowModal = $shouldShowForm;
                                 <input type="text" class="form-control" id="tipologiaCamere" name="tipologia_camere" value="<?= h($currentData['tipologia_camere']) ?>" placeholder="Es. 10 doppie + 2 singole">
                                 <div class="form-text">Nessuna tipologia configurata, usa una descrizione libera.</div>
                             <?php endif; ?>
-                        </div>
-                        <div class="col-12">
-                            <label class="form-label">Note operative</label>
-                            <textarea class="form-control" id="noteOperative" name="note_operativa" rows="3" placeholder="Richieste speciali, timing check-in, ecc."><?= h($currentData['note_operativa']) ?></textarea>
                         </div>
                     </div>
                 </div>
@@ -648,11 +644,7 @@ $shouldShowModal = $shouldShowForm;
                 <h6 class="text-uppercase text-muted">Logistica camere</h6>
                 <p class="mb-1" id="previewCamere">Tipologia camere</p>
                 <p class="mb-1" id="previewTrattamento">Trattamento</p>
-                <p class="mb-0" id="previewArea">Area preferita</p>
-            </div>
-            <div class="col-12">
-                <h6 class="text-uppercase text-muted">Note operative</h6>
-                <p class="mb-0" id="previewNote">Inserisci eventuali note operative.</p>
+                <p class="mb-0" id="previewArea">Area riservata</p>
             </div>
         </div>
 
@@ -833,7 +825,6 @@ $shouldShowModal = $shouldShowForm;
         camere: document.getElementById('previewCamere'),
         trattamento: document.getElementById('previewTrattamento'),
         area: document.getElementById('previewArea'),
-        note: document.getElementById('previewNote'),
         noteRicevimento: document.getElementById('previewNoteRicevimento'),
         noteCucina: document.getElementById('previewNoteCucina'),
         noteHousekeeping: document.getElementById('previewNoteHousekeeping'),
@@ -995,8 +986,7 @@ $shouldShowModal = $shouldShowForm;
         const camereSummary = buildCamereSummary();
         preview.camere.textContent = camereSummary || document.getElementById('tipologiaCamere')?.value || 'Tipologia camere';
         preview.trattamento.textContent = document.getElementById('trattamento').value || 'Trattamento';
-        preview.area.textContent = document.getElementById('areaPreferita').value || 'Area preferita';
-        preview.note.textContent = document.getElementById('noteOperative').value || 'Inserisci eventuali note operative.';
+        preview.area.textContent = document.getElementById('areaPreferita').value || 'Area riservata';
         preview.noteRicevimento.textContent = document.getElementById('noteRicevimento').value || 'Nessuna nota per il ricevimento.';
         preview.noteCucina.textContent = document.getElementById('noteCucina').value || 'Nessuna nota per cucina/ristorante.';
         preview.noteHousekeeping.textContent = document.getElementById('noteHousekeeping').value || 'Nessuna nota per housekeeping.';
@@ -1116,7 +1106,6 @@ $shouldShowModal = $shouldShowForm;
             trattamento.value = data.trattamento ?? '';
         }
         document.getElementById('areaPreferita').value = data.area_preferita ?? '';
-        document.getElementById('noteOperative').value = data.note_operativa ?? '';
         document.getElementById('noteRicevimento').value = data.note_ricevimento ?? '';
         document.getElementById('noteCucina').value = data.note_cucina ?? '';
         document.getElementById('noteHousekeeping').value = data.note_housekeeping ?? '';
