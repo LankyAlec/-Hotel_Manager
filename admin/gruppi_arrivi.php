@@ -455,6 +455,15 @@ $shouldShowModal = $shouldShowForm;
     .btn-cta i {
         margin-right: 6px;
     }
+
+    .saved-schede-card {
+        min-height: 58vh;
+    }
+
+    .saved-schede-card .card-body {
+        display: flex;
+        flex-direction: column;
+    }
 </style>
 
 <?php if ($alert): ?>
@@ -784,7 +793,7 @@ $shouldShowModal = $shouldShowForm;
     </div>
 </div>
 
-<div class="card table-card mt-4">
+<div class="card table-card mt-4 saved-schede-card">
     <div class="card-body">
         <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
             <div>
