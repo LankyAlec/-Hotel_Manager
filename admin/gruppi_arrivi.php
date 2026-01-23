@@ -464,6 +464,218 @@ $shouldShowModal = $shouldShowForm;
         display: flex;
         flex-direction: column;
     }
+
+    .scheda-pdf {
+        font-family: "Helvetica Neue", Arial, sans-serif;
+        color: #1f2a44;
+    }
+
+    .scheda-pdf .pdf-page {
+        padding: 36px 42px 48px;
+        min-height: 1040px;
+        box-sizing: border-box;
+    }
+
+    .scheda-pdf .pdf-header {
+        text-align: center;
+        margin-bottom: 18px;
+    }
+
+    .scheda-pdf .pdf-logo {
+        max-width: 120px;
+        height: auto;
+        display: block;
+        margin: 0 auto 6px;
+    }
+
+    .scheda-pdf .pdf-hotel {
+        font-size: 14px;
+        letter-spacing: 0.08em;
+        font-weight: 600;
+        color: #1f2a44;
+    }
+
+    .scheda-pdf .pdf-title {
+        text-align: center;
+        margin-bottom: 28px;
+    }
+
+    .scheda-pdf .pdf-title .title-main,
+    .scheda-pdf .pdf-title .title-sub,
+    .scheda-pdf .pdf-title .title-link {
+        color: #1c4a8f;
+        font-weight: 700;
+        letter-spacing: 0.05em;
+    }
+
+    .scheda-pdf .pdf-title .title-main {
+        font-size: 16px;
+        margin-bottom: 4px;
+    }
+
+    .scheda-pdf .pdf-title .title-sub {
+        font-size: 14px;
+        margin-bottom: 6px;
+    }
+
+    .scheda-pdf .pdf-title .title-link {
+        font-size: 14px;
+        text-decoration: underline;
+        margin-bottom: 6px;
+        display: inline-block;
+    }
+
+    .scheda-pdf .pdf-title .title-note {
+        font-size: 12px;
+        font-style: italic;
+        color: #4b5563;
+    }
+
+    .scheda-pdf .pdf-info-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 20px 40px;
+        margin-bottom: 24px;
+    }
+
+    .scheda-pdf .pdf-field {
+        font-size: 12px;
+    }
+
+    .scheda-pdf .pdf-field .pdf-label {
+        color: #1c4a8f;
+        font-weight: 700;
+        font-size: 11px;
+        letter-spacing: 0.08em;
+        margin-bottom: 4px;
+    }
+
+    .scheda-pdf .pdf-field .pdf-value {
+        font-weight: 600;
+        font-size: 12px;
+        color: #111827;
+    }
+
+    .scheda-pdf .pdf-line {
+        border-bottom: 1px solid #1f2a44;
+        margin-top: 4px;
+    }
+
+    .scheda-pdf .pdf-two-cols {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 40px;
+        margin-top: 10px;
+    }
+
+    .scheda-pdf .pdf-section-title {
+        font-size: 12px;
+        color: #1c4a8f;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        margin-bottom: 8px;
+        text-transform: uppercase;
+    }
+
+    .scheda-pdf .pdf-list {
+        font-size: 12px;
+        color: #111827;
+    }
+
+    .scheda-pdf .pdf-list-row {
+        display: flex;
+        justify-content: space-between;
+        border-bottom: 1px solid #1f2a44;
+        padding: 2px 0;
+        font-weight: 600;
+    }
+
+    .scheda-pdf .pdf-list-row span:last-child {
+        min-width: 40px;
+        text-align: right;
+    }
+
+    .scheda-pdf .pdf-list-total {
+        display: flex;
+        justify-content: flex-end;
+        font-weight: 700;
+        margin-top: 6px;
+        font-size: 12px;
+    }
+
+    .scheda-pdf .pdf-section-row {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 32px;
+        margin-bottom: 18px;
+    }
+
+    .scheda-pdf .pdf-box {
+        font-size: 12px;
+    }
+
+    .scheda-pdf .pdf-box .pdf-line {
+        border-color: #1c4a8f;
+    }
+
+    .scheda-pdf .pdf-menu-title {
+        font-size: 12px;
+        font-weight: 700;
+        color: #1c4a8f;
+        margin: 18px 0 6px;
+        text-transform: uppercase;
+    }
+
+    .scheda-pdf .pdf-menu-list {
+        margin: 0 0 0 18px;
+        padding: 0;
+        font-size: 12px;
+    }
+
+    .scheda-pdf .pdf-menu-list li {
+        margin-bottom: 4px;
+    }
+
+    .scheda-pdf .pdf-divider {
+        border-top: 1px solid #1c4a8f;
+        margin: 18px 0;
+    }
+
+    .scheda-pdf .pdf-notes-section {
+        margin-bottom: 22px;
+    }
+
+    .scheda-pdf .pdf-notes-title {
+        font-size: 12px;
+        color: #1c4a8f;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        border-bottom: 1px solid #1c4a8f;
+        padding-bottom: 4px;
+        margin-bottom: 8px;
+    }
+
+    .scheda-pdf .pdf-paragraph {
+        font-size: 12px;
+        color: #111827;
+        margin: 0 0 6px;
+        white-space: pre-line;
+    }
+
+    .scheda-pdf .pdf-signature {
+        text-align: right;
+        font-style: italic;
+        margin-top: 30px;
+        font-size: 12px;
+    }
+
+    .scheda-pdf .pdf-signature-line {
+        display: inline-block;
+        min-width: 180px;
+        border-bottom: 1px solid #1c4a8f;
+        margin-top: 8px;
+    }
 </style>
 
 <?php if ($alert): ?>
@@ -697,97 +909,129 @@ $shouldShowModal = $shouldShowForm;
 </div>
 
 <div class="position-absolute top-0 start-0 opacity-0" style="pointer-events: none; z-index: -1; width: 1000px;">
-    <div id="schedaPreview" class="p-4 border rounded-4 bg-white">
-        <div class="d-flex align-items-center justify-content-between">
-            <div>
-                <h3 class="mb-1" id="previewNome">Nome gruppo</h3>
-                <p class="text-muted mb-0" id="previewAgenzia">Agenzia / Ente</p>
+    <div id="schedaPreview" class="scheda-pdf border rounded-4 bg-white">
+        <div class="pdf-page">
+            <div class="pdf-header">
+                <img src="<?= BASE_URL ?>/img/logo.png" class="pdf-logo" alt="Park Hotel Paradiso">
+                <div class="pdf-hotel">PARK HOTEL PARADISO</div>
             </div>
-            <div class="text-end">
-                <div class="fw-semibold" id="previewPeriodo">Arrivo - Partenza</div>
-                <small class="text-muted" id="previewPartecipanti">0 partecipanti</small>
+            <div class="pdf-title">
+                <div class="title-main">GESTIONE ARRIVO GRUPPI</div>
+                <div class="title-sub">ISTRUZIONI OPERATIVE INTERNE</div>
+                <div class="title-link">SCHEDA ARRIVO GRUPPI</div>
+                <div class="title-note">Documento operativo interno - valido per tutti i reparti</div>
+            </div>
+
+            <div class="pdf-info-grid">
+                <div class="pdf-field">
+                    <div class="pdf-label">GRUPPO:</div>
+                    <div class="pdf-value" id="previewNome">Nome gruppo</div>
+                    <div class="pdf-line"></div>
+                </div>
+                <div class="pdf-field">
+                    <div class="pdf-label">CODICE GRUPPO:</div>
+                    <div class="pdf-value" id="previewCodiceGruppo">Agenzia / Ente</div>
+                    <div class="pdf-line"></div>
+                </div>
+                <div class="pdf-field">
+                    <div class="pdf-label">REFERENTE:</div>
+                    <div class="pdf-value" id="previewReferente">Nome referente</div>
+                    <div class="pdf-line"></div>
+                </div>
+                <div class="pdf-field">
+                    <div class="pdf-label">CHECK IN:</div>
+                    <div class="pdf-value" id="previewCheckIn">--/--/----</div>
+                    <div class="pdf-line"></div>
+                </div>
+                <div class="pdf-field">
+                    <div class="pdf-label">CHECK OUT:</div>
+                    <div class="pdf-value" id="previewCheckOut">--/--/----</div>
+                    <div class="pdf-line"></div>
+                </div>
+                <div class="pdf-field">
+                    <div class="pdf-label">N° NOTTI:</div>
+                    <div class="pdf-value" id="previewNotti">0</div>
+                    <div class="pdf-line"></div>
+                </div>
+            </div>
+
+            <div class="pdf-two-cols">
+                <div>
+                    <div class="pdf-section-title">OSPITI</div>
+                    <div class="pdf-list" id="previewOspiti">
+                        <div class="pdf-list-row"><span>Adulti</span><span id="previewAdulti">0</span></div>
+                        <div class="pdf-list-row"><span>Bambini</span><span id="previewBambini">0</span></div>
+                    </div>
+                    <div class="pdf-list-total">Totale: <span id="previewTotale">0</span></div>
+                </div>
+                <div>
+                    <div class="pdf-section-title">ALLOGGI</div>
+                    <div class="pdf-list" id="previewAlloggi">
+                        <div class="pdf-list-row"><span>Nessuna camera</span><span>0</span></div>
+                    </div>
+                    <div class="pdf-list-total">Totale: <span id="previewCamereTotale">0</span></div>
+                </div>
             </div>
         </div>
 
-        <hr class="my-4">
-
-        <div class="row g-4">
-            <div class="col-md-6">
-                <h6 class="text-uppercase text-muted">Referente</h6>
-                <p class="mb-1" id="previewReferente">Nome referente</p>
-                <p class="mb-1" id="previewTelefono">Telefono</p>
-                <p class="mb-0" id="previewEmail">Email</p>
+        <div class="pdf-page">
+            <div class="pdf-section-row">
+                <div class="pdf-box">
+                    <div class="pdf-section-title">TRATTAMENTO</div>
+                    <div class="pdf-paragraph" id="previewTrattamento">Trattamento</div>
+                    <div class="pdf-paragraph" id="previewArea">Area riservata</div>
+                    <div class="pdf-line"></div>
+                </div>
+                <div class="pdf-box">
+                    <div class="pdf-section-title">SALA RISTORANTE</div>
+                    <div class="pdf-paragraph" id="previewSalaRistorante">Nessuna nota inserita.</div>
+                    <div class="pdf-line"></div>
+                </div>
             </div>
-            <div class="col-md-6">
-                <h6 class="text-uppercase text-muted">Logistica camere</h6>
-                <p class="mb-1" id="previewCamere">Tipologia camere</p>
-                <p class="mb-1" id="previewTrattamento">Trattamento</p>
-                <p class="mb-0" id="previewArea">Area riservata</p>
+
+            <div class="pdf-divider"></div>
+            <div class="pdf-section-title">MENÙ</div>
+            <div id="previewMenu">
+                <div class="pdf-paragraph">Nessun menù inserito.</div>
             </div>
         </div>
 
-        <hr class="my-4">
-
-        <div>
-            <h6 class="text-uppercase text-muted">Pasti programmati</h6>
-            <div class="table-responsive">
-                <table class="table table-sm" id="previewPasti">
-                    <thead>
-                        <tr>
-                            <th class="w-25">Data</th>
-                            <th class="w-25">Voce</th>
-                            <th class="w-15">Ora</th>
-                            <th class="w-25">Note</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td colspan="4" class="text-muted">Nessun pasto inserito.</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
+        <div class="pdf-page">
+            <div class="pdf-section-title">ALLERGIE / INTOLLERANZE</div>
+            <div class="pdf-paragraph" id="previewAllergie">Nessuna allergia segnalata.</div>
+            <div class="pdf-divider"></div>
+            <div class="pdf-section-title">DISTRIBUZIONE TAVOLI</div>
+            <div class="pdf-paragraph" id="previewDistribuzione">Nessuna indicazione inserita.</div>
         </div>
 
-        <div class="mt-4">
-            <h6 class="text-uppercase text-muted">Attività / extra</h6>
-            <div class="table-responsive">
-                <table class="table table-sm" id="previewExtra">
-                    <thead>
-                        <tr>
-                            <th class="w-25">Data</th>
-                            <th class="w-25">Voce</th>
-                            <th class="w-15">Ora</th>
-                            <th class="w-25">Note</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td colspan="4" class="text-muted">Nessuna attività inserita.</td>
-                        </tr>
-                    </tbody>
-                </table>
+        <div class="pdf-page">
+            <div class="pdf-title">
+                <div class="title-main">NOTE PER REPARTI</div>
             </div>
-        </div>
 
-        <hr class="my-4">
+            <div class="pdf-notes-section">
+                <div class="pdf-notes-title">RICEVIMENTO</div>
+                <div class="pdf-paragraph" id="previewNoteRicevimento">Nessuna nota per il ricevimento.</div>
+            </div>
+            <div class="pdf-notes-section">
+                <div class="pdf-notes-title">CUCINA / RISTORANTE</div>
+                <div class="pdf-paragraph" id="previewNoteCucina">Nessuna nota per cucina/ristorante.</div>
+            </div>
+            <div class="pdf-notes-section">
+                <div class="pdf-notes-title">HOUSEKEEPING</div>
+                <div class="pdf-paragraph" id="previewNoteHousekeeping">Nessuna nota per housekeeping.</div>
+            </div>
+            <div class="pdf-notes-section">
+                <div class="pdf-notes-title">MANUTENZIONE</div>
+                <div class="pdf-paragraph" id="previewNoteManutenzione">Nessuna nota per manutenzione.</div>
+            </div>
 
-        <div class="row g-4">
-            <div class="col-12">
-                <h6 class="text-uppercase text-muted">Ricevimento</h6>
-                <p class="mb-0" id="previewNoteRicevimento">Nessuna nota per il ricevimento.</p>
-            </div>
-            <div class="col-12">
-                <h6 class="text-uppercase text-muted">Cucina/Ristorante</h6>
-                <p class="mb-0" id="previewNoteCucina">Nessuna nota per cucina/ristorante.</p>
-            </div>
-            <div class="col-12">
-                <h6 class="text-uppercase text-muted">Housekeeping</h6>
-                <p class="mb-0" id="previewNoteHousekeeping">Nessuna nota per housekeeping.</p>
-            </div>
-            <div class="col-12">
-                <h6 class="text-uppercase text-muted">Manutenzione</h6>
-                <p class="mb-0" id="previewNoteManutenzione">Nessuna nota per manutenzione.</p>
+            <div class="pdf-divider"></div>
+            <div class="pdf-section-title">MANUTENZIONE</div>
+            <div class="pdf-paragraph" id="previewNoteManutenzioneSintesi">Nessuna segnalazione particolare.</div>
+            <div class="pdf-signature">
+                La Direzione
+                <div class="pdf-signature-line"></div>
             </div>
         </div>
     </div>
@@ -894,23 +1138,27 @@ $shouldShowModal = $shouldShowForm;
     const form = document.getElementById('gruppoForm');
     const preview = {
         nome: document.getElementById('previewNome'),
-        agenzia: document.getElementById('previewAgenzia'),
-        periodo: document.getElementById('previewPeriodo'),
-        partecipanti: document.getElementById('previewPartecipanti'),
+        codiceGruppo: document.getElementById('previewCodiceGruppo'),
+        checkIn: document.getElementById('previewCheckIn'),
+        checkOut: document.getElementById('previewCheckOut'),
+        notti: document.getElementById('previewNotti'),
+        adulti: document.getElementById('previewAdulti'),
+        bambini: document.getElementById('previewBambini'),
+        totale: document.getElementById('previewTotale'),
+        alloggi: document.getElementById('previewAlloggi'),
+        camereTotale: document.getElementById('previewCamereTotale'),
         referente: document.getElementById('previewReferente'),
-        telefono: document.getElementById('previewTelefono'),
-        email: document.getElementById('previewEmail'),
-        camere: document.getElementById('previewCamere'),
         trattamento: document.getElementById('previewTrattamento'),
         area: document.getElementById('previewArea'),
+        salaRistorante: document.getElementById('previewSalaRistorante'),
+        menu: document.getElementById('previewMenu'),
+        allergie: document.getElementById('previewAllergie'),
+        distribuzione: document.getElementById('previewDistribuzione'),
         noteRicevimento: document.getElementById('previewNoteRicevimento'),
         noteCucina: document.getElementById('previewNoteCucina'),
         noteHousekeeping: document.getElementById('previewNoteHousekeeping'),
         noteManutenzione: document.getElementById('previewNoteManutenzione'),
-        pasti: document.querySelector('#previewPasti tbody'),
-        pastiHeader: document.querySelector('#previewPasti thead'),
-        extra: document.querySelector('#previewExtra tbody'),
-        extraHeader: document.querySelector('#previewExtra thead')
+        noteManutenzioneSintesi: document.getElementById('previewNoteManutenzioneSintesi')
     };
 
     const pastiTable = document.querySelector('#pastiTable tbody');
@@ -1047,28 +1295,140 @@ $shouldShowModal = $shouldShowForm;
         headerEl.classList.toggle('d-none', !hasRows);
     };
 
+    const formatDate = (value) => {
+        if (!value) return '--/--/----';
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) return value;
+        return date.toLocaleDateString('it-IT');
+    };
+
+    const calcNotti = (arrivo, partenza) => {
+        if (!arrivo || !partenza) return 0;
+        const start = new Date(arrivo);
+        const end = new Date(partenza);
+        if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return 0;
+        const diff = Math.round((end - start) / (1000 * 60 * 60 * 24));
+        return diff > 0 ? diff : 0;
+    };
+
+    const buildAlloggiList = () => {
+        const camereInputs = Array.from(document.querySelectorAll('.camera-qty'));
+        const cameraRows = camereInputs.map((input) => {
+            const qty = parseInt(input.value, 10) || 0;
+            if (!qty) return null;
+            return {
+                label: input.dataset.label || input.dataset.code || 'Camera',
+                qty
+            };
+        }).filter(Boolean);
+
+        const fallback = document.getElementById('tipologiaCamere')?.value;
+        preview.alloggi.innerHTML = '';
+
+        if (cameraRows.length === 0 && fallback) {
+            preview.alloggi.innerHTML = `<div class="pdf-list-row"><span>${fallback}</span><span></span></div>`;
+            preview.camereTotale.textContent = '0';
+            return;
+        }
+
+        if (cameraRows.length === 0) {
+            preview.alloggi.innerHTML = '<div class="pdf-list-row"><span>Nessuna camera</span><span>0</span></div>';
+            preview.camereTotale.textContent = '0';
+            return;
+        }
+
+        let total = 0;
+        cameraRows.forEach((row) => {
+            total += row.qty;
+            const rowEl = document.createElement('div');
+            rowEl.className = 'pdf-list-row';
+            rowEl.innerHTML = `<span>${row.label}</span><span>${row.qty}</span>`;
+            preview.alloggi.appendChild(rowEl);
+        });
+        preview.camereTotale.textContent = total.toString();
+    };
+
+    const buildMenu = (pastiRows) => {
+        preview.menu.innerHTML = '';
+        if (!pastiRows.length) {
+            preview.menu.innerHTML = '<div class="pdf-paragraph">Nessun menù inserito.</div>';
+            return;
+        }
+
+        pastiRows.forEach((row) => {
+            const title = document.createElement('div');
+            const dateLabel = row.data ? formatDate(row.data) : '';
+            const oraLabel = row.ora ? ` - ${row.ora}` : '';
+            title.className = 'pdf-menu-title';
+            title.textContent = `${row.tipo || 'Pasto'} ${dateLabel}${oraLabel}`.trim();
+            preview.menu.appendChild(title);
+
+            const list = document.createElement('ul');
+            list.className = 'pdf-menu-list';
+            const noteLines = (row.note || '')
+                .split(/\r?\n/)
+                .map((line) => line.replace(/^[\-\•\*]\s*/, '').trim())
+                .filter(Boolean);
+
+            if (noteLines.length === 0) {
+                const li = document.createElement('li');
+                li.textContent = 'Menù da definire';
+                list.appendChild(li);
+            } else {
+                noteLines.forEach((line) => {
+                    const li = document.createElement('li');
+                    li.textContent = line;
+                    list.appendChild(li);
+                });
+            }
+            preview.menu.appendChild(list);
+        });
+    };
+
+    const buildDistribuzione = (extraRows) => {
+        if (!extraRows.length) {
+            preview.distribuzione.textContent = 'Nessuna indicazione inserita.';
+            return;
+        }
+        const lines = extraRows.map((row) => {
+            const parts = [row.descrizione, row.data, row.ora, row.note].filter(Boolean);
+            return parts.join(' - ');
+        }).filter(Boolean);
+        preview.distribuzione.textContent = lines.join('\n');
+    };
+
     const aggiornaPreview = () => {
         preview.nome.textContent = document.getElementById('nomeGruppo').value || 'Nome gruppo';
-        preview.agenzia.textContent = document.getElementById('agenzia').value || 'Agenzia / Ente';
+        preview.codiceGruppo.textContent = document.getElementById('agenzia').value || 'Agenzia / Ente';
         const arrivo = document.getElementById('dataArrivo').value;
         const partenza = document.getElementById('dataPartenza').value;
-        preview.periodo.textContent = arrivo && partenza ? `${arrivo} → ${partenza}` : 'Arrivo - Partenza';
+        preview.checkIn.textContent = formatDate(arrivo);
+        preview.checkOut.textContent = formatDate(partenza);
+        preview.notti.textContent = calcNotti(arrivo, partenza).toString();
         const adulti = parseInt(document.getElementById('numeroAdulti').value, 10) || 0;
         const bambini = parseInt(document.getElementById('numeroBambini').value, 10) || 0;
         const totale = adulti + bambini;
         document.getElementById('numeroTotale').value = totale;
-        preview.partecipanti.textContent = totale ? `${adulti} adulti, ${bambini} bambini (Totale ${totale})` : '0 partecipanti';
+        preview.adulti.textContent = adulti.toString();
+        preview.bambini.textContent = bambini.toString();
+        preview.totale.textContent = totale.toString();
         preview.referente.textContent = document.getElementById('referente').value || 'Nome referente';
-        preview.telefono.textContent = document.getElementById('telefono').value || 'Telefono';
-        preview.email.textContent = document.getElementById('email').value || 'Email';
-        const camereSummary = buildCamereSummary();
-        preview.camere.textContent = camereSummary || document.getElementById('tipologiaCamere')?.value || 'Tipologia camere';
         preview.trattamento.textContent = document.getElementById('trattamento').value || 'Trattamento';
         preview.area.textContent = document.getElementById('areaPreferita').value || 'Area riservata';
-        preview.noteRicevimento.textContent = document.getElementById('noteRicevimento').value || 'Nessuna nota per il ricevimento.';
-        preview.noteCucina.textContent = document.getElementById('noteCucina').value || 'Nessuna nota per cucina/ristorante.';
-        preview.noteHousekeeping.textContent = document.getElementById('noteHousekeeping').value || 'Nessuna nota per housekeeping.';
-        preview.noteManutenzione.textContent = document.getElementById('noteManutenzione').value || 'Nessuna nota per manutenzione.';
+        buildAlloggiList();
+
+        const noteRicevimento = document.getElementById('noteRicevimento').value || 'Nessuna nota per il ricevimento.';
+        const noteCucinaRaw = document.getElementById('noteCucina').value || '';
+        const noteCucina = noteCucinaRaw || 'Nessuna nota per cucina/ristorante.';
+        const noteHousekeeping = document.getElementById('noteHousekeeping').value || 'Nessuna nota per housekeeping.';
+        const noteManutenzione = document.getElementById('noteManutenzione').value || 'Nessuna nota per manutenzione.';
+        preview.noteRicevimento.textContent = noteRicevimento;
+        preview.noteCucina.textContent = noteCucina;
+        preview.noteHousekeeping.textContent = noteHousekeeping;
+        preview.noteManutenzione.textContent = noteManutenzione;
+        preview.noteManutenzioneSintesi.textContent = noteManutenzione;
+        preview.salaRistorante.textContent = noteCucinaRaw || 'Nessuna nota inserita.';
+        preview.allergie.textContent = noteCucinaRaw || 'Nessuna allergia segnalata.';
 
         const pastiRows = Array.from(pastiTable.querySelectorAll('tr[data-type="pasto-main"]')).map((row) => {
             const inputs = row.querySelectorAll('input, select');
@@ -1082,20 +1442,6 @@ $shouldShowModal = $shouldShowForm;
             };
         }).filter((row) => row.data || row.tipo || row.ora || row.note);
 
-        preview.pasti.innerHTML = '';
-        if (pastiRows.length === 0) {
-            preview.pasti.innerHTML = '<tr><td colspan="4" class="text-muted">Nessun pasto inserito.</td></tr>';
-        } else {
-            pastiRows.forEach((row) => {
-                const tr = document.createElement('tr');
-                tr.innerHTML = `<td>${row.data}</td><td>${row.tipo}</td><td>${row.ora}</td><td>${row.note}</td>`;
-                preview.pasti.appendChild(tr);
-            });
-        }
-        if (preview.pastiHeader) {
-            preview.pastiHeader.classList.toggle('d-none', pastiRows.length === 0);
-        }
-
         const extraRows = Array.from(extraTable.querySelectorAll('tr[data-type="extra-main"]')).map((row) => {
             const inputs = row.querySelectorAll('input');
             const noteRow = extraTable.querySelector(`tr[data-type="extra-note"][data-group="${row.dataset.group}"]`);
@@ -1108,19 +1454,9 @@ $shouldShowModal = $shouldShowForm;
             };
         }).filter((row) => row.data || row.descrizione || row.ora || row.note);
 
-        preview.extra.innerHTML = '';
-        if (extraRows.length === 0) {
-            preview.extra.innerHTML = '<tr><td colspan="4" class="text-muted">Nessuna attività inserita.</td></tr>';
-        } else {
-            extraRows.forEach((row) => {
-                const tr = document.createElement('tr');
-                tr.innerHTML = `<td>${row.data}</td><td>${row.descrizione}</td><td>${row.ora}</td><td>${row.note}</td>`;
-                preview.extra.appendChild(tr);
-            });
-        }
-        if (preview.extraHeader) {
-            preview.extraHeader.classList.toggle('d-none', extraRows.length === 0);
-        }
+        buildMenu(pastiRows);
+        buildDistribuzione(extraRows);
+
         toggleTableHeader(pastiTable, pastiTableHeader);
         toggleTableHeader(extraTable, extraTableHeader);
     };
@@ -1145,17 +1481,6 @@ $shouldShowModal = $shouldShowForm;
             });
         }
         toggleTableHeader(extraTable, extraTableHeader);
-    };
-
-    const buildCamereSummary = () => {
-        const camereInputs = Array.from(document.querySelectorAll('.camera-qty'));
-        const parts = camereInputs.map((input) => {
-            const qty = parseInt(input.value, 10) || 0;
-            if (!qty) return null;
-            const code = input.dataset.code || 'Camera';
-            return `${code}: ${qty}`;
-        }).filter(Boolean);
-        return parts.join(', ');
     };
 
     const resetFormData = (data, pastiRows = [], extraRows = [], camereRows = {}) => {
