@@ -898,7 +898,7 @@ $shouldShowModal = $shouldShowForm;
                     <button class="btn btn-success" type="submit">
                         <i class="bi bi-save"></i> Salva scheda
                     </button>
-                    <button class="btn btn-primary" type="button" id="generaPdf">
+                    <button class="btn btn-primary" type="submit" formaction="<?= BASE_URL ?>/admin/gruppi_arrivi_pdf.php" formtarget="_blank">
                         <i class="bi bi-filetype-pdf"></i> Genera PDF
                     </button>
                 </div>
@@ -1132,8 +1132,6 @@ $shouldShowModal = $shouldShowForm;
     </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 <script>
     const form = document.getElementById('gruppoForm');
     const preview = {
@@ -1538,39 +1536,6 @@ $shouldShowModal = $shouldShowForm;
     });
 
     form.addEventListener('input', aggiornaPreview);
-
-    document.getElementById('generaPdf').addEventListener('click', async () => {
-        aggiornaPreview();
-        const element = document.getElementById('schedaPreview');
-        const canvas = await html2canvas(element, { scale: 1.2, backgroundColor: '#ffffff' });
-        const imgData = canvas.toDataURL('image/jpeg', 0.72);
-        const { jsPDF } = window.jspdf;
-        const pdf = new jsPDF('p', 'mm', 'a4');
-        const pageWidth = pdf.internal.pageSize.getWidth();
-        const pageHeight = pdf.internal.pageSize.getHeight();
-        const imgProps = pdf.getImageProperties(imgData);
-        const pdfWidth = pageWidth;
-        const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
-        let position = 0;
-
-        if (pdfHeight <= pageHeight) {
-            pdf.addImage(imgData, 'JPEG', 0, position, pdfWidth, pdfHeight);
-        } else {
-            let remainingHeight = pdfHeight;
-            let canvasPosition = 0;
-            while (remainingHeight > 0) {
-                pdf.addImage(imgData, 'JPEG', 0, canvasPosition, pdfWidth, pdfHeight);
-                remainingHeight -= pageHeight;
-                canvasPosition -= pageHeight;
-                if (remainingHeight > 0) {
-                    pdf.addPage();
-                }
-            }
-        }
-
-        const nome = document.getElementById('nomeGruppo').value || 'scheda-gruppo';
-        pdf.save(`${nome.toLowerCase().replace(/\s+/g, '-')}.pdf`);
-    });
 
     resetFormData(currentData, storedPasti, storedExtra, storedCamere);
 
