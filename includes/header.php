@@ -44,7 +44,13 @@ function in_gruppo($codice){
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
 
     <style>
-        body { background-color:#f8f9fa; }
+        html, body { height: 100%; }
+        body {
+            background-color:#f8f9fa;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
         .navbar-brand { font-weight:600; }
         .nav-section-title {
             font-size:.75rem;
@@ -74,6 +80,7 @@ function in_gruppo($codice){
             background: #fff;
             border-top: 1px solid rgba(0,0,0,.08);
             box-shadow: 0 -6px 18px rgba(0,0,0,.04);
+            margin-top: auto;
         }
         .app-footer .footer-brand { font-weight: 600; }
         .app-footer .footer-pill {
