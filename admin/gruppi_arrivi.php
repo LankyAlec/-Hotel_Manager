@@ -234,6 +234,7 @@ $pastiData = json_decode($currentData['pasti_json'] ?? '[]', true) ?: [];
 $extraData = json_decode($currentData['extra_json'] ?? '[]', true) ?: [];
 $queryBase = $search !== '' ? 'search=' . urlencode($search) . '&' : '';
 $shouldShowForm = $currentId > 0 || ($_GET['open'] ?? '') === '1';
+$shouldShowModal = $shouldShowForm;
 ?>
 
 <?php if ($alert): ?>
@@ -254,150 +255,142 @@ $shouldShowForm = $currentId > 0 || ($_GET['open'] ?? '') === '1';
                     <input type="text" class="form-control" name="search" placeholder="Cerca gruppo, referente o agenzia" value="<?= h($search) ?>">
                     <button class="btn btn-outline-primary" type="submit"><i class="bi bi-search"></i> Cerca</button>
                 </form>
-                <a class="btn btn-primary" href="<?= BASE_URL ?>/admin/gruppi_arrivi.php?open=1">
+                <button class="btn btn-primary" type="button" id="openNewScheda" data-bs-toggle="modal" data-bs-target="#gruppoModal">
                     <i class="bi bi-plus-circle"></i> Nuova scheda
-                </a>
+                </button>
             </div>
         </div>
     </div>
 </div>
 
-<div class="row g-4">
-    <div class="col-12">
-        <div class="collapse <?= $shouldShowForm ? 'show' : '' ?>" id="gruppoFormCollapse">
-            <div class="card toolbar-card mb-3 border-0 shadow-sm">
-                <div class="card-body">
-                    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
-                        <div>
-                            <h4 class="mb-1">Scheda gruppo in arrivo</h4>
-                            <p class="text-muted mb-0">Compila tutti i dati manualmente, salva la scheda e genera il PDF in un click.</p>
-                        </div>
-                        <div class="d-flex align-items-center gap-2">
-                            <span class="badge badge-soft"><i class="bi bi-stars"></i> Smart</span>
-                            <button class="btn btn-outline-secondary btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#gruppoFormCollapse" aria-expanded="<?= $shouldShowForm ? 'true' : 'false' ?>">
-                                <i class="bi bi-chevron-up"></i> Chiudi scheda
-                            </button>
-                        </div>
-                    </div>
-
-                    <form id="gruppoForm" class="vstack gap-3" method="post">
-                    <input type="hidden" name="action" value="save">
-                    <input type="hidden" name="id" value="<?= (int)$currentId ?>">
-                    <div class="border rounded-4 p-3">
-                        <h6 class="text-uppercase text-muted mb-3">Anagrafica gruppo</h6>
-                        <div class="row g-3">
-                            <div class="col-12">
-                                <label class="form-label">Nome gruppo *</label>
-                                <input type="text" class="form-control" id="nomeGruppo" name="nome_gruppo" value="<?= h($currentData['nome_gruppo']) ?>" placeholder="Es. Gruppo Lago Blu" required>
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label">Referente principale *</label>
-                                <input type="text" class="form-control" id="referente" name="referente" value="<?= h($currentData['referente']) ?>" placeholder="Nome e cognome" required>
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label">Agenzia / Ente *</label>
-                                <input type="text" class="form-control" id="agenzia" name="agenzia" value="<?= h($currentData['agenzia']) ?>" placeholder="Es. Tour Operator" required>
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label">Telefono *</label>
-                                <input type="tel" class="form-control" id="telefono" name="telefono" value="<?= h($currentData['telefono']) ?>" placeholder="+39 ..." required>
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label">Email *</label>
-                                <input type="email" class="form-control" id="email" name="email" value="<?= h($currentData['email']) ?>" placeholder="referente@email.it" required>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="border rounded-4 p-3">
-                        <h6 class="text-uppercase text-muted mb-3">Soggiorno</h6>
-                        <div class="row g-3">
-                            <div class="col-md-6">
-                                <label class="form-label">Arrivo</label>
-                                <input type="date" class="form-control" id="dataArrivo" name="data_arrivo" value="<?= h($currentData['data_arrivo']) ?>">
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label">Partenza</label>
-                                <input type="date" class="form-control" id="dataPartenza" name="data_partenza" value="<?= h($currentData['data_partenza']) ?>">
-                            </div>
-                            <div class="col-md-4">
-                                <label class="form-label">Numero persone</label>
-                                <input type="number" class="form-control" id="numeroPersone" name="numero_persone" min="1" value="<?= (int)$currentData['numero_persone'] ?>" placeholder="0">
-                            </div>
-                            <div class="col-md-4">
-                                <label class="form-label">Tipologia camere</label>
-                                <input type="text" class="form-control" id="tipologiaCamere" name="tipologia_camere" value="<?= h($currentData['tipologia_camere']) ?>" placeholder="Es. 10 doppie + 2 singole">
-                            </div>
-                            <div class="col-md-4">
-                                <label class="form-label">Piano / Area preferita</label>
-                                <input type="text" class="form-control" id="areaPreferita" name="area_preferita" value="<?= h($currentData['area_preferita']) ?>" placeholder="Es. 2° piano - vista lago">
-                            </div>
-                            <div class="col-12">
-                                <label class="form-label">Note operative</label>
-                                <textarea class="form-control" id="noteOperative" name="note_operativa" rows="3" placeholder="Richieste speciali, timing check-in, ecc."><?= h($currentData['note_operativa']) ?></textarea>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="border rounded-4 p-3">
-                        <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
-                            <h6 class="text-uppercase text-muted mb-0">Pasti programmati</h6>
-                            <button class="btn btn-outline-primary btn-sm" type="button" id="aggiungiPasto">
-                                <i class="bi bi-plus-circle"></i> Aggiungi pasto
-                            </button>
-                        </div>
-                        <div class="table-responsive mt-3">
-                            <table class="table table-sm align-middle mb-0" id="pastiTable">
-                                <thead>
-                                    <tr>
-                                        <th>Data</th>
-                                        <th>Tipo</th>
-                                        <th>Ora</th>
-                                        <th>Note</th>
-                                        <th></th>
-                                    </tr>
-                                </thead>
-                                <tbody></tbody>
-                            </table>
-                        </div>
-                    </div>
-
-                    <div class="border rounded-4 p-3">
-                        <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
-                            <h6 class="text-uppercase text-muted mb-0">Attività / extra</h6>
-                            <button class="btn btn-outline-primary btn-sm" type="button" id="aggiungiExtra">
-                                <i class="bi bi-plus-circle"></i> Aggiungi attività
-                            </button>
-                        </div>
-                        <div class="table-responsive mt-3">
-                            <table class="table table-sm align-middle mb-0" id="extraTable">
-                                <thead>
-                                    <tr>
-                                        <th>Data</th>
-                                        <th>Descrizione</th>
-                                        <th>Orario</th>
-                                        <th>Note</th>
-                                        <th></th>
-                                    </tr>
-                                </thead>
-                                <tbody></tbody>
-                            </table>
-                        </div>
-                    </div>
-
-                    <div class="d-flex flex-wrap gap-2">
-                        <button class="btn btn-success" type="submit">
-                            <i class="bi bi-save"></i> Salva scheda
-                        </button>
-                        <button class="btn btn-primary" type="button" id="generaPdf">
-                            <i class="bi bi-filetype-pdf"></i> Genera PDF
-                        </button>
-                        <a class="btn btn-outline-secondary" href="<?= BASE_URL ?>/admin/gruppi_arrivi.php">
-                            <i class="bi bi-arrow-counterclockwise"></i> Nuova scheda
-                        </a>
-                    </div>
-                    </form>
+<div class="modal fade" id="gruppoModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div>
+                    <h4 class="modal-title mb-1">Scheda gruppo in arrivo</h4>
+                    <p class="text-muted mb-0">Compila tutti i dati manualmente, salva la scheda e genera il PDF in un click.</p>
                 </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Chiudi"></button>
+            </div>
+            <div class="modal-body">
+                <form id="gruppoForm" class="vstack gap-3" method="post">
+                <input type="hidden" name="action" value="save">
+                <input type="hidden" name="id" value="<?= (int)$currentId ?>">
+                <div class="border rounded-4 p-3">
+                    <h6 class="text-uppercase text-muted mb-3">Anagrafica gruppo</h6>
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <label class="form-label">Nome gruppo *</label>
+                            <input type="text" class="form-control" id="nomeGruppo" name="nome_gruppo" value="<?= h($currentData['nome_gruppo']) ?>" placeholder="Es. Gruppo Lago Blu" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Referente principale *</label>
+                            <input type="text" class="form-control" id="referente" name="referente" value="<?= h($currentData['referente']) ?>" placeholder="Nome e cognome" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Agenzia / Ente *</label>
+                            <input type="text" class="form-control" id="agenzia" name="agenzia" value="<?= h($currentData['agenzia']) ?>" placeholder="Es. Tour Operator" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Telefono *</label>
+                            <input type="tel" class="form-control" id="telefono" name="telefono" value="<?= h($currentData['telefono']) ?>" placeholder="+39 ..." required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Email *</label>
+                            <input type="email" class="form-control" id="email" name="email" value="<?= h($currentData['email']) ?>" placeholder="referente@email.it" required>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="border rounded-4 p-3">
+                    <h6 class="text-uppercase text-muted mb-3">Soggiorno</h6>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Arrivo</label>
+                            <input type="date" class="form-control" id="dataArrivo" name="data_arrivo" value="<?= h($currentData['data_arrivo']) ?>">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Partenza</label>
+                            <input type="date" class="form-control" id="dataPartenza" name="data_partenza" value="<?= h($currentData['data_partenza']) ?>">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Numero persone</label>
+                            <input type="number" class="form-control" id="numeroPersone" name="numero_persone" min="1" value="<?= (int)$currentData['numero_persone'] ?>" placeholder="0">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Tipologia camere</label>
+                            <input type="text" class="form-control" id="tipologiaCamere" name="tipologia_camere" value="<?= h($currentData['tipologia_camere']) ?>" placeholder="Es. 10 doppie + 2 singole">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Piano / Area preferita</label>
+                            <input type="text" class="form-control" id="areaPreferita" name="area_preferita" value="<?= h($currentData['area_preferita']) ?>" placeholder="Es. 2° piano - vista lago">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Note operative</label>
+                            <textarea class="form-control" id="noteOperative" name="note_operativa" rows="3" placeholder="Richieste speciali, timing check-in, ecc."><?= h($currentData['note_operativa']) ?></textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="border rounded-4 p-3">
+                    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+                        <h6 class="text-uppercase text-muted mb-0">Pasti programmati</h6>
+                        <button class="btn btn-outline-primary btn-sm" type="button" id="aggiungiPasto">
+                            <i class="bi bi-plus-circle"></i> Aggiungi pasto
+                        </button>
+                    </div>
+                    <div class="table-responsive mt-3">
+                        <table class="table table-sm align-middle mb-0" id="pastiTable">
+                            <thead>
+                                <tr>
+                                    <th>Data</th>
+                                    <th>Tipo</th>
+                                    <th>Ora</th>
+                                    <th>Note</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="border rounded-4 p-3">
+                    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+                        <h6 class="text-uppercase text-muted mb-0">Attività / extra</h6>
+                        <button class="btn btn-outline-primary btn-sm" type="button" id="aggiungiExtra">
+                            <i class="bi bi-plus-circle"></i> Aggiungi attività
+                        </button>
+                    </div>
+                    <div class="table-responsive mt-3">
+                        <table class="table table-sm align-middle mb-0" id="extraTable">
+                            <thead>
+                                <tr>
+                                    <th>Data</th>
+                                    <th>Descrizione</th>
+                                    <th>Orario</th>
+                                    <th>Note</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="d-flex flex-wrap gap-2">
+                    <button class="btn btn-success" type="submit">
+                        <i class="bi bi-save"></i> Salva scheda
+                    </button>
+                    <button class="btn btn-primary" type="button" id="generaPdf">
+                        <i class="bi bi-filetype-pdf"></i> Genera PDF
+                    </button>
+                    <a class="btn btn-outline-secondary" href="<?= BASE_URL ?>/admin/gruppi_arrivi.php">
+                        <i class="bi bi-arrow-counterclockwise"></i> Nuova scheda
+                    </a>
+                </div>
+                </form>
             </div>
         </div>
     </div>
@@ -484,13 +477,30 @@ $shouldShowForm = $currentId > 0 || ($_GET['open'] ?? '') === '1';
 
 <div class="card table-card mt-4">
     <div class="card-body">
-        <div class="d-flex align-items-center justify-content-between mb-3">
+        <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
             <div>
                 <h5 class="mb-1">Schede salvate</h5>
                 <p class="text-muted mb-0">Elenco ordinato per data di arrivo (decrescente).</p>
             </div>
-            <span class="badge badge-soft"><i class="bi bi-calendar-event"></i> <?= (int)$totalRecords ?> schede</span>
+            <div class="d-flex align-items-center gap-2">
+                <span class="badge badge-soft"><i class="bi bi-calendar-event"></i> <?= (int)$totalRecords ?> schede</span>
+                <span class="text-muted small">Max 10 schede per pagina</span>
+            </div>
         </div>
+
+        <?php if ($totalPages > 1): ?>
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <span class="text-muted small">Pagina <?= (int)$page ?> di <?= (int)$totalPages ?></span>
+                <div class="btn-group btn-group-sm" role="group" aria-label="Navigazione schede">
+                    <a class="btn btn-outline-secondary <?= $page <= 1 ? 'disabled' : '' ?>" href="?<?= $queryBase ?>page=<?= max(1, $page - 1) ?>">
+                        <i class="bi bi-arrow-left"></i> Più recenti
+                    </a>
+                    <a class="btn btn-outline-secondary <?= $page >= $totalPages ? 'disabled' : '' ?>" href="?<?= $queryBase ?>page=<?= min($totalPages, $page + 1) ?>">
+                        Più vecchie <i class="bi bi-arrow-right"></i>
+                    </a>
+                </div>
+            </div>
+        <?php endif; ?>
 
         <?php if (empty($records)): ?>
             <div class="text-muted">Nessuna scheda trovata.</div>
@@ -514,7 +524,7 @@ $shouldShowForm = $currentId > 0 || ($_GET['open'] ?? '') === '1';
                             <div class="text-muted small">ID #<?= (int)$record['id'] ?></div>
                         </div>
                         <div class="d-flex flex-wrap gap-2 align-items-start justify-content-md-end">
-                            <a class="btn btn-sm btn-outline-primary" href="<?= BASE_URL ?>/admin/gruppi_arrivi.php?id=<?= (int)$record['id'] ?>">
+                            <a class="btn btn-sm btn-outline-primary" href="<?= BASE_URL ?>/admin/gruppi_arrivi.php?id=<?= (int)$record['id'] ?>&open=1">
                                 <i class="bi bi-pencil-square"></i> Modifica
                             </a>
                             <form method="post" class="d-inline" onsubmit="return confirm('Confermi l\'eliminazione della scheda?');">
@@ -578,6 +588,9 @@ $shouldShowForm = $currentId > 0 || ($_GET['open'] ?? '') === '1';
 
     const storedPasti = <?= json_encode($pastiData, JSON_UNESCAPED_UNICODE) ?>;
     const storedExtra = <?= json_encode($extraData, JSON_UNESCAPED_UNICODE) ?>;
+    const currentData = <?= json_encode($currentData, JSON_UNESCAPED_UNICODE) ?>;
+    const emptyData = <?= json_encode($emptyData, JSON_UNESCAPED_UNICODE) ?>;
+    const shouldShowModal = <?= $shouldShowModal ? 'true' : 'false' ?>;
 
     const creaRigaPasto = (data = {}) => {
         const row = document.createElement('tr');
@@ -707,6 +720,45 @@ $shouldShowForm = $currentId > 0 || ($_GET['open'] ?? '') === '1';
         }
     };
 
+    const renderPasti = (rows = []) => {
+        pastiTable.innerHTML = '';
+        if (rows.length) {
+            rows.forEach((item) => {
+                pastiTable.appendChild(creaRigaPasto(item));
+            });
+        } else {
+            pastiTable.appendChild(creaRigaPasto());
+        }
+    };
+
+    const renderExtra = (rows = []) => {
+        extraTable.innerHTML = '';
+        if (rows.length) {
+            rows.forEach((item) => {
+                extraTable.appendChild(creaRigaExtra(item));
+            });
+        }
+    };
+
+    const resetFormData = (data, pastiRows = [], extraRows = []) => {
+        form.querySelector('input[name="id"]').value = data.id ?? 0;
+        document.getElementById('nomeGruppo').value = data.nome_gruppo ?? '';
+        document.getElementById('referente').value = data.referente ?? '';
+        document.getElementById('agenzia').value = data.agenzia ?? '';
+        document.getElementById('telefono').value = data.telefono ?? '';
+        document.getElementById('email').value = data.email ?? '';
+        document.getElementById('dataArrivo').value = data.data_arrivo ?? '';
+        document.getElementById('dataPartenza').value = data.data_partenza ?? '';
+        document.getElementById('numeroPersone').value = data.numero_persone ?? 0;
+        document.getElementById('tipologiaCamere').value = data.tipologia_camere ?? '';
+        document.getElementById('areaPreferita').value = data.area_preferita ?? '';
+        document.getElementById('noteOperative').value = data.note_operativa ?? '';
+        renderPasti(pastiRows);
+        renderExtra(extraRows);
+        rinumeraRighe();
+        aggiornaPreview();
+    };
+
     document.getElementById('aggiungiPasto').addEventListener('click', () => {
         pastiTable.appendChild(creaRigaPasto());
         rinumeraRighe();
@@ -754,22 +806,18 @@ $shouldShowForm = $currentId > 0 || ($_GET['open'] ?? '') === '1';
         pdf.save(`${nome.toLowerCase().replace(/\s+/g, '-')}.pdf`);
     });
 
-    if (storedPasti.length) {
-        storedPasti.forEach((item) => {
-            pastiTable.appendChild(creaRigaPasto(item));
-        });
-    } else {
-        pastiTable.appendChild(creaRigaPasto());
-    }
+    resetFormData(currentData, storedPasti, storedExtra);
 
-    if (storedExtra.length) {
-        storedExtra.forEach((item) => {
-            extraTable.appendChild(creaRigaExtra(item));
-        });
-    }
+    const newSchedaBtn = document.getElementById('openNewScheda');
+    newSchedaBtn?.addEventListener('click', () => {
+        resetFormData(emptyData, [], []);
+    });
 
-    rinumeraRighe();
-    aggiornaPreview();
+    if (shouldShowModal && window.bootstrap) {
+        const modalEl = document.getElementById('gruppoModal');
+        const modal = modalEl ? new bootstrap.Modal(modalEl) : null;
+        modal?.show();
+    }
 </script>
 
 <?php
