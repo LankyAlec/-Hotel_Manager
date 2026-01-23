@@ -35,13 +35,9 @@ function add_column_if_missing(mysqli $db, string $table, string $column, string
 function get_tipologie_camere(mysqli $db): array
 {
     $tipologie = [];
-    if (table_exists($db, 'soggiorni_tipologie_letti')) {
-        $res = $db->query("SELECT id, codice, descrizione FROM soggiorni_tipologie_letti ORDER BY id ASC");
-        $tipologie = $res instanceof mysqli_result ? $res->fetch_all(MYSQLI_ASSOC) : [];
-    }
 
     if (empty($tipologie) && table_exists($db, 'soggiorni_tariffe')) {
-        $res = $db->query("SELECT codice, descrizione FROM soggiorni_tariffe GROUP BY codice, descrizione ORDER BY descrizione ASC, codice ASC");
+        $res = $db->query("SELECT codice, descrizione FROM soggiorni_tariffe GROUP BY codice, descrizione ORDER BY  prezzo_solo_pernottamento ASC");
         $tipologie = $res instanceof mysqli_result ? $res->fetch_all(MYSQLI_ASSOC) : [];
     }
 
@@ -435,7 +431,6 @@ $shouldShowModal = $shouldShowForm;
                                     <option value="<?= h($gruppo['nome_gruppo']) ?>" data-id="<?= (int)$gruppo['id'] ?>"></option>
                                 <?php endforeach; ?>
                             </datalist>
-                            <div class="form-text">Seleziona un nome per caricare i dati già registrati.</div>
                         </div>
                         <div class="col-md-4 d-flex gap-2">
                             <button class="btn btn-outline-primary w-100" type="button" id="caricaGruppo">
@@ -514,7 +509,7 @@ $shouldShowModal = $shouldShowForm;
                                     <?php foreach ($tipologieCamere as $tipologia): ?>
                                         <?php
                                             $codice = (string)($tipologia['codice'] ?? '');
-                                            $label = (string)($tipologia['descrizione'] ?? $codice);
+                                            $label = $codice;
                                             $qty = (int)($camereData[$codice] ?? 0);
                                         ?>
                                         <div class="col-6 col-lg-3">
