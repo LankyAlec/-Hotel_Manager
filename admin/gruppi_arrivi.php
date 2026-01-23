@@ -531,11 +531,11 @@ $shouldShowModal = $shouldShowForm;
                         <table class="table table-sm align-middle mb-0" id="pastiTable">
                             <thead>
                                 <tr>
-                                    <th>Data</th>
-                                    <th>Tipo</th>
-                                    <th>Ora</th>
-                                    <th>Note</th>
-                                    <th></th>
+                                    <th class="w-25">Data</th>
+                                    <th class="w-25">Voce</th>
+                                    <th class="w-15">Ora</th>
+                                    <th class="w-25">Note</th>
+                                    <th class="w-10"></th>
                                 </tr>
                             </thead>
                             <tbody></tbody>
@@ -554,11 +554,11 @@ $shouldShowModal = $shouldShowForm;
                         <table class="table table-sm align-middle mb-0" id="extraTable">
                             <thead>
                                 <tr>
-                                    <th>Data</th>
-                                    <th>Descrizione</th>
-                                    <th>Orario</th>
-                                    <th>Note</th>
-                                    <th></th>
+                                    <th class="w-25">Data</th>
+                                    <th class="w-25">Voce</th>
+                                    <th class="w-15">Ora</th>
+                                    <th class="w-25">Note</th>
+                                    <th class="w-10"></th>
                                 </tr>
                             </thead>
                             <tbody></tbody>
@@ -573,9 +573,6 @@ $shouldShowModal = $shouldShowForm;
                     <button class="btn btn-primary" type="button" id="generaPdf">
                         <i class="bi bi-filetype-pdf"></i> Genera PDF
                     </button>
-                    <a class="btn btn-outline-secondary" href="<?= BASE_URL ?>/admin/gruppi_arrivi.php">
-                        <i class="bi bi-arrow-counterclockwise"></i> Nuova scheda
-                    </a>
                 </div>
                 </form>
             </div>
@@ -625,10 +622,10 @@ $shouldShowModal = $shouldShowForm;
                 <table class="table table-sm" id="previewPasti">
                     <thead>
                         <tr>
-                            <th>Data</th>
-                            <th>Tipo</th>
-                            <th>Ora</th>
-                            <th>Note</th>
+                            <th class="w-25">Data</th>
+                            <th class="w-25">Voce</th>
+                            <th class="w-15">Ora</th>
+                            <th class="w-25">Note</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -646,10 +643,10 @@ $shouldShowModal = $shouldShowForm;
                 <table class="table table-sm" id="previewExtra">
                     <thead>
                         <tr>
-                            <th>Data</th>
-                            <th>Descrizione</th>
-                            <th>Orario</th>
-                            <th>Note</th>
+                            <th class="w-25">Data</th>
+                            <th class="w-25">Voce</th>
+                            <th class="w-15">Ora</th>
+                            <th class="w-25">Note</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -775,11 +772,15 @@ $shouldShowModal = $shouldShowForm;
         area: document.getElementById('previewArea'),
         note: document.getElementById('previewNote'),
         pasti: document.querySelector('#previewPasti tbody'),
-        extra: document.querySelector('#previewExtra tbody')
+        pastiHeader: document.querySelector('#previewPasti thead'),
+        extra: document.querySelector('#previewExtra tbody'),
+        extraHeader: document.querySelector('#previewExtra thead')
     };
 
     const pastiTable = document.querySelector('#pastiTable tbody');
     const extraTable = document.querySelector('#extraTable tbody');
+    const pastiTableHeader = document.querySelector('#pastiTable thead');
+    const extraTableHeader = document.querySelector('#extraTable thead');
 
     const storedPasti = <?= json_encode($pastiData, JSON_UNESCAPED_UNICODE) ?>;
     const storedExtra = <?= json_encode($extraData, JSON_UNESCAPED_UNICODE) ?>;
@@ -859,6 +860,12 @@ $shouldShowModal = $shouldShowForm;
         });
     };
 
+    const toggleTableHeader = (tableBody, headerEl) => {
+        if (!headerEl) return;
+        const hasRows = tableBody.querySelectorAll('tr').length > 0;
+        headerEl.classList.toggle('d-none', !hasRows);
+    };
+
     const aggiornaPreview = () => {
         preview.nome.textContent = document.getElementById('nomeGruppo').value || 'Nome gruppo';
         preview.agenzia.textContent = document.getElementById('agenzia').value || 'Agenzia / Ente';
@@ -899,6 +906,9 @@ $shouldShowModal = $shouldShowForm;
                 preview.pasti.appendChild(tr);
             });
         }
+        if (preview.pastiHeader) {
+            preview.pastiHeader.classList.toggle('d-none', pastiRows.length === 0);
+        }
 
         const extraRows = Array.from(extraTable.querySelectorAll('tr')).map((row) => {
             const inputs = row.querySelectorAll('input');
@@ -920,6 +930,11 @@ $shouldShowModal = $shouldShowForm;
                 preview.extra.appendChild(tr);
             });
         }
+        if (preview.extraHeader) {
+            preview.extraHeader.classList.toggle('d-none', extraRows.length === 0);
+        }
+        toggleTableHeader(pastiTable, pastiTableHeader);
+        toggleTableHeader(extraTable, extraTableHeader);
     };
 
     const renderPasti = (rows = []) => {
@@ -928,9 +943,8 @@ $shouldShowModal = $shouldShowForm;
             rows.forEach((item) => {
                 pastiTable.appendChild(creaRigaPasto(item));
             });
-        } else {
-            pastiTable.appendChild(creaRigaPasto());
         }
+        toggleTableHeader(pastiTable, pastiTableHeader);
     };
 
     const renderExtra = (rows = []) => {
@@ -940,6 +954,7 @@ $shouldShowModal = $shouldShowForm;
                 extraTable.appendChild(creaRigaExtra(item));
             });
         }
+        toggleTableHeader(extraTable, extraTableHeader);
     };
 
     const buildCamereSummary = () => {
