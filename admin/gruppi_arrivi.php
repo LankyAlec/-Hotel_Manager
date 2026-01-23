@@ -380,28 +380,103 @@ $shouldShowForm = $currentId > 0 || ($_GET['open'] ?? '') === '1';
 $shouldShowModal = $shouldShowForm;
 ?>
 
+<style>
+    .topbar {
+        display: flex;
+        gap: 14px;
+        flex-wrap: wrap;
+        align-items: flex-start;
+        justify-content: space-between;
+    }
+
+    .topbar .left h3 {
+        margin: 0;
+    }
+
+    .topbar .left .sub {
+        color: #6c757d;
+        font-size: 0.9rem;
+        margin-top: 4px;
+    }
+
+    .pillbar {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        flex-wrap: wrap;
+        padding: 10px;
+        border-radius: 16px;
+        background: #fff;
+        border: 1px solid rgba(0, 0, 0, 0.08);
+        box-shadow: 0 0.2rem 0.7rem rgba(0, 0, 0, 0.04);
+    }
+
+    .searchbox {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        border: 1px solid rgba(0, 0, 0, 0.1);
+        background: #f9fafb;
+        border-radius: 14px;
+        padding: 8px 10px;
+        min-width: 320px;
+    }
+
+    .searchbox i {
+        opacity: 0.75;
+    }
+
+    .searchbox input {
+        border: 0;
+        outline: 0;
+        background: transparent;
+        width: 100%;
+        font-size: 0.95rem;
+    }
+
+    @media (max-width: 992px) {
+        .searchbox {
+            min-width: 100%;
+        }
+
+        .pillbar {
+            width: 100%;
+        }
+    }
+
+    .btn-cta {
+        border-radius: 14px;
+        height: 42px;
+        padding: 0 14px;
+        font-weight: 800;
+        box-shadow: 0 0.25rem 0.85rem rgba(13, 110, 253, 0.18);
+    }
+
+    .btn-cta i {
+        margin-right: 6px;
+    }
+</style>
+
 <?php if ($alert): ?>
 <div class="alert alert-<?= h($alertType) ?>">
     <?= h($alert) ?>
 </div>
 <?php endif; ?>
 
-<div class="card table-card mb-4">
-    <div class="card-body">
-        <div class="d-flex flex-column flex-lg-row align-items-lg-center justify-content-between gap-3">
-            <div>
-                <h4 class="mb-1">Scheda gruppi in arrivo</h4>
-                <p class="text-muted mb-0">Cerca rapidamente, gestisci le schede e crea una nuova registrazione.</p>
-            </div>
-            <div class="d-flex flex-wrap gap-2">
-                <form class="d-flex gap-2" method="get">
-                    <input type="text" class="form-control" name="search" placeholder="Cerca gruppo, referente o agenzia" value="<?= h($search) ?>">
-                    <button class="btn btn-outline-primary" type="submit"><i class="bi bi-search"></i> Cerca</button>
-                </form>
-                <button class="btn btn-primary" type="button" id="openNewScheda" data-bs-toggle="modal" data-bs-target="#gruppoModal">
-                    <i class="bi bi-plus-circle"></i> Nuova scheda
-                </button>
-            </div>
+<div class="topbar mb-4">
+    <div class="left">
+        <h3><i class="bi bi-people"></i> Scheda gruppi in arrivo</h3>
+        <div class="sub">Cerca rapidamente, gestisci le schede e crea una nuova registrazione.</div>
+    </div>
+    <div class="topbar-right">
+        <div class="pillbar">
+            <form class="searchbox" method="get">
+                <i class="bi bi-search"></i>
+                <input type="text" name="search" placeholder="Cerca gruppo, referente o agenzia" value="<?= h($search) ?>">
+            </form>
+            <button class="btn btn-primary btn-cta" type="button" id="openNewScheda" data-bs-toggle="modal" data-bs-target="#gruppoModal">
+                <i class="bi bi-plus-circle"></i> Nuova scheda
+            </button>
         </div>
     </div>
 </div>
