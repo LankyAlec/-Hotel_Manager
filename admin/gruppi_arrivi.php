@@ -80,6 +80,10 @@ function ensure_gruppi_arrivi_table(mysqli $mysqli): void
         area_preferita VARCHAR(120) NULL,
         trattamento VARCHAR(20) NULL,
         note_operativa TEXT NULL,
+        note_ricevimento TEXT NULL,
+        note_cucina TEXT NULL,
+        note_housekeeping TEXT NULL,
+        note_manutenzione TEXT NULL,
         pasti_json LONGTEXT NULL,
         extra_json LONGTEXT NULL,
         created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -92,6 +96,10 @@ function ensure_gruppi_arrivi_table(mysqli $mysqli): void
     add_column_if_missing($mysqli, 'gruppi_arrivi', 'numero_bambini', 'INT UNSIGNED NOT NULL DEFAULT 0');
     add_column_if_missing($mysqli, 'gruppi_arrivi', 'camere_json', 'LONGTEXT NULL');
     add_column_if_missing($mysqli, 'gruppi_arrivi', 'trattamento', 'VARCHAR(20) NULL');
+    add_column_if_missing($mysqli, 'gruppi_arrivi', 'note_ricevimento', 'TEXT NULL');
+    add_column_if_missing($mysqli, 'gruppi_arrivi', 'note_cucina', 'TEXT NULL');
+    add_column_if_missing($mysqli, 'gruppi_arrivi', 'note_housekeeping', 'TEXT NULL');
+    add_column_if_missing($mysqli, 'gruppi_arrivi', 'note_manutenzione', 'TEXT NULL');
 }
 
 ensure_gruppi_arrivi_table($mysqli);
@@ -117,6 +125,10 @@ $emptyData = [
     'area_preferita' => '',
     'trattamento' => '',
     'note_operativa' => '',
+    'note_ricevimento' => '',
+    'note_cucina' => '',
+    'note_housekeeping' => '',
+    'note_manutenzione' => '',
     'pasti_json' => '[]',
     'extra_json' => '[]'
 ];
@@ -152,6 +164,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $tipologiaCamere = trim($_POST['tipologia_camere'] ?? '');
         $areaPreferita = trim($_POST['area_preferita'] ?? '');
         $noteOperativa = trim($_POST['note_operativa'] ?? '');
+        $noteRicevimento = trim($_POST['note_ricevimento'] ?? '');
+        $noteCucina = trim($_POST['note_cucina'] ?? '');
+        $noteHousekeeping = trim($_POST['note_housekeeping'] ?? '');
+        $noteManutenzione = trim($_POST['note_manutenzione'] ?? '');
         $pasti = $_POST['pasti'] ?? [];
         $extra = $_POST['extra'] ?? [];
         $pastiJson = json_encode(array_values($pasti), JSON_UNESCAPED_UNICODE);
@@ -177,10 +193,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt = $mysqli->prepare("UPDATE gruppi_arrivi
                     SET nome_gruppo=?, referente=?, agenzia=?, telefono=?, email=?, data_arrivo=?, data_partenza=?,
                         numero_persone=?, numero_adulti=?, numero_bambini=?, tipologia_camere=?, camere_json=?, area_preferita=?,
-                        trattamento=?, note_operativa=?, pasti_json=?, extra_json=?
+                        trattamento=?, note_operativa=?, note_ricevimento=?, note_cucina=?, note_housekeeping=?, note_manutenzione=?,
+                        pasti_json=?, extra_json=?
                     WHERE id=?");
                 $stmt->bind_param(
-                    "sssssssiiisssssssi",
+                    "sssssssiiisssssssssssi",
                     $nomeGruppo,
                     $referente,
                     $agenzia,
@@ -196,6 +213,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $areaPreferita,
                     $trattamento,
                     $noteOperativa,
+                    $noteRicevimento,
+                    $noteCucina,
+                    $noteHousekeeping,
+                    $noteManutenzione,
                     $pastiJson,
                     $extraJson,
                     $currentId
@@ -213,10 +234,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt = $mysqli->prepare("INSERT INTO gruppi_arrivi
                     (nome_gruppo, referente, agenzia, telefono, email, data_arrivo, data_partenza, numero_persone,
                      numero_adulti, numero_bambini, tipologia_camere, camere_json, area_preferita, trattamento,
-                     note_operativa, pasti_json, extra_json)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                     note_operativa, note_ricevimento, note_cucina, note_housekeeping, note_manutenzione, pasti_json, extra_json)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
                 $stmt->bind_param(
-                    "sssssssiiissssss",
+                    "sssssssiiisssssssssss",
                     $nomeGruppo,
                     $referente,
                     $agenzia,
@@ -232,6 +253,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $areaPreferita,
                     $trattamento,
                     $noteOperativa,
+                    $noteRicevimento,
+                    $noteCucina,
+                    $noteHousekeeping,
+                    $noteManutenzione,
                     $pastiJson,
                     $extraJson
                 );
@@ -417,9 +442,6 @@ $shouldShowModal = $shouldShowForm;
                             <button class="btn btn-outline-primary w-100" type="button" id="caricaGruppo">
                                 <i class="bi bi-folder2-open"></i> Carica scheda
                             </button>
-                            <button class="btn btn-outline-secondary w-100" type="button" id="svuotaGruppo">
-                                <i class="bi bi-eraser"></i> Svuota
-                            </button>
                         </div>
                     </div>
                 </div>
@@ -531,11 +553,10 @@ $shouldShowModal = $shouldShowForm;
                         <table class="table table-sm align-middle mb-0" id="pastiTable">
                             <thead>
                                 <tr>
-                                    <th class="w-25">Data</th>
-                                    <th class="w-25">Voce</th>
-                                    <th class="w-15">Ora</th>
-                                    <th class="w-25">Note</th>
-                                    <th class="w-10"></th>
+                                    <th class="w-30">Data</th>
+                                    <th class="w-35">Voce</th>
+                                    <th class="w-20">Ora</th>
+                                    <th class="w-15"></th>
                                 </tr>
                             </thead>
                             <tbody></tbody>
@@ -554,15 +575,36 @@ $shouldShowModal = $shouldShowForm;
                         <table class="table table-sm align-middle mb-0" id="extraTable">
                             <thead>
                                 <tr>
-                                    <th class="w-25">Data</th>
-                                    <th class="w-25">Voce</th>
-                                    <th class="w-15">Ora</th>
-                                    <th class="w-25">Note</th>
-                                    <th class="w-10"></th>
+                                    <th class="w-30">Data</th>
+                                    <th class="w-35">Voce</th>
+                                    <th class="w-20">Ora</th>
+                                    <th class="w-15"></th>
                                 </tr>
                             </thead>
                             <tbody></tbody>
                         </table>
+                    </div>
+                </div>
+
+                <div class="border rounded-4 p-3">
+                    <h6 class="text-uppercase text-muted mb-3">Note reparti</h6>
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <label class="form-label">RICEVIMENTO</label>
+                            <textarea class="form-control" name="note_ricevimento" id="noteRicevimento" rows="4" placeholder="Note per il ricevimento"><?= h($currentData['note_ricevimento']) ?></textarea>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">CUCINA/RISTORANTE</label>
+                            <textarea class="form-control" name="note_cucina" id="noteCucina" rows="4" placeholder="Note per cucina/ristorante"><?= h($currentData['note_cucina']) ?></textarea>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">HOUSEKEEPING</label>
+                            <textarea class="form-control" name="note_housekeeping" id="noteHousekeeping" rows="4" placeholder="Note per housekeeping"><?= h($currentData['note_housekeeping']) ?></textarea>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">MANUTENZIONE</label>
+                            <textarea class="form-control" name="note_manutenzione" id="noteManutenzione" rows="4" placeholder="Note per manutenzione"><?= h($currentData['note_manutenzione']) ?></textarea>
+                        </div>
                     </div>
                 </div>
 
@@ -655,6 +697,27 @@ $shouldShowModal = $shouldShowForm;
                         </tr>
                     </tbody>
                 </table>
+            </div>
+        </div>
+
+        <hr class="my-4">
+
+        <div class="row g-4">
+            <div class="col-12">
+                <h6 class="text-uppercase text-muted">Ricevimento</h6>
+                <p class="mb-0" id="previewNoteRicevimento">Nessuna nota per il ricevimento.</p>
+            </div>
+            <div class="col-12">
+                <h6 class="text-uppercase text-muted">Cucina/Ristorante</h6>
+                <p class="mb-0" id="previewNoteCucina">Nessuna nota per cucina/ristorante.</p>
+            </div>
+            <div class="col-12">
+                <h6 class="text-uppercase text-muted">Housekeeping</h6>
+                <p class="mb-0" id="previewNoteHousekeeping">Nessuna nota per housekeeping.</p>
+            </div>
+            <div class="col-12">
+                <h6 class="text-uppercase text-muted">Manutenzione</h6>
+                <p class="mb-0" id="previewNoteManutenzione">Nessuna nota per manutenzione.</p>
             </div>
         </div>
     </div>
@@ -771,6 +834,10 @@ $shouldShowModal = $shouldShowForm;
         trattamento: document.getElementById('previewTrattamento'),
         area: document.getElementById('previewArea'),
         note: document.getElementById('previewNote'),
+        noteRicevimento: document.getElementById('previewNoteRicevimento'),
+        noteCucina: document.getElementById('previewNoteCucina'),
+        noteHousekeeping: document.getElementById('previewNoteHousekeeping'),
+        noteManutenzione: document.getElementById('previewNoteManutenzione'),
         pasti: document.querySelector('#previewPasti tbody'),
         pastiHeader: document.querySelector('#previewPasti thead'),
         extra: document.querySelector('#previewExtra tbody'),
@@ -790,9 +857,15 @@ $shouldShowModal = $shouldShowForm;
     const gruppiArchivio = <?= json_encode($gruppiArchivio, JSON_UNESCAPED_UNICODE) ?>;
     const shouldShowModal = <?= $shouldShowModal ? 'true' : 'false' ?>;
 
+    let rowCounter = 0;
+    const createRowGroupId = () => `row-${Date.now()}-${rowCounter++}`;
+
     const creaRigaPasto = (data = {}) => {
-        const row = document.createElement('tr');
-        row.innerHTML = `
+        const groupId = createRowGroupId();
+        const mainRow = document.createElement('tr');
+        mainRow.dataset.group = groupId;
+        mainRow.dataset.type = 'pasto-main';
+        mainRow.innerHTML = `
             <td><input type="date" class="form-control form-control-sm" value="${data.data || ''}" required></td>
             <td>
                 <select class="form-select form-select-sm" required>
@@ -805,58 +878,97 @@ $shouldShowModal = $shouldShowForm;
                 </select>
             </td>
             <td><input type="time" class="form-control form-control-sm" value="${data.ora || ''}" required></td>
-            <td><textarea class="form-control form-control-sm" rows="2" placeholder="Allergie, menù" required>${data.note || ''}</textarea></td>
             <td class="text-end">
                 <button type="button" class="btn btn-sm btn-outline-danger"><i class="bi bi-x"></i></button>
             </td>
         `;
-        row.querySelector('button').addEventListener('click', () => {
-            row.remove();
+        const noteRow = document.createElement('tr');
+        noteRow.dataset.group = groupId;
+        noteRow.dataset.type = 'pasto-note';
+        noteRow.innerHTML = `
+            <td colspan="4">
+                <label class="form-label small text-muted mb-1">Note</label>
+                <textarea class="form-control form-control-sm" rows="7" placeholder="Allergie, menù">${data.note || ''}</textarea>
+            </td>
+        `;
+        mainRow.querySelector('button').addEventListener('click', () => {
+            mainRow.remove();
+            noteRow.remove();
             rinumeraRighe();
             aggiornaPreview();
         });
-        row.querySelectorAll('input, select, textarea').forEach((input) => {
+        mainRow.querySelectorAll('input, select').forEach((input) => {
             input.addEventListener('input', aggiornaPreview);
         });
-        return row;
+        noteRow.querySelectorAll('textarea').forEach((input) => {
+            input.addEventListener('input', aggiornaPreview);
+        });
+        return [mainRow, noteRow];
     };
 
     const creaRigaExtra = (data = {}) => {
-        const row = document.createElement('tr');
-        row.innerHTML = `
+        const groupId = createRowGroupId();
+        const mainRow = document.createElement('tr');
+        mainRow.dataset.group = groupId;
+        mainRow.dataset.type = 'extra-main';
+        mainRow.innerHTML = `
             <td><input type="date" class="form-control form-control-sm" value="${data.data || ''}" required></td>
             <td><input type="text" class="form-control form-control-sm" value="${data.descrizione || ''}" placeholder="Visita guidata, sala meeting" required></td>
             <td><input type="time" class="form-control form-control-sm" value="${data.ora || ''}" required></td>
-            <td><input type="text" class="form-control form-control-sm" value="${data.note || ''}" placeholder="Referente, note" required></td>
             <td class="text-end">
                 <button type="button" class="btn btn-sm btn-outline-danger"><i class="bi bi-x"></i></button>
             </td>
         `;
-        row.querySelector('button').addEventListener('click', () => {
-            row.remove();
+        const noteRow = document.createElement('tr');
+        noteRow.dataset.group = groupId;
+        noteRow.dataset.type = 'extra-note';
+        noteRow.innerHTML = `
+            <td colspan="4">
+                <label class="form-label small text-muted mb-1">Note</label>
+                <textarea class="form-control form-control-sm" rows="7" placeholder="Referente, note">${data.note || ''}</textarea>
+            </td>
+        `;
+        mainRow.querySelector('button').addEventListener('click', () => {
+            mainRow.remove();
+            noteRow.remove();
             rinumeraRighe();
             aggiornaPreview();
         });
-        row.querySelectorAll('input').forEach((input) => {
+        mainRow.querySelectorAll('input').forEach((input) => {
             input.addEventListener('input', aggiornaPreview);
         });
-        return row;
+        noteRow.querySelectorAll('textarea').forEach((input) => {
+            input.addEventListener('input', aggiornaPreview);
+        });
+        return [mainRow, noteRow];
     };
 
     const rinumeraRighe = () => {
-        Array.from(pastiTable.querySelectorAll('tr')).forEach((row, index) => {
-            const inputs = row.querySelectorAll('input, select, textarea');
+        const pastiMainRows = Array.from(pastiTable.querySelectorAll('tr[data-type="pasto-main"]'));
+        pastiMainRows.forEach((row, index) => {
+            const groupId = row.dataset.group;
+            const noteRow = pastiTable.querySelector(`tr[data-type="pasto-note"][data-group="${groupId}"]`);
+            const inputs = row.querySelectorAll('input, select');
+            const noteTextarea = noteRow?.querySelector('textarea');
             inputs[0].name = `pasti[${index}][data]`;
             inputs[1].name = `pasti[${index}][tipo]`;
             inputs[2].name = `pasti[${index}][ora]`;
-            inputs[3].name = `pasti[${index}][note]`;
+            if (noteTextarea) {
+                noteTextarea.name = `pasti[${index}][note]`;
+            }
         });
-        Array.from(extraTable.querySelectorAll('tr')).forEach((row, index) => {
+        const extraMainRows = Array.from(extraTable.querySelectorAll('tr[data-type="extra-main"]'));
+        extraMainRows.forEach((row, index) => {
+            const groupId = row.dataset.group;
+            const noteRow = extraTable.querySelector(`tr[data-type="extra-note"][data-group="${groupId}"]`);
             const inputs = row.querySelectorAll('input');
+            const noteTextarea = noteRow?.querySelector('textarea');
             inputs[0].name = `extra[${index}][data]`;
             inputs[1].name = `extra[${index}][descrizione]`;
             inputs[2].name = `extra[${index}][ora]`;
-            inputs[3].name = `extra[${index}][note]`;
+            if (noteTextarea) {
+                noteTextarea.name = `extra[${index}][note]`;
+            }
         });
     };
 
@@ -885,14 +997,20 @@ $shouldShowModal = $shouldShowForm;
         preview.trattamento.textContent = document.getElementById('trattamento').value || 'Trattamento';
         preview.area.textContent = document.getElementById('areaPreferita').value || 'Area preferita';
         preview.note.textContent = document.getElementById('noteOperative').value || 'Inserisci eventuali note operative.';
+        preview.noteRicevimento.textContent = document.getElementById('noteRicevimento').value || 'Nessuna nota per il ricevimento.';
+        preview.noteCucina.textContent = document.getElementById('noteCucina').value || 'Nessuna nota per cucina/ristorante.';
+        preview.noteHousekeeping.textContent = document.getElementById('noteHousekeeping').value || 'Nessuna nota per housekeeping.';
+        preview.noteManutenzione.textContent = document.getElementById('noteManutenzione').value || 'Nessuna nota per manutenzione.';
 
-        const pastiRows = Array.from(pastiTable.querySelectorAll('tr')).map((row) => {
-            const inputs = row.querySelectorAll('input, select, textarea');
+        const pastiRows = Array.from(pastiTable.querySelectorAll('tr[data-type="pasto-main"]')).map((row) => {
+            const inputs = row.querySelectorAll('input, select');
+            const noteRow = pastiTable.querySelector(`tr[data-type="pasto-note"][data-group="${row.dataset.group}"]`);
+            const noteTextarea = noteRow?.querySelector('textarea');
             return {
                 data: inputs[0].value,
                 tipo: inputs[1].value,
                 ora: inputs[2].value,
-                note: inputs[3].value
+                note: noteTextarea?.value || ''
             };
         }).filter((row) => row.data || row.tipo || row.ora || row.note);
 
@@ -910,13 +1028,15 @@ $shouldShowModal = $shouldShowForm;
             preview.pastiHeader.classList.toggle('d-none', pastiRows.length === 0);
         }
 
-        const extraRows = Array.from(extraTable.querySelectorAll('tr')).map((row) => {
+        const extraRows = Array.from(extraTable.querySelectorAll('tr[data-type="extra-main"]')).map((row) => {
             const inputs = row.querySelectorAll('input');
+            const noteRow = extraTable.querySelector(`tr[data-type="extra-note"][data-group="${row.dataset.group}"]`);
+            const noteTextarea = noteRow?.querySelector('textarea');
             return {
                 data: inputs[0].value,
                 descrizione: inputs[1].value,
                 ora: inputs[2].value,
-                note: inputs[3].value
+                note: noteTextarea?.value || ''
             };
         }).filter((row) => row.data || row.descrizione || row.ora || row.note);
 
@@ -941,7 +1061,8 @@ $shouldShowModal = $shouldShowForm;
         pastiTable.innerHTML = '';
         if (rows.length) {
             rows.forEach((item) => {
-                pastiTable.appendChild(creaRigaPasto(item));
+                const rowItems = creaRigaPasto(item);
+                rowItems.forEach((row) => pastiTable.appendChild(row));
             });
         }
         toggleTableHeader(pastiTable, pastiTableHeader);
@@ -951,7 +1072,8 @@ $shouldShowModal = $shouldShowForm;
         extraTable.innerHTML = '';
         if (rows.length) {
             rows.forEach((item) => {
-                extraTable.appendChild(creaRigaExtra(item));
+                const rowItems = creaRigaExtra(item);
+                rowItems.forEach((row) => extraTable.appendChild(row));
             });
         }
         toggleTableHeader(extraTable, extraTableHeader);
@@ -995,6 +1117,10 @@ $shouldShowModal = $shouldShowForm;
         }
         document.getElementById('areaPreferita').value = data.area_preferita ?? '';
         document.getElementById('noteOperative').value = data.note_operativa ?? '';
+        document.getElementById('noteRicevimento').value = data.note_ricevimento ?? '';
+        document.getElementById('noteCucina').value = data.note_cucina ?? '';
+        document.getElementById('noteHousekeeping').value = data.note_housekeeping ?? '';
+        document.getElementById('noteManutenzione').value = data.note_manutenzione ?? '';
         document.querySelectorAll('.camera-qty').forEach((input) => {
             const code = input.dataset.code || '';
             input.value = camereRows[code] ?? 0;
@@ -1006,13 +1132,15 @@ $shouldShowModal = $shouldShowForm;
     };
 
     document.getElementById('aggiungiPasto').addEventListener('click', () => {
-        pastiTable.appendChild(creaRigaPasto());
+        const rowItems = creaRigaPasto();
+        rowItems.forEach((row) => pastiTable.appendChild(row));
         rinumeraRighe();
         aggiornaPreview();
     });
 
     document.getElementById('aggiungiExtra').addEventListener('click', () => {
-        extraTable.appendChild(creaRigaExtra());
+        const rowItems = creaRigaExtra();
+        rowItems.forEach((row) => extraTable.appendChild(row));
         rinumeraRighe();
         aggiornaPreview();
     });
@@ -1070,7 +1198,6 @@ $shouldShowModal = $shouldShowForm;
     const gruppiById = new Map((gruppiArchivio || []).map((gruppo) => [String(gruppo.id), gruppo]));
     const lookupInput = document.getElementById('gruppoLookup');
     const caricaBtn = document.getElementById('caricaGruppo');
-    const svuotaBtn = document.getElementById('svuotaGruppo');
 
     const getGruppoSelezionato = () => {
         if (!lookupInput) return null;
@@ -1089,11 +1216,6 @@ $shouldShowModal = $shouldShowForm;
             return;
         }
         resetFormData(gruppo, gruppo.pasti || [], gruppo.extra || [], gruppo.camere || {});
-    });
-
-    svuotaBtn?.addEventListener('click', () => {
-        resetFormData(emptyData, [], [], {});
-        if (lookupInput) lookupInput.value = '';
     });
 </script>
 
