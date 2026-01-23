@@ -233,6 +233,7 @@ $stmt->close();
 $pastiData = json_decode($currentData['pasti_json'] ?? '[]', true) ?: [];
 $extraData = json_decode($currentData['extra_json'] ?? '[]', true) ?: [];
 $queryBase = $search !== '' ? 'search=' . urlencode($search) . '&' : '';
+$shouldShowForm = $currentId > 0 || ($_GET['open'] ?? '') === '1';
 ?>
 
 <?php if ($alert): ?>
@@ -253,7 +254,7 @@ $queryBase = $search !== '' ? 'search=' . urlencode($search) . '&' : '';
                     <input type="text" class="form-control" name="search" placeholder="Cerca gruppo, referente o agenzia" value="<?= h($search) ?>">
                     <button class="btn btn-outline-primary" type="submit"><i class="bi bi-search"></i> Cerca</button>
                 </form>
-                <a class="btn btn-primary" href="<?= BASE_URL ?>/admin/gruppi_arrivi.php">
+                <a class="btn btn-primary" href="<?= BASE_URL ?>/admin/gruppi_arrivi.php?open=1">
                     <i class="bi bi-plus-circle"></i> Nuova scheda
                 </a>
             </div>
@@ -263,17 +264,23 @@ $queryBase = $search !== '' ? 'search=' . urlencode($search) . '&' : '';
 
 <div class="row g-4">
     <div class="col-12">
-        <div class="card toolbar-card">
-            <div class="card-body">
-                <div class="d-flex align-items-center justify-content-between mb-3">
-                    <div>
-                        <h4 class="mb-1">Scheda gruppo in arrivo</h4>
-                        <p class="text-muted mb-0">Compila tutti i dati manualmente, salva la scheda e genera il PDF in un click.</p>
+        <div class="collapse <?= $shouldShowForm ? 'show' : '' ?>" id="gruppoFormCollapse">
+            <div class="card toolbar-card mb-3 border-0 shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+                        <div>
+                            <h4 class="mb-1">Scheda gruppo in arrivo</h4>
+                            <p class="text-muted mb-0">Compila tutti i dati manualmente, salva la scheda e genera il PDF in un click.</p>
+                        </div>
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="badge badge-soft"><i class="bi bi-stars"></i> Smart</span>
+                            <button class="btn btn-outline-secondary btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#gruppoFormCollapse" aria-expanded="<?= $shouldShowForm ? 'true' : 'false' ?>">
+                                <i class="bi bi-chevron-up"></i> Chiudi scheda
+                            </button>
+                        </div>
                     </div>
-                    <span class="badge badge-soft"><i class="bi bi-stars"></i> Smart</span>
-                </div>
 
-                <form id="gruppoForm" class="vstack gap-3" method="post">
+                    <form id="gruppoForm" class="vstack gap-3" method="post">
                     <input type="hidden" name="action" value="save">
                     <input type="hidden" name="id" value="<?= (int)$currentId ?>">
                     <div class="border rounded-4 p-3">
@@ -389,7 +396,8 @@ $queryBase = $search !== '' ? 'search=' . urlencode($search) . '&' : '';
                             <i class="bi bi-arrow-counterclockwise"></i> Nuova scheda
                         </a>
                     </div>
-                </form>
+                    </form>
+                </div>
             </div>
         </div>
     </div>
