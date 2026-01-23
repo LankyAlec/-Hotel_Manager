@@ -55,8 +55,7 @@ function format_camere_summary(array $camere, array $tipologieMap): string
         if ($qta <= 0) {
             continue;
         }
-        $label = $tipologieMap[$codice] ?? $codice;
-        $parts[] = $label . ': ' . $qta;
+        $parts[] = $codice . ': ' . $qta;
     }
     return implode(', ', $parts);
 }
@@ -1074,8 +1073,8 @@ $shouldShowModal = $shouldShowForm;
         const parts = camereInputs.map((input) => {
             const qty = parseInt(input.value, 10) || 0;
             if (!qty) return null;
-            const label = input.dataset.label || input.dataset.code || 'Camera';
-            return `${label}: ${qty}`;
+            const code = input.dataset.code || 'Camera';
+            return `${code}: ${qty}`;
         }).filter(Boolean);
         return parts.join(', ');
     };
