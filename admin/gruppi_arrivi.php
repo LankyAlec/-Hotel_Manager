@@ -1542,8 +1542,8 @@ $shouldShowModal = $shouldShowForm;
     document.getElementById('generaPdf').addEventListener('click', async () => {
         aggiornaPreview();
         const element = document.getElementById('schedaPreview');
-        const canvas = await html2canvas(element, { scale: 2, backgroundColor: '#ffffff' });
-        const imgData = canvas.toDataURL('image/png');
+        const canvas = await html2canvas(element, { scale: 1.2, backgroundColor: '#ffffff' });
+        const imgData = canvas.toDataURL('image/jpeg', 0.72);
         const { jsPDF } = window.jspdf;
         const pdf = new jsPDF('p', 'mm', 'a4');
         const pageWidth = pdf.internal.pageSize.getWidth();
@@ -1554,12 +1554,12 @@ $shouldShowModal = $shouldShowForm;
         let position = 0;
 
         if (pdfHeight <= pageHeight) {
-            pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, pdfHeight);
+            pdf.addImage(imgData, 'JPEG', 0, position, pdfWidth, pdfHeight);
         } else {
             let remainingHeight = pdfHeight;
             let canvasPosition = 0;
             while (remainingHeight > 0) {
-                pdf.addImage(imgData, 'PNG', 0, canvasPosition, pdfWidth, pdfHeight);
+                pdf.addImage(imgData, 'JPEG', 0, canvasPosition, pdfWidth, pdfHeight);
                 remainingHeight -= pageHeight;
                 canvasPosition -= pageHeight;
                 if (remainingHeight > 0) {
