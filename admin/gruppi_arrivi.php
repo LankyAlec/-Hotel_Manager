@@ -54,6 +54,16 @@ function get_sale_congressi(mysqli $db): array
     return $res instanceof mysqli_result ? $res->fetch_all(MYSQLI_ASSOC) : [];
 }
 
+function get_sale_ristoranti(mysqli $db): array
+{
+    if (!table_exists($db, 'sale_ristoranti')) {
+        return [];
+    }
+
+    $res = $db->query("SELECT id, nome FROM sale_ristoranti ORDER BY nome ASC");
+    return $res instanceof mysqli_result ? $res->fetch_all(MYSQLI_ASSOC) : [];
+}
+
 function format_camere_summary(array $camere, array $tipologieMap): string
 {
     $parts = [];
@@ -136,7 +146,7 @@ $emptyData = [
     'area_preferita' => '',
     'trattamento' => '',
     'note_operativa' => '',
-    'note_ricevimento' => '',
+    'note_ricevimento' => "Richiedere documenti al CHECK IN\nLe  quote saldate con il POS che vanno conservate a parte rispetto agli altri clienti presenti in Hotel.",
     'note_cucina' => '',
     'note_housekeeping' => '',
     'note_manutenzione' => '',
@@ -374,6 +384,7 @@ $areeRiservateData = json_decode($currentData['aree_riservate_json'] ?? '[]', tr
 $areeRiservateData = array_values(array_filter(array_map('intval', (array)$areeRiservateData)));
 $currentData['aree_riservate'] = $areeRiservateData;
 $saleCongressi = get_sale_congressi($mysqli);
+$saleRistoranti = get_sale_ristoranti($mysqli);
 
 $gruppiArchivio = [];
 $archivioRes = $mysqli->query("SELECT * FROM gruppi_arrivi ORDER BY nome_gruppo ASC");
@@ -931,10 +942,11 @@ $shouldShowModal = $shouldShowForm;
                         <table class="table table-sm align-middle mb-0" id="pastiTable">
                             <thead>
                                 <tr>
-                                    <th class="w-30">Data</th>
-                                    <th class="w-35">Voce</th>
+                                    <th class="w-20">Data</th>
+                                    <th class="w-25">Voce</th>
                                     <th class="w-20">Ora</th>
-                                    <th class="w-15"></th>
+                                    <th class="w-25">Sala ristorante</th>
+                                    <th class="w-10"></th>
                                 </tr>
                             </thead>
                             <tbody></tbody>
@@ -1268,10 +1280,15 @@ $shouldShowModal = $shouldShowForm;
     const currentData = <?= json_encode($currentData, JSON_UNESCAPED_UNICODE) ?>;
     const emptyData = <?= json_encode($emptyData, JSON_UNESCAPED_UNICODE) ?>;
     const gruppiArchivio = <?= json_encode($gruppiArchivio, JSON_UNESCAPED_UNICODE) ?>;
+    const saleRistoranti = <?= json_encode($saleRistoranti, JSON_UNESCAPED_UNICODE) ?>;
     const shouldShowModal = <?= $shouldShowModal ? 'true' : 'false' ?>;
 
     let rowCounter = 0;
     const createRowGroupId = () => `row-${Date.now()}-${rowCounter++}`;
+    const saleRistorantiMap = new Map((saleRistoranti || []).map((sala) => [String(sala.id), sala.nome]));
+    const saleRistorantiOptions = (saleRistoranti || [])
+        .map((sala) => `<option value="${sala.id}">${sala.nome}</option>`)
+        .join('');
 
     const creaRigaPasto = (data = {}) => {
         const groupId = createRowGroupId();
@@ -1291,15 +1308,25 @@ $shouldShowModal = $shouldShowForm;
                 </select>
             </td>
             <td><input type="time" class="form-control form-control-sm" value="${data.ora || ''}" required></td>
+            <td>
+                <select class="form-select form-select-sm">
+                    <option value="">Seleziona</option>
+                    ${saleRistorantiOptions}
+                </select>
+            </td>
             <td class="text-end">
                 <button type="button" class="btn btn-sm btn-outline-danger"><i class="bi bi-x"></i></button>
             </td>
         `;
+        const salaSelect = mainRow.querySelector('select.form-select-sm:last-of-type');
+        if (salaSelect) {
+            salaSelect.value = data.sala_ristorante ? String(data.sala_ristorante) : '';
+        }
         const noteRow = document.createElement('tr');
         noteRow.dataset.group = groupId;
         noteRow.dataset.type = 'pasto-note';
         noteRow.innerHTML = `
-            <td colspan="4">
+            <td colspan="5">
                 <label class="form-label small text-muted mb-1">Note</label>
                 <textarea class="form-control form-control-sm" rows="7" placeholder="Allergie, menù">${data.note || ''}</textarea>
             </td>
@@ -1366,6 +1393,7 @@ $shouldShowModal = $shouldShowForm;
             inputs[0].name = `pasti[${index}][data]`;
             inputs[1].name = `pasti[${index}][tipo]`;
             inputs[2].name = `pasti[${index}][ora]`;
+            inputs[3].name = `pasti[${index}][sala_ristorante]`;
             if (noteTextarea) {
                 noteTextarea.name = `pasti[${index}][note]`;
             }
@@ -1551,7 +1579,6 @@ $shouldShowModal = $shouldShowForm;
         preview.noteHousekeeping.textContent = noteHousekeeping;
         preview.noteManutenzione.textContent = noteManutenzione;
         preview.noteManutenzioneSintesi.textContent = noteManutenzione;
-        preview.salaRistorante.textContent = noteCucinaRaw || 'Nessuna nota inserita.';
         preview.allergie.textContent = noteCucinaRaw || 'Nessuna allergia segnalata.';
 
         const pastiRows = Array.from(pastiTable.querySelectorAll('tr[data-type="pasto-main"]')).map((row) => {
@@ -1562,9 +1589,10 @@ $shouldShowModal = $shouldShowForm;
                 data: inputs[0].value,
                 tipo: inputs[1].value,
                 ora: inputs[2].value,
+                sala: inputs[3]?.value || '',
                 note: noteTextarea?.value || ''
             };
-        }).filter((row) => row.data || row.tipo || row.ora || row.note);
+        }).filter((row) => row.data || row.tipo || row.ora || row.sala || row.note);
 
         const extraRows = Array.from(extraTable.querySelectorAll('tr[data-type="extra-main"]')).map((row) => {
             const inputs = row.querySelectorAll('input');
@@ -1577,6 +1605,20 @@ $shouldShowModal = $shouldShowForm;
                 note: noteTextarea?.value || ''
             };
         }).filter((row) => row.data || row.descrizione || row.ora || row.note);
+
+        const salaRistoranteLines = pastiRows.map((row) => {
+            if (!row.sala) {
+                return null;
+            }
+            const salaLabel = saleRistorantiMap.get(String(row.sala)) || row.sala;
+            const dateLabel = row.data ? formatDate(row.data) : '';
+            const oraLabel = row.ora ? ` ${row.ora}` : '';
+            const tipoLabel = row.tipo || 'Pasto';
+            return `${tipoLabel} ${dateLabel}${oraLabel} - ${salaLabel}`.trim();
+        }).filter(Boolean);
+        preview.salaRistorante.textContent = salaRistoranteLines.length
+            ? salaRistoranteLines.join('\n')
+            : 'Nessuna sala ristorante indicata.';
 
         buildMenu(pastiRows);
         buildDistribuzione(extraRows);

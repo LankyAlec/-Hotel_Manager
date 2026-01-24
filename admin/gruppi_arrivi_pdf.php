@@ -80,6 +80,28 @@ function parse_lines(string $text): array
     }, preg_split('/\r?\n/', $text) ?: [])));
 }
 
+function get_sale_ristoranti_map(mysqli $db): array
+{
+    if (!table_exists($db, 'sale_ristoranti')) {
+        return [];
+    }
+
+    $res = $db->query("SELECT id, nome FROM sale_ristoranti ORDER BY nome ASC");
+    if (!$res instanceof mysqli_result) {
+        return [];
+    }
+    $map = [];
+    while ($row = $res->fetch_assoc()) {
+        $id = (int)($row['id'] ?? 0);
+        if ($id <= 0) {
+            continue;
+        }
+        $map[(string)$id] = (string)($row['nome'] ?? '');
+    }
+    $res->free();
+    return $map;
+}
+
 $payload = $_POST;
 
 $nomeGruppo = trim((string)($payload['nome_gruppo'] ?? ''));
@@ -144,8 +166,9 @@ if (is_array($camereInput)) {
     }
 }
 
-$pastiRows = normalize_rows($payload['pasti'] ?? [], ['data', 'tipo', 'ora', 'note']);
+$pastiRows = normalize_rows($payload['pasti'] ?? [], ['data', 'tipo', 'ora', 'sala_ristorante', 'note']);
 $extraRows = normalize_rows($payload['extra'] ?? [], ['data', 'descrizione', 'ora', 'note']);
+$saleRistorantiMap = get_sale_ristoranti_map($mysqli);
 
 $blue = [28, 74, 143];
 $dark = [17, 24, 39];
@@ -276,7 +299,27 @@ $pdf->SetY(20);
 $pdf->SetX(110);
 $drawSectionTitle($pdf, 'SALA RISTORANTE');
 $pdf->SetX(110);
-$drawParagraph($pdf, $noteCucina !== '' ? $noteCucina : 'Nessuna nota inserita.');
+$saleRistoranteLines = [];
+foreach ($pastiRows as $row) {
+    $salaId = trim((string)($row['sala_ristorante'] ?? ''));
+    if ($salaId === '') {
+        continue;
+    }
+    $salaLabel = $saleRistorantiMap[$salaId] ?? $salaId;
+    $parts = array_filter([
+        $row['tipo'] ?: 'Pasto',
+        $row['data'] ? format_date($row['data']) : '',
+        $row['ora'] ?: ''
+    ]);
+    $saleRistoranteLines[] = trim(implode(' ', $parts) . ' - ' . $salaLabel);
+}
+if (!$saleRistoranteLines) {
+    $drawParagraph($pdf, 'Nessuna sala ristorante indicata.');
+} else {
+    foreach ($saleRistoranteLines as $line) {
+        $drawParagraph($pdf, $line);
+    }
+}
 
 $pdf->Ln(6);
 $pdf->SetX($leftMargin);
