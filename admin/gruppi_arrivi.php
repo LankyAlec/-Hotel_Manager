@@ -288,9 +288,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             } else {
                 $stmt = $mysqli->prepare("INSERT INTO gruppi_arrivi
-                    (nome_gruppo, referente, agenzia, telefono, email, data_arrivo, data_partenza, checkin_orario, numero_persone,
-                     numero_adulti, numero_bambini, camere_json, aree_riservate_json,
-                     trattamento, note_operativa, note_ricevimento, note_cucina, note_allergie, note_housekeeping, note_manutenzione, pasti_json, extra_json)
+                    (nome_gruppo, referente, agenzia, telefono, email, data_arrivo, data_partenza, checkin_orario, numero_persone, numero_adulti, numero_bambini, camere_json, aree_riservate_json,trattamento, note_operativa, note_ricevimento, note_cucina, note_allergie, note_housekeeping, note_manutenzione, pasti_json, extra_json)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
                 $stmt->bind_param(
                     "ssssssssiiisssssssssss",
@@ -436,7 +434,7 @@ if ($search !== '') {
     $page = min($page, $totalPages);
     $offset = ($page - 1) * $perPage;
 
-    $stmt = $mysqli->prepare("SELECT id, nome_gruppo, referente, data_arrivo, data_partenza, numero_persone, numero_adulti, numero_bambini
+    $stmt = $mysqli->prepare("SELECT id, nome_gruppo, referente, data_arrivo, data_partenza, numero_persone, numero_adulti, numero_bambini, aree_riservate_json, pasti_json
         FROM gruppi_arrivi
         WHERE nome_gruppo LIKE ? OR referente LIKE ? OR agenzia LIKE ?
         ORDER BY data_arrivo DESC, id DESC
@@ -450,7 +448,7 @@ if ($search !== '') {
     $page = min($page, $totalPages);
     $offset = ($page - 1) * $perPage;
 
-    $stmt = $mysqli->prepare("SELECT id, nome_gruppo, referente, data_arrivo, data_partenza, numero_persone, numero_adulti, numero_bambini
+    $stmt = $mysqli->prepare("SELECT id, nome_gruppo, referente, data_arrivo, data_partenza, numero_persone, numero_adulti, numero_bambini, aree_riservate_json, pasti_json
         FROM gruppi_arrivi
         ORDER BY data_arrivo DESC, id DESC
         LIMIT ? OFFSET ?");
@@ -996,12 +994,6 @@ $shouldShowModal = $shouldShowForm;
                 </div>
 
                 <div class="border rounded-4 p-3">
-                    <h6 class="text-uppercase text-muted mb-3">Allergie / intolleranze (generale)</h6>
-                    <textarea class="form-control" name="note_allergie" id="noteAllergie" rows="4" placeholder="Segnala allergie o intolleranze valide per tutto il gruppo."><?= h($currentData['note_allergie']) ?></textarea>
-                    <div class="form-text">Queste note sono generali e non legate al singolo pasto.</div>
-                </div>
-
-                <div class="border rounded-4 p-3">
                     <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
                         <h6 class="text-uppercase text-muted mb-0">Attività / extra</h6>
                         <button class="btn btn-outline-primary btn-sm" type="button" id="aggiungiExtra">
@@ -1038,6 +1030,10 @@ $shouldShowModal = $shouldShowForm;
                         <div class="col-12">
                             <label class="form-label">CUCINA/RISTORANTE</label>
                             <textarea class="form-control" name="note_cucina" id="noteCucina" rows="4" placeholder="Note per cucina/ristorante"><?= h($currentData['note_cucina']) ?></textarea>
+                        </div>
+                        <div class="border rounded-4 p-3">
+                            <h6 class="text-uppercase text-muted mb-3">Allergie / intolleranze</h6>
+                            <textarea class="form-control" name="note_allergie" id="noteAllergie" rows="4" placeholder="Segnala allergie o intolleranze valide per tutto il gruppo."><?= h($currentData['note_allergie']) ?></textarea>
                         </div>
                         <div class="col-12">
                             <label class="form-label">HOUSEKEEPING</label>
@@ -1236,7 +1232,8 @@ $shouldShowModal = $shouldShowForm;
                             <th scope="col">Referente</th>
                             <th scope="col">Periodo</th>
                             <th scope="col">Partecipanti</th>
-                            <th scope="col">ID</th>
+                            <th scope="col">Aree Riservate</th>
+                            <th scope="col">Pasti</th>
                             <th scope="col" class="text-end">Azioni</th>
                         </tr>
                     </thead>
@@ -1261,7 +1258,8 @@ $shouldShowModal = $shouldShowForm;
                                 <td><?= h($record['referente']) ?></td>
                                 <td><?= h($periodo) ?></td>
                                 <td><?= h($dettaglioPartecipanti) ?></td>
-                                <td class="text-muted">#<?= (int)$record['id'] ?></td>
+                                <td class="text-muted"><?php if(strlen($record['aree_riservate_json'])>2){echo "Si";}else{echo "No";} ?></td>
+                                <td class="text-muted"><?php if(strlen($record['pasti_json'])>2){echo "Si";}else{echo "No";} ?></td>
                                 <td class="text-end">
                                     <div class="d-inline-flex flex-wrap gap-2 justify-content-end">
                                         <a class="btn btn-sm btn-outline-primary js-edit-scheda" href="<?= BASE_URL ?>/admin/gruppi_arrivi.php?id=<?= (int)$record['id'] ?>&open=1" data-id="<?= (int)$record['id'] ?>">
