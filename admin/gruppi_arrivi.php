@@ -44,6 +44,16 @@ function get_tipologie_camere(mysqli $db): array
     return $tipologie;
 }
 
+function get_sale_congressi(mysqli $db): array
+{
+    if (!table_exists($db, 'sale_congressi')) {
+        return [];
+    }
+
+    $res = $db->query("SELECT id, nome FROM sale_congressi ORDER BY nome ASC");
+    return $res instanceof mysqli_result ? $res->fetch_all(MYSQLI_ASSOC) : [];
+}
+
 function format_camere_summary(array $camere, array $tipologieMap): string
 {
     $parts = [];
@@ -67,11 +77,13 @@ function ensure_gruppi_arrivi_table(mysqli $mysqli): void
         email VARCHAR(120) NOT NULL,
         data_arrivo DATE NULL,
         data_partenza DATE NULL,
+        checkin_orario TIME NULL,
         numero_persone INT UNSIGNED NOT NULL DEFAULT 0,
         numero_adulti INT UNSIGNED NOT NULL DEFAULT 0,
         numero_bambini INT UNSIGNED NOT NULL DEFAULT 0,
         tipologia_camere VARCHAR(120) NULL,
         camere_json LONGTEXT NULL,
+        aree_riservate_json LONGTEXT NULL,
         area_preferita VARCHAR(120) NULL,
         trattamento VARCHAR(20) NULL,
         note_operativa TEXT NULL,
@@ -90,6 +102,8 @@ function ensure_gruppi_arrivi_table(mysqli $mysqli): void
     add_column_if_missing($mysqli, 'gruppi_arrivi', 'numero_adulti', 'INT UNSIGNED NOT NULL DEFAULT 0');
     add_column_if_missing($mysqli, 'gruppi_arrivi', 'numero_bambini', 'INT UNSIGNED NOT NULL DEFAULT 0');
     add_column_if_missing($mysqli, 'gruppi_arrivi', 'camere_json', 'LONGTEXT NULL');
+    add_column_if_missing($mysqli, 'gruppi_arrivi', 'checkin_orario', 'TIME NULL');
+    add_column_if_missing($mysqli, 'gruppi_arrivi', 'aree_riservate_json', 'LONGTEXT NULL');
     add_column_if_missing($mysqli, 'gruppi_arrivi', 'trattamento', 'VARCHAR(20) NULL');
     add_column_if_missing($mysqli, 'gruppi_arrivi', 'note_ricevimento', 'TEXT NULL');
     add_column_if_missing($mysqli, 'gruppi_arrivi', 'note_cucina', 'TEXT NULL');
@@ -112,11 +126,13 @@ $emptyData = [
     'email' => '',
     'data_arrivo' => '',
     'data_partenza' => '',
+    'checkin_orario' => '',
     'numero_persone' => 0,
     'numero_adulti' => 0,
     'numero_bambini' => 0,
     'tipologia_camere' => '',
     'camere_json' => '{}',
+    'aree_riservate_json' => '[]',
     'area_preferita' => '',
     'trattamento' => '',
     'note_operativa' => '',
@@ -141,6 +157,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $email = trim($_POST['email'] ?? '');
         $dataArrivo = $_POST['data_arrivo'] ?: null;
         $dataPartenza = $_POST['data_partenza'] ?: null;
+        $checkinOrario = trim($_POST['checkin_orario'] ?? '');
+        $checkinOrario = $checkinOrario !== '' ? $checkinOrario : null;
         $numeroAdulti = (int)($_POST['numero_adulti'] ?? 0);
         $numeroBambini = (int)($_POST['numero_bambini'] ?? 0);
         $numeroPersone = max(0, $numeroAdulti + $numeroBambini);
@@ -158,6 +176,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $camereJson = json_encode($camereSanitized, JSON_UNESCAPED_UNICODE);
         $tipologiaCamere = trim($_POST['tipologia_camere'] ?? '');
         $areaPreferita = trim($_POST['area_preferita'] ?? '');
+        $areeRiservateInput = $_POST['aree_riservate'] ?? [];
+        $areeRiservate = [];
+        if (is_array($areeRiservateInput)) {
+            foreach ($areeRiservateInput as $value) {
+                $id = (int)$value;
+                if ($id > 0) {
+                    $areeRiservate[] = $id;
+                }
+            }
+        }
+        $areeRiservate = array_values(array_unique($areeRiservate));
+        $areeRiservateJson = json_encode($areeRiservate, JSON_UNESCAPED_UNICODE);
         $noteOperativa = trim($_POST['note_operativa'] ?? '');
         $noteRicevimento = trim($_POST['note_ricevimento'] ?? '');
         $noteCucina = trim($_POST['note_cucina'] ?? '');
@@ -179,6 +209,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($camereSanitized) {
             $tipologiaCamere = format_camere_summary($camereSanitized, $tipologieMap);
         }
+        if ($areeRiservate) {
+            $saleCongressi = get_sale_congressi($mysqli);
+            $saleMap = [];
+            foreach ($saleCongressi as $sala) {
+                $saleId = (int)($sala['id'] ?? 0);
+                if ($saleId <= 0) {
+                    continue;
+                }
+                $saleMap[$saleId] = (string)($sala['nome'] ?? '');
+            }
+            $nomiAree = [];
+            foreach ($areeRiservate as $salaId) {
+                if (!empty($saleMap[$salaId])) {
+                    $nomiAree[] = $saleMap[$salaId];
+                }
+            }
+            if ($nomiAree) {
+                $areaPreferita = implode(', ', $nomiAree);
+            }
+        }
 
         if ($nomeGruppo === '' || $referente === '' || $agenzia === '' || $telefono === '' || $email === '') {
             $alertType = 'danger';
@@ -186,13 +236,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             if ($currentId > 0) {
                 $stmt = $mysqli->prepare("UPDATE gruppi_arrivi
-                    SET nome_gruppo=?, referente=?, agenzia=?, telefono=?, email=?, data_arrivo=?, data_partenza=?,
-                        numero_persone=?, numero_adulti=?, numero_bambini=?, tipologia_camere=?, camere_json=?, area_preferita=?,
-                        trattamento=?, note_operativa=?, note_ricevimento=?, note_cucina=?, note_housekeeping=?, note_manutenzione=?,
-                        pasti_json=?, extra_json=?
+                    SET nome_gruppo=?, referente=?, agenzia=?, telefono=?, email=?, data_arrivo=?, data_partenza=?, checkin_orario=?,
+                        numero_persone=?, numero_adulti=?, numero_bambini=?, tipologia_camere=?, camere_json=?, aree_riservate_json=?,
+                        area_preferita=?, trattamento=?, note_operativa=?, note_ricevimento=?, note_cucina=?, note_housekeeping=?,
+                        note_manutenzione=?, pasti_json=?, extra_json=?
                     WHERE id=?");
                 $stmt->bind_param(
-                    "sssssssiiisssssssssssi",
+                    "ssssssssiiissssssssssssi",
                     $nomeGruppo,
                     $referente,
                     $agenzia,
@@ -200,11 +250,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $email,
                     $dataArrivo,
                     $dataPartenza,
+                    $checkinOrario,
                     $numeroPersone,
                     $numeroAdulti,
                     $numeroBambini,
                     $tipologiaCamere,
                     $camereJson,
+                    $areeRiservateJson,
                     $areaPreferita,
                     $trattamento,
                     $noteOperativa,
@@ -227,12 +279,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             } else {
                 $stmt = $mysqli->prepare("INSERT INTO gruppi_arrivi
-                    (nome_gruppo, referente, agenzia, telefono, email, data_arrivo, data_partenza, numero_persone,
-                     numero_adulti, numero_bambini, tipologia_camere, camere_json, area_preferita, trattamento,
-                     note_operativa, note_ricevimento, note_cucina, note_housekeeping, note_manutenzione, pasti_json, extra_json)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                    (nome_gruppo, referente, agenzia, telefono, email, data_arrivo, data_partenza, checkin_orario, numero_persone,
+                     numero_adulti, numero_bambini, tipologia_camere, camere_json, aree_riservate_json, area_preferita,
+                     trattamento, note_operativa, note_ricevimento, note_cucina, note_housekeeping, note_manutenzione, pasti_json, extra_json)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
                 $stmt->bind_param(
-                    "sssssssiiisssssssssss",
+                    "ssssssssiiissssssssssss",
                     $nomeGruppo,
                     $referente,
                     $agenzia,
@@ -240,11 +292,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $email,
                     $dataArrivo,
                     $dataPartenza,
+                    $checkinOrario,
                     $numeroPersone,
                     $numeroAdulti,
                     $numeroBambini,
                     $tipologiaCamere,
                     $camereJson,
+                    $areeRiservateJson,
                     $areaPreferita,
                     $trattamento,
                     $noteOperativa,
@@ -316,6 +370,10 @@ foreach ($tipologieCamere as $tipologia) {
     $tipologieMap[$codice] = (string)($tipologia['descrizione'] ?? $codice);
 }
 $camereData = json_decode($currentData['camere_json'] ?? '{}', true) ?: [];
+$areeRiservateData = json_decode($currentData['aree_riservate_json'] ?? '[]', true) ?: [];
+$areeRiservateData = array_values(array_filter(array_map('intval', (array)$areeRiservateData)));
+$currentData['aree_riservate'] = $areeRiservateData;
+$saleCongressi = get_sale_congressi($mysqli);
 
 $gruppiArchivio = [];
 $archivioRes = $mysqli->query("SELECT * FROM gruppi_arrivi ORDER BY nome_gruppo ASC");
@@ -324,6 +382,8 @@ if ($archivioRes instanceof mysqli_result) {
         $row['pasti'] = json_decode($row['pasti_json'] ?? '[]', true) ?: [];
         $row['extra'] = json_decode($row['extra_json'] ?? '[]', true) ?: [];
         $row['camere'] = json_decode($row['camere_json'] ?? '{}', true) ?: [];
+        $areeRiservate = json_decode($row['aree_riservate_json'] ?? '[]', true) ?: [];
+        $row['aree_riservate'] = array_values(array_filter(array_map('intval', (array)$areeRiservate)));
         $gruppiArchivio[] = $row;
     }
     $archivioRes->free();
@@ -773,6 +833,10 @@ $shouldShowModal = $shouldShowForm;
                             <input type="date" class="form-control" id="dataPartenza" name="data_partenza" value="<?= h($currentData['data_partenza']) ?>">
                         </div>
                         <div class="col-md-4">
+                            <label class="form-label">Orario previsto check-in</label>
+                            <input type="time" class="form-control" id="checkinOrario" name="checkin_orario" value="<?= h($currentData['checkin_orario']) ?>">
+                        </div>
+                        <div class="col-md-4">
                             <label class="form-label">Trattamento</label>
                             <select class="form-select" id="trattamento" name="trattamento">
                                 <option value="">Seleziona</option>
@@ -795,8 +859,27 @@ $shouldShowModal = $shouldShowForm;
                             <input type="number" class="form-control" id="numeroTotale" value="<?= (int)$currentData['numero_persone'] ?>" readonly>
                         </div>
                         <div class="col-md-4">
-                            <label class="form-label">Area riservata</label>
-                            <input type="text" class="form-control" id="areaPreferita" name="area_preferita" value="<?= h($currentData['area_preferita']) ?>" placeholder="Es. 2° piano riservato">
+                            <label class="form-label">Aree riservate</label>
+                            <?php if (!empty($saleCongressi)): ?>
+                                <input type="hidden" name="area_preferita" id="areaPreferitaHidden" value="<?= h($currentData['area_preferita']) ?>">
+                                <div id="areaPreferitaList" class="border rounded-3 p-2 bg-white">
+                                    <?php foreach ($saleCongressi as $sala): ?>
+                                        <?php
+                                            $salaId = (int)($sala['id'] ?? 0);
+                                            $salaNome = (string)($sala['nome'] ?? '');
+                                            $isSelected = in_array($salaId, $areeRiservateData, true);
+                                        ?>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" name="aree_riservate[]" id="area-<?= $salaId ?>" value="<?= $salaId ?>" <?= $isSelected ? 'checked' : '' ?>>
+                                            <label class="form-check-label" for="area-<?= $salaId ?>"><?= h($salaNome) ?></label>
+                                        </div>
+                                    <?php endforeach; ?>
+                                </div>
+                                <div class="form-text">Seleziona una o più sale riservate.</div>
+                            <?php else: ?>
+                                <input type="text" class="form-control" id="areaPreferita" name="area_preferita" value="<?= h($currentData['area_preferita']) ?>" placeholder="Es. 2° piano riservato">
+                                <div class="form-text">Nessuna sala disponibile nella tabella sale_congressi.</div>
+                            <?php endif; ?>
                         </div>
                         <div class="col-12">
                             <label class="form-label">Composizione camere</label>
@@ -941,6 +1024,11 @@ $shouldShowModal = $shouldShowForm;
                 <div class="pdf-field">
                     <div class="pdf-label">CHECK IN:</div>
                     <div class="pdf-value" id="previewCheckIn">--/--/----</div>
+                    <div class="pdf-line"></div>
+                </div>
+                <div class="pdf-field">
+                    <div class="pdf-label">ORARIO CHECK IN:</div>
+                    <div class="pdf-value" id="previewCheckInOrario">--:--</div>
                     <div class="pdf-line"></div>
                 </div>
                 <div class="pdf-field">
@@ -1138,6 +1226,7 @@ $shouldShowModal = $shouldShowForm;
         nome: document.getElementById('previewNome'),
         codiceGruppo: document.getElementById('previewCodiceGruppo'),
         checkIn: document.getElementById('previewCheckIn'),
+        checkInOrario: document.getElementById('previewCheckInOrario'),
         checkOut: document.getElementById('previewCheckOut'),
         notti: document.getElementById('previewNotti'),
         adulti: document.getElementById('previewAdulti'),
@@ -1403,6 +1492,11 @@ $shouldShowModal = $shouldShowForm;
         preview.checkIn.textContent = formatDate(arrivo);
         preview.checkOut.textContent = formatDate(partenza);
         preview.notti.textContent = calcNotti(arrivo, partenza).toString();
+        const checkinOrarioInput = document.getElementById('checkinOrario');
+        const checkinOrarioValue = checkinOrarioInput?.value || '';
+        if (preview.checkInOrario) {
+            preview.checkInOrario.textContent = checkinOrarioValue || '--:--';
+        }
         const adulti = parseInt(document.getElementById('numeroAdulti').value, 10) || 0;
         const bambini = parseInt(document.getElementById('numeroBambini').value, 10) || 0;
         const totale = adulti + bambini;
@@ -1412,7 +1506,24 @@ $shouldShowModal = $shouldShowForm;
         preview.totale.textContent = totale.toString();
         preview.referente.textContent = document.getElementById('referente').value || 'Nome referente';
         preview.trattamento.textContent = document.getElementById('trattamento').value || 'Trattamento';
-        preview.area.textContent = document.getElementById('areaPreferita').value || 'Area riservata';
+        const areaList = document.getElementById('areaPreferitaList');
+        let areaValue = 'Area riservata';
+        if (areaList) {
+            const selected = Array.from(areaList.querySelectorAll('input[type="checkbox"]:checked'))
+                .map((checkbox) => checkbox.nextElementSibling?.textContent?.trim() || '')
+                .filter(Boolean);
+            areaValue = selected.length ? selected.join(', ') : 'Area riservata';
+            const hiddenArea = document.getElementById('areaPreferitaHidden');
+            if (hiddenArea) {
+                hiddenArea.value = selected.join(', ');
+            }
+        } else {
+            const areaInput = document.getElementById('areaPreferita');
+            if (areaInput) {
+                areaValue = areaInput.value || 'Area riservata';
+            }
+        }
+        preview.area.textContent = areaValue;
         buildAlloggiList();
 
         const noteRicevimento = document.getElementById('noteRicevimento').value || 'Nessuna nota per il ricevimento.';
@@ -1490,6 +1601,7 @@ $shouldShowModal = $shouldShowForm;
         document.getElementById('email').value = data.email ?? '';
         document.getElementById('dataArrivo').value = data.data_arrivo ?? '';
         document.getElementById('dataPartenza').value = data.data_partenza ?? '';
+        document.getElementById('checkinOrario').value = data.checkin_orario ?? '';
         let adulti = data.numero_adulti ?? 0;
         let bambini = data.numero_bambini ?? 0;
         if (!adulti && !bambini && (data.numero_persone ?? 0) > 0) {
@@ -1506,7 +1618,30 @@ $shouldShowModal = $shouldShowForm;
         if (trattamento) {
             trattamento.value = data.trattamento ?? '';
         }
-        document.getElementById('areaPreferita').value = data.area_preferita ?? '';
+        const areaList = document.getElementById('areaPreferitaList');
+        if (areaList) {
+            let selected = (data.aree_riservate || data.aree_riservate_json || []) ?? [];
+            if (typeof selected === 'string') {
+                try {
+                    selected = JSON.parse(selected);
+                } catch (error) {
+                    selected = [];
+                }
+            }
+            const selectedIds = Array.isArray(selected) ? selected.map((value) => String(value)) : [];
+            areaList.querySelectorAll('input[type="checkbox"]').forEach((checkbox) => {
+                checkbox.checked = selectedIds.includes(checkbox.value);
+            });
+            const hiddenArea = document.getElementById('areaPreferitaHidden');
+            if (hiddenArea) {
+                hiddenArea.value = data.area_preferita ?? '';
+            }
+        } else {
+            const areaInput = document.getElementById('areaPreferita');
+            if (areaInput) {
+                areaInput.value = data.area_preferita ?? '';
+            }
+        }
         document.getElementById('noteRicevimento').value = data.note_ricevimento ?? '';
         document.getElementById('noteCucina').value = data.note_cucina ?? '';
         document.getElementById('noteHousekeeping').value = data.note_housekeeping ?? '';
