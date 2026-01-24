@@ -6,6 +6,13 @@ require_once __DIR__ . '/../includes/helpers.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
+function column_exists(mysqli $db, string $table, string $column): bool {
+  $safeTable = $db->real_escape_string($table);
+  $safeColumn = $db->real_escape_string($column);
+  $res = $db->query("SHOW COLUMNS FROM `{$safeTable}` LIKE '{$safeColumn}'");
+  return $res && $res->num_rows > 0;
+}
+
 function out(array $p, int $code = 200): void {
   http_response_code($code);
   echo json_encode($p, JSON_UNESCAPED_UNICODE);
@@ -70,6 +77,8 @@ else {
   $piano_id = (int)($_POST['piano_id'] ?? 0);
   $codice   = trim((string)($_POST['codice'] ?? ''));
   $capienza = (int)($_POST['capienza_base'] ?? 2);
+  $hasTipologia = column_exists($mysqli, 'struttura_camere', 'id_tipologia_letti');
+  $tipologiaId = $hasTipologia ? (int)($_POST['id_tipologia_letti'] ?? 0) : 0;
 
   // compatibilità: se in alcuni punti invii disabili invece di accessibile_disabili
   $disVal   = (int)($_POST['accessibile_disabili'] ?? ($_POST['disabili'] ?? 0));
@@ -77,6 +86,7 @@ else {
   if ($piano_id <= 0) out(['ok'=>false,'msg'=>'Piano non valido'], 400);
   if ($codice === '' || mb_strlen($codice) > 30) out(['ok'=>false,'msg'=>'Numero camera non valido'], 400);
   if ($capienza < 1 || $capienza > 10) out(['ok'=>false,'msg'=>'Capienza non valida'], 400);
+  if ($hasTipologia && $tipologiaId <= 0) out(['ok'=>false,'msg'=>'Tipologia letti non valida'], 400);
 
   $disVal = $disVal > 0 ? 1 : 0;
 
@@ -114,14 +124,21 @@ else {
      INSERT CAMERA (NO nome) + NOTE
      ========= */
   $sql = "INSERT INTO struttura_camere
-          (piano_id, codice, capienza_base, accessibile_disabili, note, attiva)
-          VALUES (?, ?, ?, ?, ?, 1)";
+          (piano_id, codice, capienza_base, accessibile_disabili, note"
+          . ($hasTipologia ? ", id_tipologia_letti" : "") . ", attiva)
+          VALUES (?, ?, ?, ?, ?"
+          . ($hasTipologia ? ", ?" : "") . ", 1)";
 
   $st = $mysqli->prepare($sql);
   if (!$st) out(['ok'=>false,'msg'=>'Errore DB (prepare camera)'], 500);
 
-  // tipi: i s i i s
-  $st->bind_param("isiis", $piano_id, $codice, $capienza, $disVal, $note);
+  $types = "isiis";
+  $params = [$piano_id, $codice, $capienza, $disVal, $note];
+  if ($hasTipologia) {
+    $types .= "i";
+    $params[] = $tipologiaId;
+  }
+  $st->bind_param($types, ...$params);
 }
 
 /* =======================
