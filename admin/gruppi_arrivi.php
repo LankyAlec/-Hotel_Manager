@@ -110,6 +110,39 @@ function ensure_gruppi_arrivi_table(mysqli $mysqli): void
     add_column_if_missing($mysqli, 'gruppi_arrivi', 'note_manutenzione', 'TEXT NULL');
 }
 
+function normalize_pasti_rows($rows): array
+{
+    if (!is_array($rows)) {
+        return [];
+    }
+
+    $normalized = [];
+    foreach ($rows as $row) {
+        if (!is_array($row)) {
+            continue;
+        }
+        $data = trim((string)($row['data'] ?? ''));
+        $tipo = trim((string)($row['tipo'] ?? $row['voce'] ?? ''));
+        $ora = trim((string)($row['ora'] ?? ''));
+        $sala = trim((string)($row['sala_ristorante'] ?? $row['sala'] ?? ''));
+        $note = trim((string)($row['note'] ?? ''));
+
+        if ($data === '' && $tipo === '' && $ora === '' && $sala === '' && $note === '') {
+            continue;
+        }
+
+        $normalized[] = [
+            'data' => $data,
+            'tipo' => $tipo,
+            'ora' => $ora,
+            'sala_ristorante' => $sala,
+            'note' => $note
+        ];
+    }
+
+    return $normalized;
+}
+
 ensure_gruppi_arrivi_table($mysqli);
 
 $alert = null;
@@ -203,9 +236,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $noteAllergie = trim($_POST['note_allergie'] ?? '');
         $noteHousekeeping = trim($_POST['note_housekeeping'] ?? '');
         $noteManutenzione = trim($_POST['note_manutenzione'] ?? '');
-        $pasti = $_POST['pasti'] ?? [];
+        $pasti = normalize_pasti_rows($_POST['pasti'] ?? []);
         $extra = $_POST['extra'] ?? [];
-        $pastiJson = json_encode(array_values($pasti), JSON_UNESCAPED_UNICODE);
+        $pastiJson = json_encode($pasti, JSON_UNESCAPED_UNICODE);
         $extraJson = json_encode(array_values($extra), JSON_UNESCAPED_UNICODE);
         if ($nomeGruppo === '' || $referente === '' || $agenzia === '' || $telefono === '' || $email === '') {
             $alertType = 'danger';
@@ -364,7 +397,7 @@ $gruppiArchivio = [];
 $archivioRes = $mysqli->query("SELECT * FROM gruppi_arrivi ORDER BY nome_gruppo ASC");
 if ($archivioRes instanceof mysqli_result) {
     while ($row = $archivioRes->fetch_assoc()) {
-        $row['pasti'] = json_decode($row['pasti_json'] ?? '[]', true) ?: [];
+        $row['pasti'] = normalize_pasti_rows(json_decode($row['pasti_json'] ?? '[]', true) ?: []);
         $row['extra'] = json_decode($row['extra_json'] ?? '[]', true) ?: [];
         $row['camere'] = json_decode($row['camere_json'] ?? '{}', true) ?: [];
         $areeRiservate = json_decode($row['aree_riservate_json'] ?? '[]', true) ?: [];
@@ -428,7 +461,7 @@ $res = $stmt->get_result();
 $records = $res ? $res->fetch_all(MYSQLI_ASSOC) : [];
 $stmt->close();
 
-$pastiData = json_decode($currentData['pasti_json'] ?? '[]', true) ?: [];
+$pastiData = normalize_pasti_rows(json_decode($currentData['pasti_json'] ?? '[]', true) ?: []);
 $extraData = json_decode($currentData['extra_json'] ?? '[]', true) ?: [];
 $queryBase = $search !== '' ? 'search=' . urlencode($search) . '&' : '';
 $shouldShowForm = $currentId > 0 || ($_GET['open'] ?? '') === '1';
