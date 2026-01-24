@@ -335,6 +335,10 @@ if ($currentId > 0) {
     }
 }
 
+if (!empty($currentData['checkin_orario'])) {
+    $currentData['checkin_orario'] = substr((string)$currentData['checkin_orario'], 0, 5);
+}
+
 if (($currentData['trattamento'] ?? '') === 'Solo pernottamento') {
     $currentData['trattamento'] = 'Solo';
 }
@@ -1325,9 +1329,9 @@ $shouldShowModal = $shouldShowForm;
         mainRow.dataset.group = groupId;
         mainRow.dataset.type = 'pasto-main';
         mainRow.innerHTML = `
-            <td><input type="date" class="form-control form-control-sm" value="${data.data || ''}" required></td>
+            <td><input type="date" class="form-control form-control-sm" data-field="data" value="${data.data || ''}" required></td>
             <td>
-                <select class="form-select form-select-sm" required>
+                <select class="form-select form-select-sm" data-field="tipo" required>
                     <option value="">Seleziona</option>
                     <option ${data.tipo === 'Colazione' ? 'selected' : ''}>Colazione</option>
                     <option ${data.tipo === 'Pranzo' ? 'selected' : ''}>Pranzo</option>
@@ -1336,9 +1340,9 @@ $shouldShowModal = $shouldShowForm;
                     <option ${data.tipo === 'Altro' ? 'selected' : ''}>Altro</option>
                 </select>
             </td>
-            <td><input type="time" class="form-control form-control-sm" value="${data.ora || ''}" required></td>
+            <td><input type="time" class="form-control form-control-sm" data-field="ora" value="${data.ora || ''}" required></td>
             <td>
-                <select class="form-select form-select-sm">
+                <select class="form-select form-select-sm" data-field="sala_ristorante">
                     <option value="">Seleziona</option>
                     ${saleRistorantiOptions}
                 </select>
@@ -1357,7 +1361,7 @@ $shouldShowModal = $shouldShowForm;
         noteRow.innerHTML = `
             <td colspan="5">
                 <label class="form-label small text-muted mb-1">Menù</label>
-                <textarea class="form-control form-control-sm" rows="7" placeholder="Dettagli menù">${data.note || ''}</textarea>
+                <textarea class="form-control form-control-sm" data-field="note" rows="7" placeholder="Dettagli menù">${data.note || ''}</textarea>
             </td>
         `;
         mainRow.querySelector('button').addEventListener('click', () => {
@@ -1381,9 +1385,9 @@ $shouldShowModal = $shouldShowForm;
         mainRow.dataset.group = groupId;
         mainRow.dataset.type = 'extra-main';
         mainRow.innerHTML = `
-            <td><input type="date" class="form-control form-control-sm" value="${data.data || ''}" required></td>
-            <td><input type="text" class="form-control form-control-sm" value="${data.descrizione || ''}" placeholder="Visita guidata, sala meeting" required></td>
-            <td><input type="time" class="form-control form-control-sm" value="${data.ora || ''}" required></td>
+            <td><input type="date" class="form-control form-control-sm" data-field="data" value="${data.data || ''}" required></td>
+            <td><input type="text" class="form-control form-control-sm" data-field="descrizione" value="${data.descrizione || ''}" placeholder="Visita guidata, sala meeting" required></td>
+            <td><input type="time" class="form-control form-control-sm" data-field="ora" value="${data.ora || ''}" required></td>
             <td class="text-end">
                 <button type="button" class="btn btn-sm btn-outline-danger"><i class="bi bi-x"></i></button>
             </td>
@@ -1394,7 +1398,7 @@ $shouldShowModal = $shouldShowForm;
         noteRow.innerHTML = `
             <td colspan="4">
                 <label class="form-label small text-muted mb-1">Note</label>
-                <textarea class="form-control form-control-sm" rows="7" placeholder="Referente, note">${data.note || ''}</textarea>
+                <textarea class="form-control form-control-sm" data-field="note" rows="7" placeholder="Referente, note">${data.note || ''}</textarea>
             </td>
         `;
         mainRow.querySelector('button').addEventListener('click', () => {
@@ -1417,12 +1421,23 @@ $shouldShowModal = $shouldShowForm;
         pastiMainRows.forEach((row, index) => {
             const groupId = row.dataset.group;
             const noteRow = pastiTable.querySelector(`tr[data-type="pasto-note"][data-group="${groupId}"]`);
-            const inputs = row.querySelectorAll('input, select');
-            const noteTextarea = noteRow?.querySelector('textarea');
-            inputs[0].name = `pasti[${index}][data]`;
-            inputs[1].name = `pasti[${index}][tipo]`;
-            inputs[2].name = `pasti[${index}][ora]`;
-            inputs[3].name = `pasti[${index}][sala_ristorante]`;
+            const dataInput = row.querySelector('[data-field="data"]');
+            const tipoSelect = row.querySelector('[data-field="tipo"]');
+            const oraInput = row.querySelector('[data-field="ora"]');
+            const salaSelect = row.querySelector('[data-field="sala_ristorante"]');
+            const noteTextarea = noteRow?.querySelector('[data-field="note"]');
+            if (dataInput) {
+                dataInput.name = `pasti[${index}][data]`;
+            }
+            if (tipoSelect) {
+                tipoSelect.name = `pasti[${index}][tipo]`;
+            }
+            if (oraInput) {
+                oraInput.name = `pasti[${index}][ora]`;
+            }
+            if (salaSelect) {
+                salaSelect.name = `pasti[${index}][sala_ristorante]`;
+            }
             if (noteTextarea) {
                 noteTextarea.name = `pasti[${index}][note]`;
             }
@@ -1431,11 +1446,19 @@ $shouldShowModal = $shouldShowForm;
         extraMainRows.forEach((row, index) => {
             const groupId = row.dataset.group;
             const noteRow = extraTable.querySelector(`tr[data-type="extra-note"][data-group="${groupId}"]`);
-            const inputs = row.querySelectorAll('input');
-            const noteTextarea = noteRow?.querySelector('textarea');
-            inputs[0].name = `extra[${index}][data]`;
-            inputs[1].name = `extra[${index}][descrizione]`;
-            inputs[2].name = `extra[${index}][ora]`;
+            const dataInput = row.querySelector('[data-field="data"]');
+            const descrizioneInput = row.querySelector('[data-field="descrizione"]');
+            const oraInput = row.querySelector('[data-field="ora"]');
+            const noteTextarea = noteRow?.querySelector('[data-field="note"]');
+            if (dataInput) {
+                dataInput.name = `extra[${index}][data]`;
+            }
+            if (descrizioneInput) {
+                descrizioneInput.name = `extra[${index}][descrizione]`;
+            }
+            if (oraInput) {
+                oraInput.name = `extra[${index}][ora]`;
+            }
             if (noteTextarea) {
                 noteTextarea.name = `extra[${index}][note]`;
             }
@@ -1750,6 +1773,9 @@ $shouldShowModal = $shouldShowForm;
     });
 
     form.addEventListener('input', aggiornaPreview);
+    form.addEventListener('submit', () => {
+        rinumeraRighe();
+    });
 
     resetFormData(currentData, storedPasti, storedExtra, storedCamere);
 
