@@ -542,6 +542,15 @@ $shouldShowModal = $shouldShowForm;
         flex-direction: column;
     }
 
+    .saved-schede-table th,
+    .saved-schede-table td {
+        white-space: nowrap;
+    }
+
+    .saved-schede-table td:first-child {
+        white-space: normal;
+    }
+
     .guest-search-card {
         border: 1px solid rgba(0, 0, 0, 0.08);
         border-radius: 12px;
@@ -1205,44 +1214,58 @@ $shouldShowModal = $shouldShowForm;
         <?php if (empty($records)): ?>
             <div class="text-muted">Nessuna scheda trovata.</div>
         <?php else: ?>
-            <div class="vstack gap-3">
-                <?php foreach ($records as $record): ?>
-                    <?php
-                        $periodo = '—';
-                        if (!empty($record['data_arrivo']) || !empty($record['data_partenza'])) {
-                            $arrivo = !empty($record['data_arrivo']) ? date('d/m/Y', strtotime($record['data_arrivo'])) : '—';
-                            $partenza = !empty($record['data_partenza']) ? date('d/m/Y', strtotime($record['data_partenza'])) : '—';
-                            $periodo = $arrivo . ' → ' . $partenza;
-                        }
-                        $adulti = (int)($record['numero_adulti'] ?? 0);
-                        $bambini = (int)($record['numero_bambini'] ?? 0);
-                        $totale = (int)($record['numero_persone'] ?? ($adulti + $bambini));
-                        $dettaglioPartecipanti = $totale > 0
-                            ? "{$totale} (Adulti {$adulti}, Bambini {$bambini})"
-                            : '0';
-                    ?>
-                    <div class="border rounded-4 p-3 d-flex flex-column flex-md-row justify-content-between gap-3">
-                        <div>
-                            <div class="fw-semibold fs-5"><?= h($record['nome_gruppo']) ?></div>
-                            <div class="text-muted">Referente: <?= h($record['referente']) ?></div>
-                            <div class="text-muted">Periodo: <?= h($periodo) ?></div>
-                            <div class="text-muted">Partecipanti: <?= h($dettaglioPartecipanti) ?></div>
-                            <div class="text-muted small">ID #<?= (int)$record['id'] ?></div>
-                        </div>
-                        <div class="d-flex flex-wrap gap-2 align-items-start justify-content-md-end">
-                            <a class="btn btn-sm btn-outline-primary js-edit-scheda" href="<?= BASE_URL ?>/admin/gruppi_arrivi.php?id=<?= (int)$record['id'] ?>&open=1" data-id="<?= (int)$record['id'] ?>">
-                                <i class="bi bi-pencil-square"></i> Modifica
-                            </a>
-                            <form method="post" class="d-inline" onsubmit="return confirm('Confermi l\'eliminazione della scheda?');">
-                                <input type="hidden" name="action" value="delete">
-                                <input type="hidden" name="delete_id" value="<?= (int)$record['id'] ?>">
-                                <button class="btn btn-sm btn-outline-danger" type="submit">
-                                    <i class="bi bi-trash"></i> Elimina
-                                </button>
-                            </form>
-                        </div>
-                    </div>
-                <?php endforeach; ?>
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0 saved-schede-table">
+                    <thead class="table-light">
+                        <tr>
+                            <th scope="col">Gruppo</th>
+                            <th scope="col">Referente</th>
+                            <th scope="col">Periodo</th>
+                            <th scope="col">Partecipanti</th>
+                            <th scope="col">ID</th>
+                            <th scope="col" class="text-end">Azioni</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($records as $record): ?>
+                            <?php
+                                $periodo = '—';
+                                if (!empty($record['data_arrivo']) || !empty($record['data_partenza'])) {
+                                    $arrivo = !empty($record['data_arrivo']) ? date('d/m/Y', strtotime($record['data_arrivo'])) : '—';
+                                    $partenza = !empty($record['data_partenza']) ? date('d/m/Y', strtotime($record['data_partenza'])) : '—';
+                                    $periodo = $arrivo . ' → ' . $partenza;
+                                }
+                                $adulti = (int)($record['numero_adulti'] ?? 0);
+                                $bambini = (int)($record['numero_bambini'] ?? 0);
+                                $totale = (int)($record['numero_persone'] ?? ($adulti + $bambini));
+                                $dettaglioPartecipanti = $totale > 0
+                                    ? "{$totale} (Adulti {$adulti}, Bambini {$bambini})"
+                                    : '0';
+                            ?>
+                            <tr>
+                                <td class="fw-semibold"><?= h($record['nome_gruppo']) ?></td>
+                                <td><?= h($record['referente']) ?></td>
+                                <td><?= h($periodo) ?></td>
+                                <td><?= h($dettaglioPartecipanti) ?></td>
+                                <td class="text-muted">#<?= (int)$record['id'] ?></td>
+                                <td class="text-end">
+                                    <div class="d-inline-flex flex-wrap gap-2 justify-content-end">
+                                        <a class="btn btn-sm btn-outline-primary js-edit-scheda" href="<?= BASE_URL ?>/admin/gruppi_arrivi.php?id=<?= (int)$record['id'] ?>&open=1" data-id="<?= (int)$record['id'] ?>">
+                                            <i class="bi bi-pencil-square"></i> Modifica
+                                        </a>
+                                        <form method="post" class="d-inline" onsubmit="return confirm('Confermi l\'eliminazione della scheda?');">
+                                            <input type="hidden" name="action" value="delete">
+                                            <input type="hidden" name="delete_id" value="<?= (int)$record['id'] ?>">
+                                            <button class="btn btn-sm btn-outline-danger" type="submit">
+                                                <i class="bi bi-trash"></i> Elimina
+                                            </button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
             </div>
         <?php endif; ?>
 
