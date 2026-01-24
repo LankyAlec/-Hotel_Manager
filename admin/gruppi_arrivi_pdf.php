@@ -122,6 +122,7 @@ $areaPreferita = trim((string)($payload['area_preferita'] ?? ''));
 $trattamento = trim((string)($payload['trattamento'] ?? ''));
 $noteRicevimento = trim((string)($payload['note_ricevimento'] ?? ''));
 $noteCucina = trim((string)($payload['note_cucina'] ?? ''));
+$noteAllergie = trim((string)($payload['note_allergie'] ?? ''));
 $noteHousekeeping = trim((string)($payload['note_housekeeping'] ?? ''));
 $noteManutenzione = trim((string)($payload['note_manutenzione'] ?? ''));
 
@@ -358,7 +359,7 @@ if ($pastiRows) {
 $pdf->AddPage();
 
 $drawSectionTitle($pdf, 'ALLERGIE / INTOLLERANZE');
-$allergieLines = $noteCucina !== '' ? parse_lines($noteCucina) : [];
+$allergieLines = $noteAllergie !== '' ? parse_lines($noteAllergie) : [];
 $lineCount = max(8, count($allergieLines) + 2);
 for ($i = 0; $i < $lineCount; $i++) {
     $text = $allergieLines[$i] ?? '';
