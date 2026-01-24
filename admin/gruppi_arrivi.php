@@ -1662,13 +1662,19 @@ $shouldShowModal = $shouldShowForm;
         toggleTableHeader(extraTable, extraTableHeader);
     };
 
-    const resetFormData = (data, pastiRows = [], extraRows = [], camereRows = {}) => {
-        form.querySelector('input[name="id"]').value = data.id ?? 0;
+    const setAnagraficaFields = (data, { resetId = true } = {}) => {
+        if (resetId) {
+            form.querySelector('input[name="id"]').value = data.id ?? 0;
+        }
         document.getElementById('nomeGruppo').value = data.nome_gruppo ?? '';
         document.getElementById('referente').value = data.referente ?? '';
         document.getElementById('agenzia').value = data.agenzia ?? '';
         document.getElementById('telefono').value = data.telefono ?? '';
         document.getElementById('email').value = data.email ?? '';
+    };
+
+    const resetFormData = (data, pastiRows = [], extraRows = [], camereRows = {}) => {
+        setAnagraficaFields(data);
         document.getElementById('dataArrivo').value = data.data_arrivo ?? '';
         document.getElementById('dataPartenza').value = data.data_partenza ?? '';
         document.getElementById('checkinOrario').value = data.checkin_orario ?? '';
@@ -1796,7 +1802,8 @@ $shouldShowModal = $shouldShowForm;
             alert('Seleziona un gruppo esistente dalla lista.');
             return;
         }
-        resetFormData(gruppo, gruppo.pasti || [], gruppo.extra || [], gruppo.camere || {});
+        setAnagraficaFields(gruppo, { resetId: false });
+        form.querySelector('input[name="id"]').value = 0;
     });
 </script>
 
