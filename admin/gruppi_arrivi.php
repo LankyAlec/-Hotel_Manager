@@ -256,7 +256,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         note_housekeeping=?, note_manutenzione=?, pasti_json=?, extra_json=?
                     WHERE id=?");
                 $stmt->bind_param(
-                    "ssssssssiiissssssssssssssi",
+                    "ssssssssiiisssssssssssssi",
                     $nomeGruppo,
                     $referente,
                     $agenzia,
@@ -299,7 +299,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                      trattamento, note_operativa, note_ricevimento, note_cucina, note_allergie, note_housekeeping, note_manutenzione, pasti_json, extra_json)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
                 $stmt->bind_param(
-                    "ssssssssiiisssssssssssssss",
+                    "ssssssssiiisssssssssssss",
                     $nomeGruppo,
                     $referente,
                     $agenzia,
@@ -1230,7 +1230,7 @@ $shouldShowModal = $shouldShowForm;
                             <div class="text-muted small">ID #<?= (int)$record['id'] ?></div>
                         </div>
                         <div class="d-flex flex-wrap gap-2 align-items-start justify-content-md-end">
-                            <a class="btn btn-sm btn-outline-primary" href="<?= BASE_URL ?>/admin/gruppi_arrivi.php?id=<?= (int)$record['id'] ?>&open=1">
+                            <a class="btn btn-sm btn-outline-primary js-edit-scheda" href="<?= BASE_URL ?>/admin/gruppi_arrivi.php?id=<?= (int)$record['id'] ?>&open=1" data-id="<?= (int)$record['id'] ?>">
                                 <i class="bi bi-pencil-square"></i> Modifica
                             </a>
                             <form method="post" class="d-inline" onsubmit="return confirm('Confermi l\'eliminazione della scheda?');">
@@ -1800,11 +1800,40 @@ $shouldShowModal = $shouldShowForm;
         }
     });
 
-    if (shouldShowModal && window.bootstrap) {
+    const openGruppoModal = (gruppo) => {
+        if (!window.bootstrap) return;
+        if (!gruppo) return;
+        resetFormData(
+            gruppo,
+            Array.isArray(gruppo.pasti) ? gruppo.pasti : [],
+            Array.isArray(gruppo.extra) ? gruppo.extra : [],
+            gruppo.camere && typeof gruppo.camere === 'object' ? gruppo.camere : {}
+        );
+        aggiornaPreview();
         const modalEl = document.getElementById('gruppoModal');
-        const modal = modalEl ? new bootstrap.Modal(modalEl) : null;
-        modal?.show();
+        if (!modalEl) return;
+        const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+        modal.show();
+    };
+
+    if (shouldShowModal) {
+        openGruppoModal(currentData);
     }
+
+    document.querySelectorAll('.js-edit-scheda').forEach((button) => {
+        button.addEventListener('click', (event) => {
+            const id = Number(button.dataset.id || 0);
+            if (!id) {
+                return;
+            }
+            const gruppo = (gruppiArchivio || []).find((item) => Number(item.id) === id);
+            if (!gruppo) {
+                return;
+            }
+            event.preventDefault();
+            openGruppoModal(gruppo);
+        });
+    });
 
     const groupSearchInput = document.getElementById('groupSearchInput');
     const groupSearchBtn = document.getElementById('groupSearchBtn');
