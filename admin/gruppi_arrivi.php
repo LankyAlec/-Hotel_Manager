@@ -862,7 +862,6 @@ $shouldShowModal = $shouldShowForm;
                             <label class="form-label">Aree riservate</label>
                             <?php if (!empty($saleCongressi)): ?>
                                 <input type="hidden" name="area_preferita" id="areaPreferitaHidden" value="<?= h($currentData['area_preferita']) ?>">
-                                <div id="areaPreferitaList" class="border rounded-3 p-2 bg-white">
                                 <select class="form-select" id="areaPreferita" name="aree_riservate[]" multiple>
                                     <?php foreach ($saleCongressi as $sala): ?>
                                         <?php
@@ -870,12 +869,6 @@ $shouldShowModal = $shouldShowForm;
                                             $salaNome = (string)($sala['nome'] ?? '');
                                             $isSelected = in_array($salaId, $areeRiservateData, true);
                                         ?>
-                                        <div class="form-check">
-                                            <input class="form-check-input" type="checkbox" name="aree_riservate[]" id="area-<?= $salaId ?>" value="<?= $salaId ?>" <?= $isSelected ? 'checked' : '' ?>>
-                                            <label class="form-check-label" for="area-<?= $salaId ?>"><?= h($salaNome) ?></label>
-                                        </div>
-                                    <?php endforeach; ?>
-                                </div>
                                         <option value="<?= $salaId ?>" <?= $isSelected ? 'selected' : '' ?>><?= h($salaNome) ?></option>
                                     <?php endforeach; ?>
                                 </select>
@@ -1510,12 +1503,6 @@ $shouldShowModal = $shouldShowForm;
         preview.totale.textContent = totale.toString();
         preview.referente.textContent = document.getElementById('referente').value || 'Nome referente';
         preview.trattamento.textContent = document.getElementById('trattamento').value || 'Trattamento';
-        const areaList = document.getElementById('areaPreferitaList');
-        let areaValue = 'Area riservata';
-        if (areaList) {
-            const selected = Array.from(areaList.querySelectorAll('input[type="checkbox"]:checked'))
-                .map((checkbox) => checkbox.nextElementSibling?.textContent?.trim() || '')
-                .filter(Boolean);
         const areaSelect = document.getElementById('areaPreferita');
         let areaValue = 'Area riservata';
         if (areaSelect instanceof HTMLSelectElement && areaSelect.multiple) {
@@ -1524,11 +1511,6 @@ $shouldShowModal = $shouldShowForm;
             const hiddenArea = document.getElementById('areaPreferitaHidden');
             if (hiddenArea) {
                 hiddenArea.value = selected.join(', ');
-            }
-        } else {
-            const areaInput = document.getElementById('areaPreferita');
-            if (areaInput) {
-                areaValue = areaInput.value || 'Area riservata';
             }
         } else if (areaSelect) {
             areaValue = areaSelect.value || 'Area riservata';
@@ -1628,8 +1610,6 @@ $shouldShowModal = $shouldShowForm;
         if (trattamento) {
             trattamento.value = data.trattamento ?? '';
         }
-        const areaList = document.getElementById('areaPreferitaList');
-        if (areaList) {
         const areaSelect = document.getElementById('areaPreferita');
         if (areaSelect instanceof HTMLSelectElement && areaSelect.multiple) {
             let selected = (data.aree_riservate || data.aree_riservate_json || []) ?? [];
@@ -1641,19 +1621,12 @@ $shouldShowModal = $shouldShowForm;
                 }
             }
             const selectedIds = Array.isArray(selected) ? selected.map((value) => String(value)) : [];
-            areaList.querySelectorAll('input[type="checkbox"]').forEach((checkbox) => {
-                checkbox.checked = selectedIds.includes(checkbox.value);
             Array.from(areaSelect.options).forEach((option) => {
                 option.selected = selectedIds.includes(option.value);
             });
             const hiddenArea = document.getElementById('areaPreferitaHidden');
             if (hiddenArea) {
                 hiddenArea.value = data.area_preferita ?? '';
-            }
-        } else {
-            const areaInput = document.getElementById('areaPreferita');
-            if (areaInput) {
-                areaInput.value = data.area_preferita ?? '';
             }
         } else if (areaSelect) {
             areaSelect.value = data.area_preferita ?? '';
