@@ -862,16 +862,28 @@ $shouldShowModal = $shouldShowForm;
                             <label class="form-label">Aree riservate</label>
                             <?php if (!empty($saleCongressi)): ?>
                                 <input type="hidden" name="area_preferita" id="areaPreferitaHidden" value="<?= h($currentData['area_preferita']) ?>">
-                                <select class="form-select" id="areaPreferita" name="aree_riservate[]" multiple>
+                                <div class="border rounded-3 p-2" id="areaPreferita">
                                     <?php foreach ($saleCongressi as $sala): ?>
                                         <?php
                                             $salaId = (int)($sala['id'] ?? 0);
                                             $salaNome = (string)($sala['nome'] ?? '');
                                             $isSelected = in_array($salaId, $areeRiservateData, true);
                                         ?>
-                                        <option value="<?= $salaId ?>" <?= $isSelected ? 'selected' : '' ?>><?= h($salaNome) ?></option>
+                                        <div class="form-check">
+                                            <input
+                                                class="form-check-input area-riservata"
+                                                type="checkbox"
+                                                id="areaRiservata<?= $salaId ?>"
+                                                name="aree_riservate[]"
+                                                value="<?= $salaId ?>"
+                                                data-label="<?= h($salaNome) ?>"
+                                                <?= $isSelected ? 'checked' : '' ?>>
+                                            <label class="form-check-label" for="areaRiservata<?= $salaId ?>">
+                                                <?= h($salaNome) ?>
+                                            </label>
+                                        </div>
                                     <?php endforeach; ?>
-                                </select>
+                                </div>
                                 <div class="form-text">Seleziona una o più sale riservate.</div>
                             <?php else: ?>
                                 <input type="text" class="form-control" id="areaPreferita" name="area_preferita" value="<?= h($currentData['area_preferita']) ?>" placeholder="Es. 2° piano riservato">
@@ -1505,7 +1517,18 @@ $shouldShowModal = $shouldShowForm;
         preview.trattamento.textContent = document.getElementById('trattamento').value || 'Trattamento';
         const areaSelect = document.getElementById('areaPreferita');
         let areaValue = 'Area riservata';
-        if (areaSelect instanceof HTMLSelectElement && areaSelect.multiple) {
+        const areaCheckboxes = Array.from(document.querySelectorAll('.area-riservata'));
+        if (areaCheckboxes.length) {
+            const selected = areaCheckboxes
+                .filter((checkbox) => checkbox.checked)
+                .map((checkbox) => checkbox.dataset.label || '')
+                .filter(Boolean);
+            areaValue = selected.length ? selected.join(', ') : 'Area riservata';
+            const hiddenArea = document.getElementById('areaPreferitaHidden');
+            if (hiddenArea) {
+                hiddenArea.value = selected.join(', ');
+            }
+        } else if (areaSelect instanceof HTMLSelectElement && areaSelect.multiple) {
             const selected = Array.from(areaSelect.selectedOptions).map((opt) => opt.text.trim()).filter(Boolean);
             areaValue = selected.length ? selected.join(', ') : 'Area riservata';
             const hiddenArea = document.getElementById('areaPreferitaHidden');
@@ -1611,7 +1634,25 @@ $shouldShowModal = $shouldShowForm;
             trattamento.value = data.trattamento ?? '';
         }
         const areaSelect = document.getElementById('areaPreferita');
-        if (areaSelect instanceof HTMLSelectElement && areaSelect.multiple) {
+        const areaCheckboxes = Array.from(document.querySelectorAll('.area-riservata'));
+        if (areaCheckboxes.length) {
+            let selected = (data.aree_riservate || data.aree_riservate_json || []) ?? [];
+            if (typeof selected === 'string') {
+                try {
+                    selected = JSON.parse(selected);
+                } catch (error) {
+                    selected = [];
+                }
+            }
+            const selectedIds = Array.isArray(selected) ? selected.map((value) => String(value)) : [];
+            areaCheckboxes.forEach((checkbox) => {
+                checkbox.checked = selectedIds.includes(checkbox.value);
+            });
+            const hiddenArea = document.getElementById('areaPreferitaHidden');
+            if (hiddenArea) {
+                hiddenArea.value = data.area_preferita ?? '';
+            }
+        } else if (areaSelect instanceof HTMLSelectElement && areaSelect.multiple) {
             let selected = (data.aree_riservate || data.aree_riservate_json || []) ?? [];
             if (typeof selected === 'string') {
                 try {
