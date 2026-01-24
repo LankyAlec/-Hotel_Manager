@@ -6,10 +6,43 @@ require_once __DIR__ . '/../includes/helpers.php';
 
 header('Content-Type: text/html; charset=utf-8');
 
+function table_exists(mysqli $db, string $table): bool {
+  $safe = $db->real_escape_string($table);
+  $res = $db->query("SHOW TABLES LIKE '{$safe}'");
+  return $res && $res->num_rows > 0;
+}
+
+function column_exists(mysqli $db, string $table, string $column): bool {
+  $safeTable = $db->real_escape_string($table);
+  $safeColumn = $db->real_escape_string($column);
+  $res = $db->query("SHOW COLUMNS FROM `{$safeTable}` LIKE '{$safeColumn}'");
+  return $res && $res->num_rows > 0;
+}
+
 $piano_id = (int)($_GET['piano_id'] ?? 0);
 if ($piano_id <= 0) {
   echo '<div class="hint-sel"><i class="bi bi-arrow-left-right"></i> Seleziona un <b>piano</b> per visualizzare le camere.</div>';
   exit;
+}
+
+$hasTipologiaLetti = column_exists($mysqli, 'struttura_camere', 'id_tipologia_letti');
+$tipologieMap = [];
+if ($hasTipologiaLetti) {
+  if (table_exists($mysqli, 'soggiorni_tipologie_letti')) {
+    $resTipologie = $mysqli->query("SELECT id, codice, descrizione FROM soggiorni_tipologie_letti ORDER BY id ASC");
+  } elseif (table_exists($mysqli, 'soggiorni_tariffe')) {
+    $resTipologie = $mysqli->query("SELECT id, codice, descrizione FROM soggiorni_tariffe ORDER BY id ASC");
+  } else {
+    $resTipologie = null;
+  }
+  if ($resTipologie) {
+    while ($row = $resTipologie->fetch_assoc()) {
+      $tipologieMap[(int)$row['id']] = [
+        'codice' => (string)$row['codice'],
+        'descrizione' => (string)($row['descrizione'] ?? ''),
+      ];
+    }
+  }
 }
 
 $sql = "SELECT *
@@ -40,6 +73,12 @@ while ($row = $res->fetch_assoc()) {
   $cap    = (int)$row['capienza_base'];
   $note   = (string)($row['note'] ?? '');
   $attiva = ((int)$row['attiva'] === 1);
+  $tipologiaId = $hasTipologiaLetti ? (int)($row['id_tipologia_letti'] ?? 0) : 0;
+  $tipologiaLabel = '';
+  if ($tipologiaId > 0 && isset($tipologieMap[$tipologiaId])) {
+    $t = $tipologieMap[$tipologiaId];
+    $tipologiaLabel = $t['descrizione'] ? $t['codice'].' - '.$t['descrizione'] : $t['codice'];
+  }
 
   // colonna accessibile_disabili: se non esiste, questo potrebbe dare notice.
   // Se vuoi renderlo "robusto", dimmelo e lo facciamo con controllo colonna.
@@ -54,12 +93,16 @@ while ($row = $res->fetch_assoc()) {
   $noteBadge = (trim($note) !== '')
     ? '<span class="badge bg-light text-dark border"><i class="bi bi-journal-text"></i> Note</span>'
     : '';
+  $tipologiaBadge = $tipologiaLabel !== ''
+    ? '<span class="badge bg-light text-dark border"><i class="bi bi-layers"></i> '.h($tipologiaLabel).'</span>'
+    : '';
 
   echo '<div class="item"
               data-id="'.$id.'"
               data-codice="'.h($codice).'"
               data-capienza="'.$cap.'"
               data-disabili="'.($dis ? 1 : 0).'"
+              data-tipologia-id="'.($tipologiaId ?: '').'"
               data-note="'.h($note).'">
 
           <div class="main">
@@ -78,6 +121,8 @@ while ($row = $res->fetch_assoc()) {
                       </span>';
               }
 
+  echo $tipologiaBadge ? $tipologiaBadge : '';
+
   echo '    </div>
           </div>
 
@@ -89,6 +134,7 @@ while ($row = $res->fetch_assoc()) {
               data-codice="'.h($codice).'"
               data-capienza="'.$cap.'"
               data-disabili="'.($dis ? 1 : 0).'"
+              data-tipologia-id="'.($tipologiaId ?: '').'"
               data-note="'.h($note).'"
               title="Modifica">
               <i class="bi bi-pencil"></i>

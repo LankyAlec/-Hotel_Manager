@@ -6,6 +6,13 @@ require_once __DIR__ . '/../includes/helpers.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
+function column_exists(mysqli $db, string $table, string $column): bool {
+  $safeTable = $db->real_escape_string($table);
+  $safeColumn = $db->real_escape_string($column);
+  $res = $db->query("SHOW COLUMNS FROM `{$safeTable}` LIKE '{$safeColumn}'");
+  return $res && $res->num_rows > 0;
+}
+
 function out(array $p, int $code = 200): void {
   http_response_code($code);
   echo json_encode($p, JSON_UNESCAPED_UNICODE);
@@ -77,6 +84,8 @@ else {
 
   $codice   = trim((string)($_POST['codice'] ?? ''));
   $capienza = (int)($_POST['capienza_base'] ?? 2);
+  $hasTipologia = column_exists($mysqli, 'struttura_camere', 'id_tipologia_letti');
+  $tipologiaId = $hasTipologia ? (int)($_POST['id_tipologia_letti'] ?? 0) : 0;
 
   // compatibilità: se arriva disabili invece di accessibile_disabili
   $disVal   = (int)($_POST['accessibile_disabili'] ?? ($_POST['disabili'] ?? 0));
@@ -86,6 +95,9 @@ else {
   }
   if ($capienza < 1 || $capienza > 10) {
     out(['ok'=>false,'msg'=>'Capienza non valida'], 400);
+  }
+  if ($hasTipologia && $tipologiaId <= 0) {
+    out(['ok'=>false,'msg'=>'Tipologia letti non valida'], 400);
   }
   $disVal = $disVal > 0 ? 1 : 0;
 
@@ -130,15 +142,23 @@ else {
           SET codice = ?,
               capienza_base = ?,
               accessibile_disabili = ?,
-              note = ?
+              note = ?"
+          . ($hasTipologia ? ", id_tipologia_letti = ?" : "") . "
           WHERE id = ?
           LIMIT 1";
 
   $st = $mysqli->prepare($sql);
   if (!$st) out(['ok'=>false,'msg'=>'Errore DB (prepare camera)'], 500);
 
-  // tipi: s i i s i
-  $st->bind_param("siisi", $codice, $capienza, $disVal, $note, $id);
+  $types = "siis";
+  $params = [$codice, $capienza, $disVal, $note];
+  if ($hasTipologia) {
+    $types .= "i";
+    $params[] = $tipologiaId;
+  }
+  $types .= "i";
+  $params[] = $id;
+  $st->bind_param($types, ...$params);
 }
 
 /* =======================
