@@ -64,18 +64,6 @@ function get_sale_ristoranti(mysqli $db): array
     return $res instanceof mysqli_result ? $res->fetch_all(MYSQLI_ASSOC) : [];
 }
 
-function format_camere_summary(array $camere, array $tipologieMap): string
-{
-    $parts = [];
-    foreach ($camere as $codice => $qta) {
-        if ($qta <= 0) {
-            continue;
-        }
-        $parts[] = $codice . ': ' . $qta;
-    }
-    return implode(', ', $parts);
-}
-
 function ensure_gruppi_arrivi_table(mysqli $mysqli): void
 {
     $mysqli->query("CREATE TABLE IF NOT EXISTS gruppi_arrivi (
@@ -89,13 +77,11 @@ function ensure_gruppi_arrivi_table(mysqli $mysqli): void
         data_partenza DATE NULL,
         checkin_orario TIME NULL,
         numero_persone INT UNSIGNED NOT NULL DEFAULT 0,
-        numero_adulti INT UNSIGNED NOT NULL DEFAULT 0,
-        numero_bambini INT UNSIGNED NOT NULL DEFAULT 0,
-        tipologia_camere VARCHAR(120) NULL,
+        numero_adulti INT UNSIGNED NULL,
+        numero_bambini INT UNSIGNED NULL,
         camere_json LONGTEXT NULL,
         aree_riservate_json LONGTEXT NULL,
-        area_preferita VARCHAR(120) NULL,
-        trattamento VARCHAR(20) NULL,
+        trattamento VARCHAR(10) NULL,
         note_operativa TEXT NULL,
         note_ricevimento TEXT NULL,
         note_cucina TEXT NULL,
@@ -110,12 +96,13 @@ function ensure_gruppi_arrivi_table(mysqli $mysqli): void
         INDEX idx_gruppi_arrivi_data_arrivo (data_arrivo)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
 
-    add_column_if_missing($mysqli, 'gruppi_arrivi', 'numero_adulti', 'INT UNSIGNED NOT NULL DEFAULT 0');
-    add_column_if_missing($mysqli, 'gruppi_arrivi', 'numero_bambini', 'INT UNSIGNED NOT NULL DEFAULT 0');
+    add_column_if_missing($mysqli, 'gruppi_arrivi', 'numero_adulti', 'INT UNSIGNED NULL');
+    add_column_if_missing($mysqli, 'gruppi_arrivi', 'numero_bambini', 'INT UNSIGNED NULL');
     add_column_if_missing($mysqli, 'gruppi_arrivi', 'camere_json', 'LONGTEXT NULL');
     add_column_if_missing($mysqli, 'gruppi_arrivi', 'checkin_orario', 'TIME NULL');
     add_column_if_missing($mysqli, 'gruppi_arrivi', 'aree_riservate_json', 'LONGTEXT NULL');
-    add_column_if_missing($mysqli, 'gruppi_arrivi', 'trattamento', 'VARCHAR(20) NULL');
+    add_column_if_missing($mysqli, 'gruppi_arrivi', 'trattamento', 'VARCHAR(10) NULL');
+    add_column_if_missing($mysqli, 'gruppi_arrivi', 'note_operativa', 'TEXT NULL');
     add_column_if_missing($mysqli, 'gruppi_arrivi', 'note_ricevimento', 'TEXT NULL');
     add_column_if_missing($mysqli, 'gruppi_arrivi', 'note_cucina', 'TEXT NULL');
     add_column_if_missing($mysqli, 'gruppi_arrivi', 'note_allergie', 'TEXT NULL');
@@ -140,12 +127,10 @@ $emptyData = [
     'data_partenza' => '',
     'checkin_orario' => '',
     'numero_persone' => 0,
-    'numero_adulti' => 0,
-    'numero_bambini' => 0,
-    'tipologia_camere' => '',
+    'numero_adulti' => null,
+    'numero_bambini' => null,
     'camere_json' => '{}',
     'aree_riservate_json' => '[]',
-    'area_preferita' => '',
     'trattamento' => '',
     'note_operativa' => '',
     'note_ricevimento' => "Richiedere documenti al CHECK IN\nLe  quote saldate con il POS che vanno conservate a parte rispetto agli altri clienti presenti in Hotel.",
@@ -154,7 +139,8 @@ $emptyData = [
     'note_housekeeping' => '',
     'note_manutenzione' => '',
     'pasti_json' => '[]',
-    'extra_json' => '[]'
+    'extra_json' => '[]',
+    'aree_riservate_testo' => ''
 ];
 
 $currentData = $emptyData;
@@ -172,9 +158,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $dataPartenza = $_POST['data_partenza'] ?: null;
         $checkinOrario = trim($_POST['checkin_orario'] ?? '');
         $checkinOrario = $checkinOrario !== '' ? $checkinOrario : null;
-        $numeroAdulti = (int)($_POST['numero_adulti'] ?? 0);
-        $numeroBambini = (int)($_POST['numero_bambini'] ?? 0);
-        $numeroPersone = max(0, $numeroAdulti + $numeroBambini);
+        $numeroAdultiRaw = trim($_POST['numero_adulti'] ?? '');
+        $numeroBambiniRaw = trim($_POST['numero_bambini'] ?? '');
+        $numeroAdulti = $numeroAdultiRaw === '' ? null : (int)$numeroAdultiRaw;
+        $numeroBambini = $numeroBambiniRaw === '' ? null : (int)$numeroBambiniRaw;
+        $numeroPersone = max(0, (int)($numeroAdulti ?? 0) + (int)($numeroBambini ?? 0));
         $trattamento = trim($_POST['trattamento'] ?? '');
         $camereInput = $_POST['camere'] ?? [];
         $camereSanitized = [];
@@ -187,8 +175,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
         $camereJson = json_encode($camereSanitized, JSON_UNESCAPED_UNICODE);
-        $tipologiaCamere = trim($_POST['tipologia_camere'] ?? '');
-        $areaPreferita = trim($_POST['area_preferita'] ?? '');
         $areeRiservateInput = $_POST['aree_riservate'] ?? [];
         $areeRiservate = [];
         if (is_array($areeRiservateInput)) {
@@ -199,7 +185,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
         }
-        $areeRiservate = array_values(array_unique($areeRiservate));
+        $areeRiservateText = trim($_POST['aree_riservate_testo'] ?? '');
+        if ($areeRiservateText !== '') {
+            $extraAree = preg_split('/[\n,]+/', $areeRiservateText);
+            foreach ($extraAree as $area) {
+                $area = trim((string)$area);
+                if ($area !== '') {
+                    $areeRiservate[] = $area;
+                }
+            }
+        }
+        $areeRiservate = array_values(array_unique($areeRiservate, SORT_REGULAR));
         $areeRiservateJson = json_encode($areeRiservate, JSON_UNESCAPED_UNICODE);
         $noteOperativa = trim($_POST['note_operativa'] ?? '');
         $noteRicevimento = trim($_POST['note_ricevimento'] ?? '');
@@ -211,39 +207,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $extra = $_POST['extra'] ?? [];
         $pastiJson = json_encode(array_values($pasti), JSON_UNESCAPED_UNICODE);
         $extraJson = json_encode(array_values($extra), JSON_UNESCAPED_UNICODE);
-        $tipologieMap = [];
-        foreach (get_tipologie_camere($mysqli) as $tipologia) {
-            $codice = (string)($tipologia['codice'] ?? '');
-            if ($codice === '') {
-                continue;
-            }
-            $label = (string)($tipologia['descrizione'] ?? $codice);
-            $tipologieMap[$codice] = $label;
-        }
-        if ($camereSanitized) {
-            $tipologiaCamere = format_camere_summary($camereSanitized, $tipologieMap);
-        }
-        if ($areeRiservate) {
-            $saleCongressi = get_sale_congressi($mysqli);
-            $saleMap = [];
-            foreach ($saleCongressi as $sala) {
-                $saleId = (int)($sala['id'] ?? 0);
-                if ($saleId <= 0) {
-                    continue;
-                }
-                $saleMap[$saleId] = (string)($sala['nome'] ?? '');
-            }
-            $nomiAree = [];
-            foreach ($areeRiservate as $salaId) {
-                if (!empty($saleMap[$salaId])) {
-                    $nomiAree[] = $saleMap[$salaId];
-                }
-            }
-            if ($nomiAree) {
-                $areaPreferita = implode(', ', $nomiAree);
-            }
-        }
-
         if ($nomeGruppo === '' || $referente === '' || $agenzia === '' || $telefono === '' || $email === '') {
             $alertType = 'danger';
             $alert = 'Compila tutti i campi obbligatori prima di salvare la scheda.';
@@ -251,12 +214,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($currentId > 0) {
                 $stmt = $mysqli->prepare("UPDATE gruppi_arrivi
                     SET nome_gruppo=?, referente=?, agenzia=?, telefono=?, email=?, data_arrivo=?, data_partenza=?, checkin_orario=?,
-                        numero_persone=?, numero_adulti=?, numero_bambini=?, tipologia_camere=?, camere_json=?, aree_riservate_json=?,
-                        area_preferita=?, trattamento=?, note_operativa=?, note_ricevimento=?, note_cucina=?, note_allergie=?,
+                        numero_persone=?, numero_adulti=?, numero_bambini=?, camere_json=?, aree_riservate_json=?,
+                        trattamento=?, note_operativa=?, note_ricevimento=?, note_cucina=?, note_allergie=?,
                         note_housekeeping=?, note_manutenzione=?, pasti_json=?, extra_json=?
                     WHERE id=?");
                 $stmt->bind_param(
-                    "ssssssssiiisssssssssssssi",
+                    "ssssssssiiisssssssssssi",
                     $nomeGruppo,
                     $referente,
                     $agenzia,
@@ -268,10 +231,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $numeroPersone,
                     $numeroAdulti,
                     $numeroBambini,
-                    $tipologiaCamere,
                     $camereJson,
                     $areeRiservateJson,
-                    $areaPreferita,
                     $trattamento,
                     $noteOperativa,
                     $noteRicevimento,
@@ -295,11 +256,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } else {
                 $stmt = $mysqli->prepare("INSERT INTO gruppi_arrivi
                     (nome_gruppo, referente, agenzia, telefono, email, data_arrivo, data_partenza, checkin_orario, numero_persone,
-                     numero_adulti, numero_bambini, tipologia_camere, camere_json, aree_riservate_json, area_preferita,
+                     numero_adulti, numero_bambini, camere_json, aree_riservate_json,
                      trattamento, note_operativa, note_ricevimento, note_cucina, note_allergie, note_housekeeping, note_manutenzione, pasti_json, extra_json)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
                 $stmt->bind_param(
-                    "ssssssssiiisssssssssssss",
+                    "ssssssssiiisssssssssss",
                     $nomeGruppo,
                     $referente,
                     $agenzia,
@@ -311,10 +272,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $numeroPersone,
                     $numeroAdulti,
                     $numeroBambini,
-                    $tipologiaCamere,
                     $camereJson,
                     $areeRiservateJson,
-                    $areaPreferita,
                     $trattamento,
                     $noteOperativa,
                     $noteRicevimento,
@@ -376,19 +335,24 @@ if ($currentId > 0) {
     }
 }
 
-$tipologieCamere = get_tipologie_camere($mysqli);
-$tipologieMap = [];
-foreach ($tipologieCamere as $tipologia) {
-    $codice = (string)($tipologia['codice'] ?? '');
-    if ($codice === '') {
-        continue;
-    }
-    $tipologieMap[$codice] = (string)($tipologia['descrizione'] ?? $codice);
+if (($currentData['trattamento'] ?? '') === 'Solo pernottamento') {
+    $currentData['trattamento'] = 'Solo';
 }
+
+$tipologieCamere = get_tipologie_camere($mysqli);
 $camereData = json_decode($currentData['camere_json'] ?? '{}', true) ?: [];
 $areeRiservateData = json_decode($currentData['aree_riservate_json'] ?? '[]', true) ?: [];
-$areeRiservateData = array_values(array_filter(array_map('intval', (array)$areeRiservateData)));
-$currentData['aree_riservate'] = $areeRiservateData;
+$areeRiservateIds = [];
+$areeRiservateTextParts = [];
+foreach ((array)$areeRiservateData as $value) {
+    if (is_numeric($value)) {
+        $areeRiservateIds[] = (int)$value;
+    } elseif (is_string($value) && trim($value) !== '') {
+        $areeRiservateTextParts[] = trim($value);
+    }
+}
+$currentData['aree_riservate'] = array_values(array_unique($areeRiservateIds));
+$currentData['aree_riservate_testo'] = implode(', ', $areeRiservateTextParts);
 $saleCongressi = get_sale_congressi($mysqli);
 $saleRistoranti = get_sale_ristoranti($mysqli);
 
@@ -400,7 +364,17 @@ if ($archivioRes instanceof mysqli_result) {
         $row['extra'] = json_decode($row['extra_json'] ?? '[]', true) ?: [];
         $row['camere'] = json_decode($row['camere_json'] ?? '{}', true) ?: [];
         $areeRiservate = json_decode($row['aree_riservate_json'] ?? '[]', true) ?: [];
-        $row['aree_riservate'] = array_values(array_filter(array_map('intval', (array)$areeRiservate)));
+        $areeIds = [];
+        $areeText = [];
+        foreach ((array)$areeRiservate as $value) {
+            if (is_numeric($value)) {
+                $areeIds[] = (int)$value;
+            } elseif (is_string($value) && trim($value) !== '') {
+                $areeText[] = trim($value);
+            }
+        }
+        $row['aree_riservate'] = array_values(array_unique($areeIds));
+        $row['aree_riservate_testo'] = implode(', ', $areeText);
         $gruppiArchivio[] = $row;
     }
     $archivioRes->free();
@@ -883,7 +857,7 @@ $shouldShowModal = $shouldShowForm;
                             <label class="form-label">Trattamento</label>
                             <select class="form-select" id="trattamento" name="trattamento">
                                 <option value="">Seleziona</option>
-                                <option value="Solo pernottamento" <?= $currentData['trattamento'] === 'Solo pernottamento' ? 'selected' : '' ?>>Solo pernottamento</option>
+                                <option value="Solo" <?= $currentData['trattamento'] === 'Solo' ? 'selected' : '' ?>>Solo pernottamento</option>
                                 <option value="BB" <?= $currentData['trattamento'] === 'BB' ? 'selected' : '' ?>>BB</option>
                                 <option value="HB" <?= $currentData['trattamento'] === 'HB' ? 'selected' : '' ?>>HB</option>
                                 <option value="FB" <?= $currentData['trattamento'] === 'FB' ? 'selected' : '' ?>>FB</option>
@@ -904,13 +878,12 @@ $shouldShowModal = $shouldShowForm;
                         <div class="col-md-4">
                             <label class="form-label">Aree riservate</label>
                             <?php if (!empty($saleCongressi)): ?>
-                                <input type="hidden" name="area_preferita" id="areaPreferitaHidden" value="<?= h($currentData['area_preferita']) ?>">
-                                <div class="border rounded-3 p-2" id="areaPreferita">
+                                <div class="border rounded-3 p-2">
                                     <?php foreach ($saleCongressi as $sala): ?>
                                         <?php
                                             $salaId = (int)($sala['id'] ?? 0);
                                             $salaNome = (string)($sala['nome'] ?? '');
-                                            $isSelected = in_array($salaId, $areeRiservateData, true);
+                                            $isSelected = in_array($salaId, $areeRiservateIds, true);
                                         ?>
                                         <div class="form-check">
                                             <input
@@ -929,7 +902,7 @@ $shouldShowModal = $shouldShowForm;
                                 </div>
                                 <div class="form-text">Seleziona una o più sale riservate.</div>
                             <?php else: ?>
-                                <input type="text" class="form-control" id="areaPreferita" name="area_preferita" value="<?= h($currentData['area_preferita']) ?>" placeholder="Es. 2° piano riservato">
+                                <input type="text" class="form-control" id="areaRiservateTesto" name="aree_riservate_testo" value="<?= h($currentData['aree_riservate_testo']) ?>" placeholder="Es. 2° piano riservato">
                                 <div class="form-text">Nessuna sala disponibile nella tabella sale_congressi.</div>
                             <?php endif; ?>
                         </div>
@@ -956,8 +929,7 @@ $shouldShowModal = $shouldShowForm;
                                     <?php endforeach; ?>
                                 </div>
                             <?php else: ?>
-                                <input type="text" class="form-control" id="tipologiaCamere" name="tipologia_camere" value="<?= h($currentData['tipologia_camere']) ?>" placeholder="Es. 10 doppie + 2 singole">
-                                <div class="form-text">Nessuna tipologia configurata, usa una descrizione libera.</div>
+                                <div class="alert alert-light border mb-0">Nessuna tipologia configurata nella tabella soggiorni_tariffe.</div>
                             <?php endif; ?>
                         </div>
                     </div>
@@ -1012,6 +984,11 @@ $shouldShowModal = $shouldShowForm;
                             <tbody></tbody>
                         </table>
                     </div>
+                </div>
+
+                <div class="border rounded-4 p-3">
+                    <h6 class="text-uppercase text-muted mb-3">Note operative</h6>
+                    <textarea class="form-control" name="note_operativa" id="noteOperativa" rows="4" placeholder="Note operative generali"><?= h($currentData['note_operativa']) ?></textarea>
                 </div>
 
                 <div class="border rounded-4 p-3">
@@ -1498,14 +1475,7 @@ $shouldShowModal = $shouldShowForm;
             };
         }).filter(Boolean);
 
-        const fallback = document.getElementById('tipologiaCamere')?.value;
         preview.alloggi.innerHTML = '';
-
-        if (cameraRows.length === 0 && fallback) {
-            preview.alloggi.innerHTML = `<div class="pdf-list-row"><span>${fallback}</span><span></span></div>`;
-            preview.camereTotale.textContent = '0';
-            return;
-        }
 
         if (cameraRows.length === 0) {
             preview.alloggi.innerHTML = '<div class="pdf-list-row"><span>Nessuna camera</span><span>0</span></div>';
@@ -1594,8 +1564,14 @@ $shouldShowModal = $shouldShowForm;
         preview.bambini.textContent = bambini.toString();
         preview.totale.textContent = totale.toString();
         preview.referente.textContent = document.getElementById('referente').value || 'Nome referente';
-        preview.trattamento.textContent = document.getElementById('trattamento').value || 'Trattamento';
-        const areaSelect = document.getElementById('areaPreferita');
+        const trattamentoSelect = document.getElementById('trattamento');
+        if (trattamentoSelect instanceof HTMLSelectElement) {
+            const selectedOption = trattamentoSelect.selectedOptions[0];
+            preview.trattamento.textContent = selectedOption?.text || 'Trattamento';
+        } else {
+            preview.trattamento.textContent = 'Trattamento';
+        }
+        const areaSelect = document.getElementById('areaRiservateTesto');
         let areaValue = 'Area riservata';
         const areaCheckboxes = Array.from(document.querySelectorAll('.area-riservata'));
         if (areaCheckboxes.length) {
@@ -1604,17 +1580,6 @@ $shouldShowModal = $shouldShowForm;
                 .map((checkbox) => checkbox.dataset.label || '')
                 .filter(Boolean);
             areaValue = selected.length ? selected.join(', ') : 'Area riservata';
-            const hiddenArea = document.getElementById('areaPreferitaHidden');
-            if (hiddenArea) {
-                hiddenArea.value = selected.join(', ');
-            }
-        } else if (areaSelect instanceof HTMLSelectElement && areaSelect.multiple) {
-            const selected = Array.from(areaSelect.selectedOptions).map((opt) => opt.text.trim()).filter(Boolean);
-            areaValue = selected.length ? selected.join(', ') : 'Area riservata';
-            const hiddenArea = document.getElementById('areaPreferitaHidden');
-            if (hiddenArea) {
-                hiddenArea.value = selected.join(', ');
-            }
         } else if (areaSelect) {
             areaValue = areaSelect.value || 'Area riservata';
         }
@@ -1726,15 +1691,11 @@ $shouldShowModal = $shouldShowForm;
         document.getElementById('numeroAdulti').value = adulti;
         document.getElementById('numeroBambini').value = bambini;
         document.getElementById('numeroTotale').value = data.numero_persone ?? 0;
-        const tipologiaFallback = document.getElementById('tipologiaCamere');
-        if (tipologiaFallback) {
-            tipologiaFallback.value = data.tipologia_camere ?? '';
-        }
         const trattamento = document.getElementById('trattamento');
         if (trattamento) {
-            trattamento.value = data.trattamento ?? '';
+            trattamento.value = data.trattamento === 'Solo pernottamento' ? 'Solo' : (data.trattamento ?? '');
         }
-        const areaSelect = document.getElementById('areaPreferita');
+        const areaSelect = document.getElementById('areaRiservateTesto');
         const areaCheckboxes = Array.from(document.querySelectorAll('.area-riservata'));
         if (areaCheckboxes.length) {
             let selected = (data.aree_riservate || data.aree_riservate_json || []) ?? [];
@@ -1749,29 +1710,12 @@ $shouldShowModal = $shouldShowForm;
             areaCheckboxes.forEach((checkbox) => {
                 checkbox.checked = selectedIds.includes(checkbox.value);
             });
-            const hiddenArea = document.getElementById('areaPreferitaHidden');
-            if (hiddenArea) {
-                hiddenArea.value = data.area_preferita ?? '';
-            }
-        } else if (areaSelect instanceof HTMLSelectElement && areaSelect.multiple) {
-            let selected = (data.aree_riservate || data.aree_riservate_json || []) ?? [];
-            if (typeof selected === 'string') {
-                try {
-                    selected = JSON.parse(selected);
-                } catch (error) {
-                    selected = [];
-                }
-            }
-            const selectedIds = Array.isArray(selected) ? selected.map((value) => String(value)) : [];
-            Array.from(areaSelect.options).forEach((option) => {
-                option.selected = selectedIds.includes(option.value);
-            });
-            const hiddenArea = document.getElementById('areaPreferitaHidden');
-            if (hiddenArea) {
-                hiddenArea.value = data.area_preferita ?? '';
-            }
         } else if (areaSelect) {
-            areaSelect.value = data.area_preferita ?? '';
+            areaSelect.value = data.aree_riservate_testo ?? '';
+        }
+        const noteOperativa = document.getElementById('noteOperativa');
+        if (noteOperativa) {
+            noteOperativa.value = data.note_operativa ?? '';
         }
         document.getElementById('noteRicevimento').value = data.note_ricevimento ?? '';
         document.getElementById('noteCucina').value = data.note_cucina ?? '';
