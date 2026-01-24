@@ -798,17 +798,18 @@ $shouldShowModal = $shouldShowForm;
                     <div class="row g-3 align-items-end">
                         <div class="col-md-8">
                             <label class="form-label">Cerca gruppo esistente</label>
-                            <input type="text" class="form-control" id="gruppoLookup" list="gruppiList" placeholder="Digita il nome del gruppo">
-                            <datalist id="gruppiList">
-                                <?php foreach ($gruppiArchivio as $gruppo): ?>
-                                    <option value="<?= h($gruppo['nome_gruppo']) ?>" data-id="<?= (int)$gruppo['id'] ?>"></option>
-                                <?php endforeach; ?>
-                            </datalist>
+                            <input type="text" class="form-control" id="gruppoLookup" placeholder="Nome gruppo, referente o agenzia">
                         </div>
                         <div class="col-md-4 d-flex gap-2">
+                            <button class="btn btn-outline-primary w-100" type="button" id="cercaGruppo">
+                                <i class="bi bi-search"></i> Cerca
+                            </button>
                             <button class="btn btn-outline-primary w-100" type="button" id="caricaGruppo">
                                 <i class="bi bi-folder2-open"></i> Carica scheda
                             </button>
+                        </div>
+                        <div class="col-12">
+                            <div id="gruppiSearchResults" class="guest-search-results mt-2 d-none"></div>
                         </div>
                     </div>
                 </div>
@@ -1773,7 +1774,15 @@ $shouldShowModal = $shouldShowForm;
     newSchedaBtn?.addEventListener('click', () => {
         resetFormData(emptyData, [], [], {});
         const lookupInput = document.getElementById('gruppoLookup');
-        if (lookupInput) lookupInput.value = '';
+        if (lookupInput) {
+            lookupInput.value = '';
+            lookupInput.dataset.selectedId = '';
+        }
+        const gruppiSearchResults = document.getElementById('gruppiSearchResults');
+        if (gruppiSearchResults) {
+            gruppiSearchResults.classList.add('d-none');
+            gruppiSearchResults.innerHTML = '';
+        }
     });
 
     if (shouldShowModal && window.bootstrap) {
@@ -1785,16 +1794,81 @@ $shouldShowModal = $shouldShowForm;
     const gruppiById = new Map((gruppiArchivio || []).map((gruppo) => [String(gruppo.id), gruppo]));
     const lookupInput = document.getElementById('gruppoLookup');
     const caricaBtn = document.getElementById('caricaGruppo');
+    const cercaBtn = document.getElementById('cercaGruppo');
+    const gruppiSearchResults = document.getElementById('gruppiSearchResults');
 
     const getGruppoSelezionato = () => {
         if (!lookupInput) return null;
         const value = lookupInput.value.trim();
         if (!value) return null;
-        const option = Array.from(document.querySelectorAll('#gruppiList option'))
-            .find((opt) => opt.value === value);
-        const id = option?.dataset.id;
-        return id ? gruppiById.get(String(id)) : null;
+        const selectedId = lookupInput.dataset.selectedId;
+        if (selectedId) {
+            return gruppiById.get(String(selectedId)) ?? null;
+        }
+        return (gruppiArchivio || []).find((gruppo) => gruppo.nome_gruppo === value) ?? null;
     };
+
+    const renderGruppiResults = (results) => {
+        if (!gruppiSearchResults) return;
+        if (!results.length) {
+            gruppiSearchResults.innerHTML = '<div class="p-2 text-muted small">Nessun gruppo trovato.</div>';
+            gruppiSearchResults.classList.remove('d-none');
+            return;
+        }
+        gruppiSearchResults.innerHTML = results.map((gruppo) => `
+            <div class="d-flex justify-content-between align-items-center px-2 py-2 border-bottom result-row" data-gruppo="${gruppo.id}">
+                <div>
+                    <div class="fw-semibold">${escapeHtml(gruppo.nome_gruppo ?? '')}</div>
+                    <div class="small text-muted">${escapeHtml(gruppo.referente ?? '')} ${gruppo.agenzia ? '· ' + escapeHtml(gruppo.agenzia) : ''}</div>
+                </div>
+                <button class="btn btn-outline-primary btn-sm js-select-group">Seleziona</button>
+            </div>
+        `).join('');
+        gruppiSearchResults.classList.remove('d-none');
+    };
+
+    const searchGruppi = () => {
+        if (!lookupInput || !gruppiSearchResults) return;
+        const query = lookupInput.value.trim().toLowerCase();
+        if (!query) {
+            gruppiSearchResults.classList.add('d-none');
+            gruppiSearchResults.innerHTML = '';
+            return;
+        }
+        const results = (gruppiArchivio || []).filter((gruppo) => {
+            const nome = (gruppo.nome_gruppo || '').toLowerCase();
+            const referente = (gruppo.referente || '').toLowerCase();
+            const agenzia = (gruppo.agenzia || '').toLowerCase();
+            return nome.includes(query) || referente.includes(query) || agenzia.includes(query);
+        });
+        renderGruppiResults(results);
+    };
+
+    cercaBtn?.addEventListener('click', searchGruppi);
+    lookupInput?.addEventListener('input', () => {
+        if (!lookupInput) return;
+        lookupInput.dataset.selectedId = '';
+    });
+    lookupInput?.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') {
+            event.preventDefault();
+            searchGruppi();
+        }
+    });
+
+    gruppiSearchResults?.addEventListener('click', (event) => {
+        const target = event.target;
+        const button = target instanceof Element ? target.closest('.js-select-group') : null;
+        if (!button) return;
+        const row = button.closest('[data-gruppo]');
+        const gruppoId = row?.getAttribute('data-gruppo') || '';
+        const gruppo = gruppoId ? gruppiById.get(gruppoId) : null;
+        if (!gruppo || !lookupInput) return;
+        lookupInput.value = gruppo.nome_gruppo ?? '';
+        lookupInput.dataset.selectedId = String(gruppo.id ?? '');
+        gruppiSearchResults.classList.add('d-none');
+        gruppiSearchResults.innerHTML = '';
+    });
 
     caricaBtn?.addEventListener('click', () => {
         const gruppo = getGruppoSelezionato();
