@@ -863,6 +863,7 @@ $shouldShowModal = $shouldShowForm;
                             <?php if (!empty($saleCongressi)): ?>
                                 <input type="hidden" name="area_preferita" id="areaPreferitaHidden" value="<?= h($currentData['area_preferita']) ?>">
                                 <div id="areaPreferitaList" class="border rounded-3 p-2 bg-white">
+                                <select class="form-select" id="areaPreferita" name="aree_riservate[]" multiple>
                                     <?php foreach ($saleCongressi as $sala): ?>
                                         <?php
                                             $salaId = (int)($sala['id'] ?? 0);
@@ -875,6 +876,9 @@ $shouldShowModal = $shouldShowForm;
                                         </div>
                                     <?php endforeach; ?>
                                 </div>
+                                        <option value="<?= $salaId ?>" <?= $isSelected ? 'selected' : '' ?>><?= h($salaNome) ?></option>
+                                    <?php endforeach; ?>
+                                </select>
                                 <div class="form-text">Seleziona una o più sale riservate.</div>
                             <?php else: ?>
                                 <input type="text" class="form-control" id="areaPreferita" name="area_preferita" value="<?= h($currentData['area_preferita']) ?>" placeholder="Es. 2° piano riservato">
@@ -1512,6 +1516,10 @@ $shouldShowModal = $shouldShowForm;
             const selected = Array.from(areaList.querySelectorAll('input[type="checkbox"]:checked'))
                 .map((checkbox) => checkbox.nextElementSibling?.textContent?.trim() || '')
                 .filter(Boolean);
+        const areaSelect = document.getElementById('areaPreferita');
+        let areaValue = 'Area riservata';
+        if (areaSelect instanceof HTMLSelectElement && areaSelect.multiple) {
+            const selected = Array.from(areaSelect.selectedOptions).map((opt) => opt.text.trim()).filter(Boolean);
             areaValue = selected.length ? selected.join(', ') : 'Area riservata';
             const hiddenArea = document.getElementById('areaPreferitaHidden');
             if (hiddenArea) {
@@ -1522,6 +1530,8 @@ $shouldShowModal = $shouldShowForm;
             if (areaInput) {
                 areaValue = areaInput.value || 'Area riservata';
             }
+        } else if (areaSelect) {
+            areaValue = areaSelect.value || 'Area riservata';
         }
         preview.area.textContent = areaValue;
         buildAlloggiList();
@@ -1620,6 +1630,8 @@ $shouldShowModal = $shouldShowForm;
         }
         const areaList = document.getElementById('areaPreferitaList');
         if (areaList) {
+        const areaSelect = document.getElementById('areaPreferita');
+        if (areaSelect instanceof HTMLSelectElement && areaSelect.multiple) {
             let selected = (data.aree_riservate || data.aree_riservate_json || []) ?? [];
             if (typeof selected === 'string') {
                 try {
@@ -1631,6 +1643,8 @@ $shouldShowModal = $shouldShowForm;
             const selectedIds = Array.isArray(selected) ? selected.map((value) => String(value)) : [];
             areaList.querySelectorAll('input[type="checkbox"]').forEach((checkbox) => {
                 checkbox.checked = selectedIds.includes(checkbox.value);
+            Array.from(areaSelect.options).forEach((option) => {
+                option.selected = selectedIds.includes(option.value);
             });
             const hiddenArea = document.getElementById('areaPreferitaHidden');
             if (hiddenArea) {
@@ -1641,6 +1655,8 @@ $shouldShowModal = $shouldShowForm;
             if (areaInput) {
                 areaInput.value = data.area_preferita ?? '';
             }
+        } else if (areaSelect) {
+            areaSelect.value = data.area_preferita ?? '';
         }
         document.getElementById('noteRicevimento').value = data.note_ricevimento ?? '';
         document.getElementById('noteCucina').value = data.note_cucina ?? '';
