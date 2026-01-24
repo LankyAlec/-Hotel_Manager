@@ -1848,8 +1848,12 @@ $shouldShowModal = $shouldShowForm;
             button.className = 'btn btn-outline-primary btn-sm js-load-group';
             button.textContent = 'Carica';
             button.addEventListener('click', () => {
-                setAnagraficaFields(gruppo, { resetId: false });
-                form.querySelector('input[name="id"]').value = 0;
+                resetFormData(
+                    gruppo,
+                    Array.isArray(gruppo.pasti) ? gruppo.pasti : [],
+                    Array.isArray(gruppo.extra) ? gruppo.extra : [],
+                    gruppo.camere && typeof gruppo.camere === 'object' ? gruppo.camere : {}
+                );
                 if (groupSearchInput) {
                     groupSearchInput.value = gruppo.nome_gruppo || '';
                 }
