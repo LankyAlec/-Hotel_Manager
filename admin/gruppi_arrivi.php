@@ -542,6 +542,25 @@ $shouldShowModal = $shouldShowForm;
         flex-direction: column;
     }
 
+    .guest-search-card {
+        border: 1px solid rgba(0, 0, 0, 0.08);
+        border-radius: 12px;
+        background: #f8f9fa;
+        padding: 12px;
+    }
+
+    .guest-search-results {
+        max-height: 220px;
+        overflow: auto;
+        border: 1px solid rgba(0, 0, 0, 0.08);
+        border-radius: 10px;
+        background: #fff;
+    }
+
+    .guest-search-results .result-row:hover {
+        background: #f1f3f5;
+    }
+
     .scheda-pdf {
         font-family: "Helvetica Neue", Arial, sans-serif;
         color: #1f2a44;
@@ -795,24 +814,19 @@ $shouldShowModal = $shouldShowForm;
                 <input type="hidden" name="id" value="<?= (int)$currentId ?>">
                 <div class="border rounded-4 p-3 bg-light">
                     <h6 class="text-uppercase text-muted mb-3">Carica gruppo registrato</h6>
-                    <div class="row g-3 align-items-end">
-                        <div class="col-md-8">
-                            <label class="form-label">Cerca gruppo esistente</label>
-                            <div class="position-relative">
-                                <input type="text" class="form-control" id="gruppoLookup" list="gruppiList" placeholder="Digita il nome del gruppo" autocomplete="off">
-                                <div id="gruppiSuggerimenti" class="list-group position-absolute w-100 shadow-sm d-none" style="z-index: 1051;"></div>
+                    <div class="guest-search-card">
+                        <div class="row g-2 align-items-end">
+                            <div class="col-12 col-md-8">
+                                <label class="form-label small">Ricerca gruppo esistente</label>
+                                <input class="form-control form-control-sm" id="groupSearchInput" placeholder="Nome gruppo, referente o agenzia">
                             </div>
-                            <datalist id="gruppiList">
-                                <?php foreach ($gruppiArchivio as $gruppo): ?>
-                                    <option value="<?= h($gruppo['nome_gruppo']) ?>" data-id="<?= (int)$gruppo['id'] ?>"></option>
-                                <?php endforeach; ?>
-                            </datalist>
+                            <div class="col-12 col-md-4">
+                                <button class="btn btn-outline-primary btn-sm w-100" type="button" id="groupSearchBtn">
+                                    <i class="bi bi-search"></i> Cerca
+                                </button>
+                            </div>
                         </div>
-                        <div class="col-md-4 d-flex gap-2">
-                            <button class="btn btn-outline-primary w-100" type="button" id="caricaGruppo">
-                                <i class="bi bi-folder2-open"></i> Carica scheda
-                            </button>
-                        </div>
+                        <div id="groupSearchResults" class="guest-search-results mt-2 d-none"></div>
                     </div>
                 </div>
                 <div class="border rounded-4 p-3">
@@ -1775,10 +1789,14 @@ $shouldShowModal = $shouldShowForm;
     const newSchedaBtn = document.getElementById('openNewScheda');
     newSchedaBtn?.addEventListener('click', () => {
         resetFormData(emptyData, [], [], {});
-        const lookupInput = document.getElementById('gruppoLookup');
-        if (lookupInput) {
-            lookupInput.value = '';
-            lookupInput.dataset.selectedId = '';
+        const groupSearchInput = document.getElementById('groupSearchInput');
+        const groupSearchResults = document.getElementById('groupSearchResults');
+        if (groupSearchInput) {
+            groupSearchInput.value = '';
+        }
+        if (groupSearchResults) {
+            groupSearchResults.innerHTML = '';
+            groupSearchResults.classList.add('d-none');
         }
     });
 
@@ -1788,18 +1806,69 @@ $shouldShowModal = $shouldShowForm;
         modal?.show();
     }
 
-    const gruppiById = new Map((gruppiArchivio || []).map((gruppo) => [String(gruppo.id), gruppo]));
-    const lookupInput = document.getElementById('gruppoLookup');
-    const suggerimentiEl = document.getElementById('gruppiSuggerimenti');
-    const caricaBtn = document.getElementById('caricaGruppo');
+    const groupSearchInput = document.getElementById('groupSearchInput');
+    const groupSearchBtn = document.getElementById('groupSearchBtn');
+    const groupSearchResults = document.getElementById('groupSearchResults');
 
-    const renderSuggerimenti = (term) => {
-        if (!lookupInput || !suggerimentiEl) return;
-        const keyword = term.trim().toLowerCase();
+    const clearGroupResults = () => {
+        if (!groupSearchResults) return;
+        groupSearchResults.innerHTML = '';
+        groupSearchResults.classList.add('d-none');
+    };
+
+    const renderGroupResults = (matches) => {
+        if (!groupSearchResults) return;
+        groupSearchResults.innerHTML = '';
+        if (!matches.length) {
+            groupSearchResults.innerHTML = '<div class="p-2 text-muted small">Nessun gruppo trovato.</div>';
+            groupSearchResults.classList.remove('d-none');
+            return;
+        }
+        matches.slice(0, 8).forEach((gruppo) => {
+            const row = document.createElement('div');
+            row.className = 'd-flex justify-content-between align-items-center px-2 py-2 border-bottom result-row';
+            row.dataset.gruppo = String(gruppo.id);
+
+            const info = document.createElement('div');
+            const nome = document.createElement('div');
+            nome.className = 'fw-semibold';
+            nome.textContent = gruppo.nome_gruppo || '';
+
+            const meta = document.createElement('div');
+            meta.className = 'small text-muted';
+            const referente = gruppo.referente || '';
+            const agenzia = gruppo.agenzia ? ` · ${gruppo.agenzia}` : '';
+            meta.textContent = `${referente}${agenzia}`.trim() || '—';
+
+            info.appendChild(nome);
+            info.appendChild(meta);
+
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'btn btn-outline-primary btn-sm js-load-group';
+            button.textContent = 'Carica';
+            button.addEventListener('click', () => {
+                setAnagraficaFields(gruppo, { resetId: false });
+                form.querySelector('input[name="id"]').value = 0;
+                if (groupSearchInput) {
+                    groupSearchInput.value = gruppo.nome_gruppo || '';
+                }
+                clearGroupResults();
+                aggiornaPreview();
+            });
+
+            row.appendChild(info);
+            row.appendChild(button);
+            groupSearchResults.appendChild(row);
+        });
+        groupSearchResults.classList.remove('d-none');
+    };
+
+    const searchGroups = () => {
+        if (!groupSearchInput) return;
+        const keyword = groupSearchInput.value.trim().toLowerCase();
         if (!keyword) {
-            suggerimentiEl.innerHTML = '';
-            suggerimentiEl.classList.add('d-none');
-            lookupInput.dataset.selectedId = '';
+            clearGroupResults();
             return;
         }
         const matches = (gruppiArchivio || []).filter((gruppo) => {
@@ -1808,70 +1877,20 @@ $shouldShowModal = $shouldShowForm;
             const agenzia = (gruppo.agenzia || '').toLowerCase();
             return nome.includes(keyword) || referente.includes(keyword) || agenzia.includes(keyword);
         });
-        suggerimentiEl.innerHTML = '';
-        if (!matches.length) {
-            suggerimentiEl.classList.add('d-none');
-            lookupInput.dataset.selectedId = '';
-            return;
-        }
-        matches.slice(0, 8).forEach((gruppo) => {
-            const button = document.createElement('button');
-            button.type = 'button';
-            button.className = 'list-group-item list-group-item-action';
-            button.textContent = gruppo.nome_gruppo;
-            button.dataset.id = gruppo.id;
-            button.addEventListener('click', () => {
-                lookupInput.value = gruppo.nome_gruppo;
-                lookupInput.dataset.selectedId = String(gruppo.id);
-                suggerimentiEl.innerHTML = '';
-                suggerimentiEl.classList.add('d-none');
-            });
-            suggerimentiEl.appendChild(button);
-        });
-        suggerimentiEl.classList.remove('d-none');
-        lookupInput.dataset.selectedId = '';
+        renderGroupResults(matches);
     };
 
-    const getGruppoSelezionato = () => {
-        if (!lookupInput) return null;
-        const value = lookupInput.value.trim();
-        if (!value) return null;
-        const selectedId = lookupInput.dataset.selectedId;
-        if (selectedId) {
-            return gruppiById.get(String(selectedId)) ?? null;
+    groupSearchBtn?.addEventListener('click', searchGroups);
+    groupSearchInput?.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') {
+            event.preventDefault();
+            searchGroups();
         }
-        const option = Array.from(document.querySelectorAll('#gruppiList option'))
-            .find((opt) => opt.value === value);
-        const id = option?.dataset.id;
-        return id ? gruppiById.get(String(id)) : null;
-    };
-
-    lookupInput?.addEventListener('input', (event) => {
-        const target = event.target;
-        if (!(target instanceof HTMLInputElement)) return;
-        renderSuggerimenti(target.value);
     });
-
-    lookupInput?.addEventListener('focus', () => {
-        renderSuggerimenti(lookupInput.value);
-    });
-
-    document.addEventListener('click', (event) => {
-        if (!suggerimentiEl || !lookupInput) return;
-        const target = event.target;
-        if (target instanceof Node && suggerimentiEl.contains(target)) return;
-        if (target === lookupInput) return;
-        suggerimentiEl.classList.add('d-none');
-    });
-
-    caricaBtn?.addEventListener('click', () => {
-        const gruppo = getGruppoSelezionato();
-        if (!gruppo) {
-            alert('Seleziona un gruppo esistente dalla lista.');
-            return;
+    groupSearchInput?.addEventListener('input', () => {
+        if (!groupSearchInput.value.trim()) {
+            clearGroupResults();
         }
-        setAnagraficaFields(gruppo, { resetId: false });
-        form.querySelector('input[name="id"]').value = 0;
     });
 </script>
 
