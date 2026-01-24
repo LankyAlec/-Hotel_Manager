@@ -798,7 +798,10 @@ $shouldShowModal = $shouldShowForm;
                     <div class="row g-3 align-items-end">
                         <div class="col-md-8">
                             <label class="form-label">Cerca gruppo esistente</label>
-                            <input type="text" class="form-control" id="gruppoLookup" list="gruppiList" placeholder="Digita il nome del gruppo">
+                            <div class="position-relative">
+                                <input type="text" class="form-control" id="gruppoLookup" list="gruppiList" placeholder="Digita il nome del gruppo" autocomplete="off">
+                                <div id="gruppiSuggerimenti" class="list-group position-absolute w-100 shadow-sm d-none" style="z-index: 1051;"></div>
+                            </div>
                             <datalist id="gruppiList">
                                 <?php foreach ($gruppiArchivio as $gruppo): ?>
                                     <option value="<?= h($gruppo['nome_gruppo']) ?>" data-id="<?= (int)$gruppo['id'] ?>"></option>
@@ -1773,7 +1776,10 @@ $shouldShowModal = $shouldShowForm;
     newSchedaBtn?.addEventListener('click', () => {
         resetFormData(emptyData, [], [], {});
         const lookupInput = document.getElementById('gruppoLookup');
-        if (lookupInput) lookupInput.value = '';
+        if (lookupInput) {
+            lookupInput.value = '';
+            lookupInput.dataset.selectedId = '';
+        }
     });
 
     if (shouldShowModal && window.bootstrap) {
@@ -1784,17 +1790,79 @@ $shouldShowModal = $shouldShowForm;
 
     const gruppiById = new Map((gruppiArchivio || []).map((gruppo) => [String(gruppo.id), gruppo]));
     const lookupInput = document.getElementById('gruppoLookup');
+    const suggerimentiEl = document.getElementById('gruppiSuggerimenti');
     const caricaBtn = document.getElementById('caricaGruppo');
+
+    const renderSuggerimenti = (term) => {
+        if (!lookupInput || !suggerimentiEl) return;
+        const keyword = term.trim().toLowerCase();
+        if (!keyword) {
+            suggerimentiEl.innerHTML = '';
+            suggerimentiEl.classList.add('d-none');
+            lookupInput.dataset.selectedId = '';
+            return;
+        }
+        const matches = (gruppiArchivio || []).filter((gruppo) => {
+            const nome = (gruppo.nome_gruppo || '').toLowerCase();
+            const referente = (gruppo.referente || '').toLowerCase();
+            const agenzia = (gruppo.agenzia || '').toLowerCase();
+            return nome.includes(keyword) || referente.includes(keyword) || agenzia.includes(keyword);
+        });
+        suggerimentiEl.innerHTML = '';
+        if (!matches.length) {
+            suggerimentiEl.classList.add('d-none');
+            lookupInput.dataset.selectedId = '';
+            return;
+        }
+        matches.slice(0, 8).forEach((gruppo) => {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'list-group-item list-group-item-action';
+            button.textContent = gruppo.nome_gruppo;
+            button.dataset.id = gruppo.id;
+            button.addEventListener('click', () => {
+                lookupInput.value = gruppo.nome_gruppo;
+                lookupInput.dataset.selectedId = String(gruppo.id);
+                suggerimentiEl.innerHTML = '';
+                suggerimentiEl.classList.add('d-none');
+            });
+            suggerimentiEl.appendChild(button);
+        });
+        suggerimentiEl.classList.remove('d-none');
+        lookupInput.dataset.selectedId = '';
+    };
 
     const getGruppoSelezionato = () => {
         if (!lookupInput) return null;
         const value = lookupInput.value.trim();
         if (!value) return null;
+        const selectedId = lookupInput.dataset.selectedId;
+        if (selectedId) {
+            return gruppiById.get(String(selectedId)) ?? null;
+        }
         const option = Array.from(document.querySelectorAll('#gruppiList option'))
             .find((opt) => opt.value === value);
         const id = option?.dataset.id;
         return id ? gruppiById.get(String(id)) : null;
     };
+
+    lookupInput?.addEventListener('input', (event) => {
+        const target = event.target;
+        if (!(target instanceof HTMLInputElement)) return;
+        renderSuggerimenti(target.value);
+    });
+
+    lookupInput?.addEventListener('focus', () => {
+        renderSuggerimenti(lookupInput.value);
+    });
+
+    document.addEventListener('click', (event) => {
+        if (!suggerimentiEl || !lookupInput) return;
+        const target = event.target;
+        if (target instanceof Node && suggerimentiEl.contains(target)) return;
+        if (target === lookupInput) return;
+        suggerimentiEl.classList.add('d-none');
+    });
 
     caricaBtn?.addEventListener('click', () => {
         const gruppo = getGruppoSelezionato();
