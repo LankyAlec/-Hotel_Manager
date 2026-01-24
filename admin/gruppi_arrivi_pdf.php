@@ -59,6 +59,7 @@ $telefono = trim((string)($payload['telefono'] ?? ''));
 $email = trim((string)($payload['email'] ?? ''));
 $dataArrivo = format_date((string)($payload['data_arrivo'] ?? ''));
 $dataPartenza = format_date((string)($payload['data_partenza'] ?? ''));
+$checkinOrario = trim((string)($payload['checkin_orario'] ?? ''));
 $numeroAdulti = (int)($payload['numero_adulti'] ?? 0);
 $numeroBambini = (int)($payload['numero_bambini'] ?? 0);
 $numeroPersone = max(0, $numeroAdulti + $numeroBambini);
@@ -120,6 +121,7 @@ $addRow($pdf, 'Email:', $email);
 
 $pdf->Ln(2);
 $addRow($pdf, 'Arrivo:', $dataArrivo);
+$addRow($pdf, 'Orario check-in:', $checkinOrario);
 $addRow($pdf, 'Partenza:', $dataPartenza);
 $addRow($pdf, 'Adulti:', (string)$numeroAdulti);
 $addRow($pdf, 'Bambini:', (string)$numeroBambini);
