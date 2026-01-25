@@ -112,6 +112,12 @@ function ensure_gruppi_arrivi_table(mysqli $mysqli): void
 
 function normalize_pasti_rows($rows): array
 {
+    if (is_string($rows)) {
+        $decoded = json_decode($rows, true);
+        if (is_array($decoded)) {
+            $rows = $decoded;
+        }
+    }
     if (!is_array($rows)) {
         return [];
     }
