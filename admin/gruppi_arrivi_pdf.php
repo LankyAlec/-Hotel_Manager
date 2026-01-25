@@ -1,6 +1,9 @@
 <?php
 declare(strict_types=1);
 
+use Dompdf\Dompdf;
+use Dompdf\Options;
+
 /**
  * /admin/gruppi_arrivi_pdf.php
  * Genera PDF “Scheda Arrivo Gruppi” con Dompdf (HTML/CSS).
@@ -16,15 +19,32 @@ ob_start();
 require_once __DIR__ . '/../config/db.php';
 
 /* =========================
-   DOMPDF (manual include)
-   =========================
-   Nel tuo caso Dompdf è installato via /vendor.
-   Quindi l'include corretto è:
-*/
-require_once __DIR__ . '/../vendor/autoload.php';
+   DOMPDF (autoload)
+   ========================= */
+$autoloadPaths = [
+    __DIR__ . '/../vendor/autoload.php',
+    dirname(__DIR__, 2) . '/vendor/autoload.php',
+];
 
-use Dompdf\Dompdf;
-use Dompdf\Options;
+if (!empty($_SERVER['DOCUMENT_ROOT'])) {
+    $autoloadPaths[] = rtrim((string)$_SERVER['DOCUMENT_ROOT'], '/') . '/vendor/autoload.php';
+}
+
+$autoloaded = false;
+foreach (array_unique($autoloadPaths) as $autoloadPath) {
+    if (is_file($autoloadPath)) {
+        require_once $autoloadPath;
+        $autoloaded = true;
+        break;
+    }
+}
+
+if (!$autoloaded) {
+    ob_end_clean();
+    http_response_code(500);
+    echo 'Errore PDF: autoload Dompdf non trovato. Verifica il percorso vendor/autoload.php.';
+    exit;
+}
 
 /* =========================
    AUTH
