@@ -256,13 +256,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             if ($currentId > 0) {
                 $stmt = $mysqli->prepare("UPDATE gruppi_arrivi
-                    SET nome_gruppo=?, referente=?, agenzia=?, telefono=?, email=?, data_arrivo=?, data_partenza=?, checkin_orario=?,
-                        numero_persone=?, numero_adulti=?, numero_bambini=?, camere_json=?, aree_riservate_json=?,
-                        trattamento=?, note_operativa=?, note_ricevimento=?, note_cucina=?, note_disposizione_tavoli=?, note_allergie=?,
-                        note_housekeeping=?, note_manutenzione=?, pasti_json=?, extra_json=?
-                    WHERE id=?");
+                SET nome_gruppo=?, referente=?, agenzia=?, telefono=?, email=?, data_arrivo=?, data_partenza=?, checkin_orario=?,
+                    numero_persone=?, numero_adulti=?, numero_bambini=?, camere_json=?, aree_riservate_json=?,
+                    trattamento=?, note_operativa=?, note_ricevimento=?, note_cucina=?, note_disposizione_tavoli=?, note_allergie=?,
+                    note_housekeeping=?, note_manutenzione=?, pasti_json=?, extra_json=?
+                WHERE id=?");
+
                 $stmt->bind_param(
-                    "ssssssssiiisssssssssssssi",
+                    "sssssssiiisssssssssssssi",
                     $nomeGruppo,
                     $referente,
                     $agenzia,
@@ -288,6 +289,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $extraJson,
                     $currentId
                 );
+
                 $ok = $stmt->execute();
                 $stmt->close();
                 if ($ok) {
@@ -299,10 +301,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             } else {
                 $stmt = $mysqli->prepare("INSERT INTO gruppi_arrivi
-                    (nome_gruppo, referente, agenzia, telefono, email, data_arrivo, data_partenza, checkin_orario, numero_persone, numero_adulti, numero_bambini, camere_json, aree_riservate_json,trattamento, note_operativa, note_ricevimento, note_cucina, note_disposizione_tavoli, note_allergie, note_housekeeping, note_manutenzione, pasti_json, extra_json)
+                    (nome_gruppo, referente, agenzia, telefono, email, data_arrivo, data_partenza, checkin_orario,
+                     numero_persone, numero_adulti, numero_bambini, camere_json, aree_riservate_json, trattamento,
+                     note_operativa, note_ricevimento, note_cucina, note_disposizione_tavoli, note_allergie,
+                     note_housekeeping, note_manutenzione, pasti_json, extra_json)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+
                 $stmt->bind_param(
-                    "ssssssssiiissssssssssss",
+                    "ssssssssiiissssssssssssss",
                     $nomeGruppo,
                     $referente,
                     $agenzia,
@@ -327,6 +333,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $pastiJson,
                     $extraJson
                 );
+
+
                 $ok = $stmt->execute();
                 $currentId = $ok ? (int)$stmt->insert_id : 0;
                 $stmt->close();
