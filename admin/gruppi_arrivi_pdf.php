@@ -191,6 +191,7 @@ $numeroPersone = max(0, $numeroAdulti + $numeroBambini);
 $trattamento      = trim((string)($payload['trattamento'] ?? ''));
 $noteRicevimento  = trim((string)($payload['note_ricevimento'] ?? ''));
 $noteCucina       = trim((string)($payload['note_cucina'] ?? ''));
+$noteDisposizioneTavoli = trim((string)($payload['note_disposizione_tavoli'] ?? ''));
 $noteAllergie     = trim((string)($payload['note_allergie'] ?? ''));
 $noteHousekeeping = trim((string)($payload['note_housekeeping'] ?? ''));
 $noteManutenzione = trim((string)($payload['note_manutenzione'] ?? ''));
@@ -375,6 +376,11 @@ $notesHtml = '
 $allergieHtml = (trim($noteAllergie) !== '')
     ? '<div class="note">'.nl2br(h($noteAllergie)).'</div>'
     : '<div class="muted">Nessuna allergia segnalata.</div>';
+
+// Disposizione tavoli
+$disposizioneHtml = (trim($noteDisposizioneTavoli) !== '')
+    ? '<div class="note">'.nl2br(h($noteDisposizioneTavoli)).'</div>'
+    : '<div class="muted">Nessuna indicazione inserita.</div>';
 
 // Header label
 $gruppoLabel = ($nomeGruppo !== '' ? 'Gruppo: ' . $nomeGruppo : 'Gruppo: —');
@@ -631,19 +637,26 @@ $html = '
 
   <!-- PAGINA 3 -->
   <div class="section">
+    <div class="section-title"><span class="dot"></span>Disposizione tavoli</div>
+    <div class="section-sub">Disposizione tavoli (generale)</div>
+    '.$disposizioneHtml.'
+  </div>
+
+  <!-- PAGINA 4 -->
+  <div class="section">
     <div class="section-title"><span class="dot"></span>Allergie / intolleranze</div>
     <div class="section-sub">Allergie / intolleranze (generale)</div>
     '.$allergieHtml.'
   </div>
 
-  <!-- PAGINA 4 -->
+  <!-- PAGINA 5 -->
   <div class="section">
     <div class="section-title"><span class="dot"></span>Attività / extra</div>
     <div class="section-sub">Elenco attività</div>
     '.$extraHtml.'
   </div>
 
-  <!-- PAGINA 5 -->
+  <!-- PAGINA 6 -->
   <div class="section">
     <div class="section-title"><span class="dot"></span>Note per reparti</div>
     '.$notesHtml.'

@@ -85,6 +85,7 @@ function ensure_gruppi_arrivi_table(mysqli $mysqli): void
         note_operativa TEXT NULL,
         note_ricevimento TEXT NULL,
         note_cucina TEXT NULL,
+        note_disposizione_tavoli TEXT NULL,
         note_allergie TEXT NULL,
         note_housekeeping TEXT NULL,
         note_manutenzione TEXT NULL,
@@ -105,6 +106,7 @@ function ensure_gruppi_arrivi_table(mysqli $mysqli): void
     add_column_if_missing($mysqli, 'gruppi_arrivi', 'note_operativa', 'TEXT NULL');
     add_column_if_missing($mysqli, 'gruppi_arrivi', 'note_ricevimento', 'TEXT NULL');
     add_column_if_missing($mysqli, 'gruppi_arrivi', 'note_cucina', 'TEXT NULL');
+    add_column_if_missing($mysqli, 'gruppi_arrivi', 'note_disposizione_tavoli', 'TEXT NULL');
     add_column_if_missing($mysqli, 'gruppi_arrivi', 'note_allergie', 'TEXT NULL');
     add_column_if_missing($mysqli, 'gruppi_arrivi', 'note_housekeeping', 'TEXT NULL');
     add_column_if_missing($mysqli, 'gruppi_arrivi', 'note_manutenzione', 'TEXT NULL');
@@ -174,6 +176,7 @@ $emptyData = [
     'note_operativa' => '',
     'note_ricevimento' => "Richiedere documenti al CHECK IN\nLe  quote saldate con il POS che vanno conservate a parte rispetto agli altri clienti presenti in Hotel.",
     'note_cucina' => '',
+    'note_disposizione_tavoli' => '',
     'note_allergie' => '',
     'note_housekeeping' => '',
     'note_manutenzione' => '',
@@ -239,6 +242,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $noteOperativa = trim($_POST['note_operativa'] ?? '');
         $noteRicevimento = trim($_POST['note_ricevimento'] ?? '');
         $noteCucina = trim($_POST['note_cucina'] ?? '');
+        $noteDisposizioneTavoli = trim($_POST['note_disposizione_tavoli'] ?? '');
         $noteAllergie = trim($_POST['note_allergie'] ?? '');
         $noteHousekeeping = trim($_POST['note_housekeeping'] ?? '');
         $noteManutenzione = trim($_POST['note_manutenzione'] ?? '');
@@ -254,11 +258,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt = $mysqli->prepare("UPDATE gruppi_arrivi
                     SET nome_gruppo=?, referente=?, agenzia=?, telefono=?, email=?, data_arrivo=?, data_partenza=?, checkin_orario=?,
                         numero_persone=?, numero_adulti=?, numero_bambini=?, camere_json=?, aree_riservate_json=?,
-                        trattamento=?, note_operativa=?, note_ricevimento=?, note_cucina=?, note_allergie=?,
+                        trattamento=?, note_operativa=?, note_ricevimento=?, note_cucina=?, note_disposizione_tavoli=?, note_allergie=?,
                         note_housekeeping=?, note_manutenzione=?, pasti_json=?, extra_json=?
                     WHERE id=?");
                 $stmt->bind_param(
-                    "ssssssssiiisssssssssssi",
+                    "ssssssssiiisssssssssssssi",
                     $nomeGruppo,
                     $referente,
                     $agenzia,
@@ -276,6 +280,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $noteOperativa,
                     $noteRicevimento,
                     $noteCucina,
+                    $noteDisposizioneTavoli,
                     $noteAllergie,
                     $noteHousekeeping,
                     $noteManutenzione,
@@ -294,10 +299,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             } else {
                 $stmt = $mysqli->prepare("INSERT INTO gruppi_arrivi
-                    (nome_gruppo, referente, agenzia, telefono, email, data_arrivo, data_partenza, checkin_orario, numero_persone, numero_adulti, numero_bambini, camere_json, aree_riservate_json,trattamento, note_operativa, note_ricevimento, note_cucina, note_allergie, note_housekeeping, note_manutenzione, pasti_json, extra_json)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                    (nome_gruppo, referente, agenzia, telefono, email, data_arrivo, data_partenza, checkin_orario, numero_persone, numero_adulti, numero_bambini, camere_json, aree_riservate_json,trattamento, note_operativa, note_ricevimento, note_cucina, note_disposizione_tavoli, note_allergie, note_housekeeping, note_manutenzione, pasti_json, extra_json)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
                 $stmt->bind_param(
-                    "ssssssssiiisssssssssss",
+                    "ssssssssiiissssssssssss",
                     $nomeGruppo,
                     $referente,
                     $agenzia,
@@ -315,6 +320,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $noteOperativa,
                     $noteRicevimento,
                     $noteCucina,
+                    $noteDisposizioneTavoli,
                     $noteAllergie,
                     $noteHousekeeping,
                     $noteManutenzione,
@@ -1037,9 +1043,17 @@ $shouldShowModal = $shouldShowForm;
                             <label class="form-label">CUCINA/RISTORANTE</label>
                             <textarea class="form-control" name="note_cucina" id="noteCucina" rows="4" placeholder="Note per cucina/ristorante"><?= h($currentData['note_cucina']) ?></textarea>
                         </div>
-                        <div class="border rounded-4 p-3">
-                            <h6 class="text-uppercase text-muted mb-3">Allergie / intolleranze</h6>
-                            <textarea class="form-control" name="note_allergie" id="noteAllergie" rows="4" placeholder="Segnala allergie o intolleranze valide per tutto il gruppo."><?= h($currentData['note_allergie']) ?></textarea>
+                        <div class="col-12">
+                            <div class="border rounded-4 p-3">
+                                <h6 class="text-uppercase text-muted mb-3">Disposizione tavoli</h6>
+                                <textarea class="form-control" name="note_disposizione_tavoli" id="noteDisposizioneTavoli" rows="4" placeholder="Indica la disposizione dei tavoli per il gruppo."><?= h($currentData['note_disposizione_tavoli']) ?></textarea>
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <div class="border rounded-4 p-3">
+                                <h6 class="text-uppercase text-muted mb-3">Allergie / intolleranze</h6>
+                                <textarea class="form-control" name="note_allergie" id="noteAllergie" rows="4" placeholder="Segnala allergie o intolleranze valide per tutto il gruppo."><?= h($currentData['note_allergie']) ?></textarea>
+                            </div>
                         </div>
                         <div class="col-12">
                             <label class="form-label">HOUSEKEEPING</label>
@@ -1160,11 +1174,11 @@ $shouldShowModal = $shouldShowForm;
         </div>
 
         <div class="pdf-page">
-            <div class="pdf-section-title">ALLERGIE / INTOLLERANZE</div>
-            <div class="pdf-paragraph" id="previewAllergie">Nessuna allergia segnalata.</div>
-            <div class="pdf-divider"></div>
             <div class="pdf-section-title">DISTRIBUZIONE TAVOLI</div>
             <div class="pdf-paragraph" id="previewDistribuzione">Nessuna indicazione inserita.</div>
+            <div class="pdf-divider"></div>
+            <div class="pdf-section-title">ALLERGIE / INTOLLERANZE</div>
+            <div class="pdf-paragraph" id="previewAllergie">Nessuna allergia segnalata.</div>
         </div>
 
         <div class="pdf-page">
@@ -1599,16 +1613,9 @@ $shouldShowModal = $shouldShowForm;
         });
     };
 
-    const buildDistribuzione = (extraRows) => {
-        if (!extraRows.length) {
-            preview.distribuzione.textContent = 'Nessuna indicazione inserita.';
-            return;
-        }
-        const lines = extraRows.map((row) => {
-            const parts = [row.descrizione, row.data, row.ora, row.note].filter(Boolean);
-            return parts.join(' - ');
-        }).filter(Boolean);
-        preview.distribuzione.textContent = lines.join('\n');
+    const buildDistribuzione = (noteText) => {
+        const value = (noteText || '').trim();
+        preview.distribuzione.textContent = value || 'Nessuna indicazione inserita.';
     };
 
     const aggiornaPreview = () => {
@@ -1657,6 +1664,7 @@ $shouldShowModal = $shouldShowForm;
         const noteRicevimento = document.getElementById('noteRicevimento').value || 'Nessuna nota per il ricevimento.';
         const noteCucinaRaw = document.getElementById('noteCucina').value || '';
         const noteCucina = noteCucinaRaw || 'Nessuna nota per cucina/ristorante.';
+        const noteDisposizioneRaw = document.getElementById('noteDisposizioneTavoli')?.value || '';
         const noteAllergieRaw = document.getElementById('noteAllergie')?.value || '';
         const noteHousekeeping = document.getElementById('noteHousekeeping').value || 'Nessuna nota per housekeeping.';
         const noteManutenzione = document.getElementById('noteManutenzione').value || 'Nessuna nota per manutenzione.';
@@ -1666,6 +1674,7 @@ $shouldShowModal = $shouldShowForm;
         preview.noteManutenzione.textContent = noteManutenzione;
         preview.noteManutenzioneSintesi.textContent = noteManutenzione;
         preview.allergie.textContent = noteAllergieRaw || 'Nessuna allergia segnalata.';
+        buildDistribuzione(noteDisposizioneRaw);
 
         const pastiRows = Array.from(pastiTable.querySelectorAll('tr[data-type="pasto-main"]')).map((row) => {
             const inputs = row.querySelectorAll('input, select');
@@ -1707,7 +1716,6 @@ $shouldShowModal = $shouldShowForm;
             : 'Nessuna sala ristorante indicata.';
 
         buildMenu(pastiRows);
-        buildDistribuzione(extraRows);
 
         toggleTableHeader(pastiTable, pastiTableHeader);
         toggleTableHeader(extraTable, extraTableHeader);
@@ -1787,6 +1795,10 @@ $shouldShowModal = $shouldShowForm;
         }
         document.getElementById('noteRicevimento').value = data.note_ricevimento ?? '';
         document.getElementById('noteCucina').value = data.note_cucina ?? '';
+        const noteDisposizioneInput = document.getElementById('noteDisposizioneTavoli');
+        if (noteDisposizioneInput) {
+            noteDisposizioneInput.value = data.note_disposizione_tavoli ?? '';
+        }
         const noteAllergieInput = document.getElementById('noteAllergie');
         if (noteAllergieInput) {
             noteAllergieInput.value = data.note_allergie ?? '';
