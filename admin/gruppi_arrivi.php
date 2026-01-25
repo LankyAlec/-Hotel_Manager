@@ -258,7 +258,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         note_housekeeping=?, note_manutenzione=?, pasti_json=?, extra_json=?
                     WHERE id=?");
                 $stmt->bind_param(
-                    "ssssssssiiisssssssssssi",
+                    "ssssssssiiissssssssssssi",
                     $nomeGruppo,
                     $referente,
                     $agenzia,
@@ -297,7 +297,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     (nome_gruppo, referente, agenzia, telefono, email, data_arrivo, data_partenza, checkin_orario, numero_persone, numero_adulti, numero_bambini, camere_json, aree_riservate_json,trattamento, note_operativa, note_ricevimento, note_cucina, note_allergie, note_housekeeping, note_manutenzione, pasti_json, extra_json)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
                 $stmt->bind_param(
-                    "ssssssssiiisssssssssss",
+                    "ssssssssiiissssssssssss",
                     $nomeGruppo,
                     $referente,
                     $agenzia,
