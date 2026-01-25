@@ -127,6 +127,10 @@ $numeroBambini = (int)($payload['numero_bambini'] ?? 0);
 $numeroPersone = max(0, $numeroAdulti + $numeroBambini);
 $tipologiaCamere = trim((string)($payload['tipologia_camere'] ?? ''));
 $areaPreferita = trim((string)($payload['area_preferita'] ?? ''));
+$areeRiservateTesto = trim((string)($payload['aree_riservate_testo'] ?? ''));
+if ($areaPreferita === '' && $areeRiservateTesto !== '') {
+    $areaPreferita = $areeRiservateTesto;
+}
 $trattamento = trim((string)($payload['trattamento'] ?? ''));
 $noteRicevimento = trim((string)($payload['note_ricevimento'] ?? ''));
 $noteCucina = trim((string)($payload['note_cucina'] ?? ''));
@@ -162,6 +166,10 @@ if ($areeRiservate && table_exists($mysqli, 'sale_congressi')) {
             $areaPreferita = implode(', ', $nomi);
         }
     }
+}
+
+if ($areaPreferita === '' && $areeRiservateTesto !== '') {
+    $areaPreferita = $areeRiservateTesto;
 }
 
 $camereInput = $payload['camere'] ?? [];
