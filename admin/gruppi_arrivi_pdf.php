@@ -1,479 +1,696 @@
 <?php
 declare(strict_types=1);
 
+/**
+ * /admin/gruppi_arrivi_pdf.php
+ * Genera PDF “Scheda Arrivo Gruppi” con Dompdf (HTML/CSS).
+ *
+ * NOTE IMPORTANTI:
+ * - NIENTE output prima del PDF (anche un warning rompe il file)
+ * - usa DejaVu Sans per UTF-8
+ * - immagini locali: usa file:// + realpath (e abilita chroot)
+ */
+
+ob_start();
+
 require_once __DIR__ . '/../config/db.php';
-require_once __DIR__ . '/../librerie/fpdf/fpdf.php';
+
+/* =========================
+   DOMPDF (manual include)
+   =========================
+   Nel tuo caso Dompdf è installato via /vendor.
+   Quindi l'include corretto è:
+*/
+require_once __DIR__ . '/../vendor/autoload.php';
+
+use Dompdf\Dompdf;
+use Dompdf\Options;
+
+/* =========================
+   AUTH
+   ========================= */
+if (session_status() !== PHP_SESSION_ACTIVE) session_start();
 
 if (empty($_SESSION['utente_id']) || ($_SESSION['privilegi'] ?? '') !== 'root') {
     header("Location: " . BASE_URL . "/dashboard.php");
     exit;
 }
 
-ini_set('display_errors', '0');
+/* =========================
+   CONFIG HOTEL (EDITA QUI)
+   ========================= */
+const HOTEL_NOME       = 'PARK HOTEL PARADISO';
+const HOTEL_INDIRIZZO  = 'Via Contrada Ramaldo, 94015 Piazza Armerina (EN)';
+const HOTEL_TEL        = '+39 334 819 6774 | +39 0935 684908';
+const HOTEL_EMAIL      = 'info@parkhotelparadiso.it';
+const HOTEL_WEB        = 'http://www.parkhotelparadiso.it';
+const HOTEL_LOGO_PATH  = __DIR__ . '/../img/logo.jpg'; // JPG consigliato
 
-function table_exists(mysqli $db, string $table): bool
-{
+/* =========================
+   HELPERS
+   ========================= */
+
+function format_date(?string $value): string {
+    $v = trim((string)$value);
+    if ($v === '') return '';
+    $dt = DateTime::createFromFormat('Y-m-d', $v);
+    return ($dt instanceof DateTime) ? $dt->format('d/m/Y') : $v;
+}
+
+function format_time(?string $value): string {
+    $v = trim((string)$value);
+    if ($v === '') return '';
+    if (preg_match('/^\d{2}:\d{2}:\d{2}$/', $v)) return substr($v, 0, 5);
+    if (preg_match('/^\d{2}:\d{2}$/', $v)) return $v;
+    if (preg_match('/^(\d{2}):(\d{2})/', $v, $m)) return $m[1] . ':' . $m[2];
+    return $v;
+}
+
+function calc_notti(?string $arrivo, ?string $partenza): int {
+    $a = trim((string)$arrivo);
+    $p = trim((string)$partenza);
+    if ($a === '' || $p === '') return 0;
+
+    $start = DateTime::createFromFormat('Y-m-d', $a);
+    $end   = DateTime::createFromFormat('Y-m-d', $p);
+    if (!($start instanceof DateTime) || !($end instanceof DateTime)) return 0;
+
+    // notti = giorni tra checkin e checkout
+    return max(0, (int)$start->diff($end)->format('%a'));
+}
+
+function normalize_rows($rows, array $fields): array {
+    if (is_string($rows)) {
+        $decoded = json_decode($rows, true);
+        if (is_array($decoded)) $rows = $decoded;
+    }
+    if (!is_array($rows)) return [];
+
+    $out = [];
+    foreach ($rows as $row) {
+        if (!is_array($row)) continue;
+        $norm = [];
+        $has = false;
+        foreach ($fields as $f) {
+            $v = trim((string)($row[$f] ?? ''));
+            $norm[$f] = $v;
+            if ($v !== '') $has = true;
+        }
+        if ($has) $out[] = $norm;
+    }
+    return $out;
+}
+
+function parse_lines(string $text): array {
+    $parts = preg_split('/\r?\n/', (string)$text) ?: [];
+    $clean = [];
+    foreach ($parts as $line) {
+        $s = trim((string)$line);
+        $s = preg_replace('/^[\-\•\*]\s*/u', '', $s);
+        $s = trim((string)$s);
+        if ($s !== '') $clean[] = $s;
+    }
+    return array_values($clean);
+}
+
+function table_exists(mysqli $db, string $table): bool {
     $escaped = $db->real_escape_string($table);
     $res = $db->query("SHOW TABLES LIKE '{$escaped}'");
-    return $res instanceof mysqli_result && $res->num_rows > 0;
+    return ($res instanceof mysqli_result) && $res->num_rows > 0;
 }
 
-function format_date(?string $value): string
-{
-    if (!$value) {
-        return '';
-    }
-    $date = DateTime::createFromFormat('Y-m-d', $value);
-    if ($date instanceof DateTime) {
-        return $date->format('d/m/Y');
-    }
-    return $value;
-}
-
-function calc_notti(?string $arrivo, ?string $partenza): int
-{
-    if (!$arrivo || !$partenza) {
-        return 0;
-    }
-    $start = DateTime::createFromFormat('Y-m-d', $arrivo);
-    $end = DateTime::createFromFormat('Y-m-d', $partenza);
-    if (!$start || !$end) {
-        return 0;
-    }
-    $diff = (int)$end->diff($start)->format('%r%a');
-    return max(0, $diff);
-}
-
-function to_pdf_text(string $value): string
-{
-    if ($value === '') {
-        return '';
-    }
-    if (function_exists('mb_convert_encoding')) {
-        return mb_convert_encoding($value, 'Windows-1252', 'UTF-8');
-    }
-    $converted = @iconv('UTF-8', 'Windows-1252//TRANSLIT//IGNORE', $value);
-    return $converted === false ? $value : $converted;
-}
-
-function normalize_rows(array $rows, array $fields): array
-{
-    $output = [];
-    foreach ($rows as $row) {
-        if (!is_array($row)) {
-            continue;
-        }
-        $normalized = [];
-        $hasValue = false;
-        foreach ($fields as $field) {
-            $value = trim((string)($row[$field] ?? ''));
-            $normalized[$field] = $value;
-            if ($value !== '') {
-                $hasValue = true;
-            }
-        }
-        if ($hasValue) {
-            $output[] = $normalized;
-        }
-    }
-    return $output;
-}
-
-function parse_lines(string $text): array
-{
-    return array_values(array_filter(array_map(static function (string $line): string {
-        $clean = trim($line);
-        $clean = preg_replace('/^[\-\•\*]\s*/', '', $clean);
-        return trim((string)$clean);
-    }, preg_split('/\r?\n/', $text) ?: [])));
-}
-
-function get_sale_ristoranti_map(mysqli $db): array
-{
-    if (!table_exists($db, 'sale_ristoranti')) {
-        return [];
-    }
-
-    $res = $db->query("SELECT id, nome FROM sale_ristoranti ORDER BY nome ASC");
-    if (!$res instanceof mysqli_result) {
-        return [];
-    }
+function get_sale_ristoranti_map(mysqli $db): array {
+    if (!table_exists($db, 'sale_ristoranti')) return [];
     $map = [];
-    while ($row = $res->fetch_assoc()) {
-        $id = (int)($row['id'] ?? 0);
-        if ($id <= 0) {
-            continue;
+    $res = $db->query("SELECT id, nome FROM sale_ristoranti ORDER BY nome ASC");
+    if ($res instanceof mysqli_result) {
+        while ($r = $res->fetch_assoc()) {
+            $id = (string)($r['id'] ?? '');
+            $nm = trim((string)($r['nome'] ?? ''));
+            if ($id !== '' && $nm !== '') $map[$id] = $nm;
         }
-        $map[(string)$id] = (string)($row['nome'] ?? '');
+        $res->free();
     }
-    $res->free();
     return $map;
 }
 
+function file_uri(?string $path): string {
+    $p = trim((string)$path);
+    if ($p === '') return '';
+    $rp = realpath($p);
+    if ($rp === false || !is_file($rp)) return '';
+    return 'file://' . $rp;
+}
+
+/* =========================
+   PAYLOAD (POST)
+   ========================= */
 $payload = $_POST;
 
 $nomeGruppo = trim((string)($payload['nome_gruppo'] ?? ''));
-$referente = trim((string)($payload['referente'] ?? ''));
-$agenzia = trim((string)($payload['agenzia'] ?? ''));
-$telefono = trim((string)($payload['telefono'] ?? ''));
-$email = trim((string)($payload['email'] ?? ''));
-$dataArrivoRaw = trim((string)($payload['data_arrivo'] ?? ''));
+$referente  = trim((string)($payload['referente'] ?? ''));
+$agenzia    = trim((string)($payload['agenzia'] ?? ''));
+$telefono   = trim((string)($payload['telefono'] ?? ''));
+$email      = trim((string)($payload['email'] ?? ''));
+
+$dataArrivoRaw   = trim((string)($payload['data_arrivo'] ?? ''));
 $dataPartenzaRaw = trim((string)($payload['data_partenza'] ?? ''));
-$dataArrivo = format_date($dataArrivoRaw);
-$dataPartenza = format_date($dataPartenzaRaw);
-$checkinOrario = trim((string)($payload['checkin_orario'] ?? ''));
-$numeroAdulti = (int)($payload['numero_adulti'] ?? 0);
+$dataArrivo      = format_date($dataArrivoRaw);
+$dataPartenza    = format_date($dataPartenzaRaw);
+
+$checkinOrario = format_time($payload['checkin_orario'] ?? '');
+$numeroAdulti  = (int)($payload['numero_adulti'] ?? 0);
 $numeroBambini = (int)($payload['numero_bambini'] ?? 0);
 $numeroPersone = max(0, $numeroAdulti + $numeroBambini);
-$tipologiaCamere = trim((string)($payload['tipologia_camere'] ?? ''));
-$areaPreferita = trim((string)($payload['area_preferita'] ?? ''));
-$areeRiservateTesto = trim((string)($payload['aree_riservate_testo'] ?? ''));
-if ($areaPreferita === '' && $areeRiservateTesto !== '') {
-    $areaPreferita = $areeRiservateTesto;
-}
-$trattamento = trim((string)($payload['trattamento'] ?? ''));
-$noteRicevimento = trim((string)($payload['note_ricevimento'] ?? ''));
-$noteCucina = trim((string)($payload['note_cucina'] ?? ''));
-$noteAllergie = trim((string)($payload['note_allergie'] ?? ''));
+
+$trattamento      = trim((string)($payload['trattamento'] ?? ''));
+$noteRicevimento  = trim((string)($payload['note_ricevimento'] ?? ''));
+$noteCucina       = trim((string)($payload['note_cucina'] ?? ''));
+$noteAllergie     = trim((string)($payload['note_allergie'] ?? ''));
 $noteHousekeeping = trim((string)($payload['note_housekeeping'] ?? ''));
 $noteManutenzione = trim((string)($payload['note_manutenzione'] ?? ''));
 
-$areeRiservate = $payload['aree_riservate'] ?? [];
-if (!is_array($areeRiservate)) {
-    $areeRiservate = [];
-}
-$areeRiservate = array_values(array_filter(array_map('intval', $areeRiservate)));
-
-if ($areeRiservate && table_exists($mysqli, 'sale_congressi')) {
-    $placeholders = implode(',', array_fill(0, count($areeRiservate), '?'));
-    $stmt = $mysqli->prepare("SELECT id, nome FROM sale_congressi WHERE id IN ({$placeholders}) ORDER BY nome ASC");
-    if ($stmt) {
-        $types = str_repeat('i', count($areeRiservate));
-        $stmt->bind_param($types, ...$areeRiservate);
-        $stmt->execute();
-        $res = $stmt->get_result();
-        $nomi = [];
-        if ($res instanceof mysqli_result) {
-            while ($row = $res->fetch_assoc()) {
-                $nome = trim((string)($row['nome'] ?? ''));
-                if ($nome !== '') {
-                    $nomi[] = $nome;
-                }
-            }
-        }
-        $stmt->close();
-        if ($nomi) {
-            $areaPreferita = implode(', ', $nomi);
-        }
-    }
-}
-
-if ($areaPreferita === '' && $areeRiservateTesto !== '') {
-    $areaPreferita = $areeRiservateTesto;
-}
-
+// Camere
 $camereInput = $payload['camere'] ?? [];
 $camere = [];
 if (is_array($camereInput)) {
     foreach ($camereInput as $codice => $qty) {
-        $quantita = (int)$qty;
-        if ($quantita > 0) {
-            $camere[(string)$codice] = $quantita;
-        }
+        $q = (int)$qty;
+        if ($q > 0) $camere[(string)$codice] = $q;
     }
 }
 
-$pastiRows = normalize_rows($payload['pasti'] ?? [], ['data', 'tipo', 'ora', 'sala_ristorante', 'note']);
-$extraRows = normalize_rows($payload['extra'] ?? [], ['data', 'descrizione', 'ora', 'note']);
-$saleRistorantiMap = get_sale_ristoranti_map($mysqli);
+// Pasti / extra
+$pastiRows = normalize_rows($payload['pasti'] ?? [], ['data','tipo','ora','sala_ristorante','note']);
+$extraRows = normalize_rows($payload['extra'] ?? [], ['data','descrizione','ora','note']);
 
-$blue = [28, 74, 143];
-$dark = [17, 24, 39];
-$red = [200, 0, 0];
-$leftMargin = 18;
-$rightMargin = 18;
-$usableWidth = 210 - $leftMargin - $rightMargin;
+$saleMap = get_sale_ristoranti_map($mysqli);
 
-$pdf = new FPDF('P', 'mm', 'A4');
-$pdf->SetMargins($leftMargin, 18, $rightMargin);
-$pdf->SetAutoPageBreak(true, 18);
+$printedAt = (new DateTime())->format('d/m/Y H:i');
+$logoUri   = file_uri(HOTEL_LOGO_PATH);
 
-$setBlue = static function (FPDF $pdf) use ($blue): void {
-    $pdf->SetTextColor($blue[0], $blue[1], $blue[2]);
-};
+// filename
+$filenameBase = $nomeGruppo !== '' ? strtolower(preg_replace('/\s+/', '-', $nomeGruppo)) : 'scheda-gruppo';
+$filenameSafe = preg_replace('/[^a-z0-9\-_]/', '', $filenameBase) ?: 'scheda-gruppo';
+$filename     = $filenameSafe . '.pdf';
 
-$setDark = static function (FPDF $pdf) use ($dark): void {
-    $pdf->SetTextColor($dark[0], $dark[1], $dark[2]);
-};
+/* =========================
+   HTML BUILDER
+   ========================= */
+function kv_card(string $label, string $value): string {
+    $label = trim($label);
+    $value = trim($value);
+    if ($label === '' && $value === '') return '';
+    return '
+      <div class="kv">
+        <div class="kv-label">'.h(mb_strtoupper($label)).'</div>
+        <div class="kv-value">'.h($value).'</div>
+      </div>
+    ';
+}
 
-$drawField = static function (FPDF $pdf, float $x, float $y, string $label, string $value, float $width) use ($setBlue, $setDark): float {
-    $pdf->SetXY($x, $y);
-    $setBlue($pdf);
-    $pdf->SetFont('Arial', 'B', 9);
-    $pdf->Cell($width, 4, to_pdf_text($label), 0, 2);
-    $setDark($pdf);
-    $pdf->SetFont('Arial', 'B', 10);
-    $pdf->Cell($width, 5, to_pdf_text($value !== '' ? $value : '-'), 0, 2);
-    $lineY = $pdf->GetY() + 1;
-    $pdf->Line($x, $lineY, $x + $width, $lineY);
-    return $lineY + 6;
-};
-
-$drawListRow = static function (FPDF $pdf, float $x, float $width, string $label, string $value) use ($setDark): void {
-    $setDark($pdf);
-    $pdf->SetFont('Arial', '', 10);
-    $pdf->SetX($x);
-    $pdf->Cell($width - 15, 5, to_pdf_text($label), 0, 0);
-    $pdf->Cell(15, 5, to_pdf_text($value), 0, 1, 'R');
-    $lineY = $pdf->GetY();
-    $pdf->Line($x, $lineY, $x + $width, $lineY);
-};
-
-$drawSectionTitle = static function (FPDF $pdf, string $title, string $align = 'L') use ($setBlue): void {
-    $setBlue($pdf);
-    $pdf->SetFont('Arial', 'B', 11);
-    $pdf->Cell(0, 6, to_pdf_text($title), 0, 1, $align);
-};
-
-$drawParagraph = static function (FPDF $pdf, string $text): void {
-    $pdf->SetFont('Arial', '', 10);
-    $pdf->MultiCell(0, 5, to_pdf_text($text));
-};
-
-$pdf->AddPage();
-
-$setBlue($pdf);
-$pdf->SetFont('Arial', 'B', 12);
-$pdf->Cell(0, 6, to_pdf_text('GESTIONE ARRIVO GRUPPI'), 0, 1, 'C');
-$pdf->SetFont('Arial', 'B', 11);
-$pdf->Cell(0, 6, to_pdf_text('ISTRUZIONI OPERATIVE INTERNE'), 0, 1, 'C');
-$pdf->SetFont('Arial', 'BU', 11);
-$pdf->Cell(0, 6, to_pdf_text('SCHEDA ARRIVO GRUPPI'), 0, 1, 'C');
-$pdf->SetFont('Arial', 'I', 9);
-$pdf->SetTextColor(75, 85, 99);
-$pdf->Cell(0, 5, to_pdf_text('Documento operativo interno - valido per tutti i reparti'), 0, 1, 'C');
-$pdf->Ln(6);
-
-$colWidth = 78;
-$colGap = 16;
-$leftX = $leftMargin;
-$rightX = $leftX + $colWidth + $colGap;
-
-$y = $pdf->GetY();
-$yNext = $drawField($pdf, $leftX, $y, 'GRUPPO:', $nomeGruppo, $colWidth);
-$yNext = max($yNext, $drawField($pdf, $rightX, $y, 'CODICE GRUPPO:', $agenzia, $colWidth));
-
-$y = $yNext;
-$yNext = $drawField($pdf, $leftX, $y, 'REFERENTE:', $referente, $colWidth);
-$yNext = max($yNext, $drawField($pdf, $rightX, $y, 'CHECK OUT:', $dataPartenza, $colWidth));
-
-$y = $yNext;
-$yNext = $drawField($pdf, $leftX, $y, 'CHECK IN:', $dataArrivo, $colWidth);
-$yNext = max($yNext, $drawField($pdf, $rightX, $y, 'ORARIO DI ARRIVO', $checkinOrario, $colWidth));
-
-$y = $yNext;
-$yNext = $drawField($pdf, $leftX, $y, 'N° NOTTI', (string)calc_notti($dataArrivoRaw, $dataPartenzaRaw), $colWidth);
-
-$pdf->SetY($yNext + 2);
-
-$startY = $pdf->GetY();
-$pdf->SetX($leftX);
-$drawSectionTitle($pdf, 'OSPITI');
-$drawListRow($pdf, $leftX, $colWidth, 'Adulti', (string)$numeroAdulti);
-$drawListRow($pdf, $leftX, $colWidth, 'Bambini', (string)$numeroBambini);
-$pdf->SetFont('Arial', 'B', 10);
-$pdf->SetX($leftX);
-$pdf->Cell($colWidth - 15, 6, to_pdf_text('Totale'), 0, 0, 'R');
-$pdf->Cell(15, 6, to_pdf_text((string)$numeroPersone), 0, 1, 'R');
-
-$pdf->SetY($startY);
-$pdf->SetX($rightX);
-$drawSectionTitle($pdf, 'ALLOGGI');
+$camereHtml = '';
 if ($camere) {
-    $totCamere = 0;
-    foreach ($camere as $codice => $quantita) {
-        $drawListRow($pdf, $rightX, $colWidth, $codice, (string)$quantita);
-        $totCamere += $quantita;
+    $tot = 0;
+    $rows = '';
+    foreach ($camere as $cod => $q) {
+        $tot += $q;
+        $rows .= '<tr><td>'.h($cod).'</td><td class="t-r">'.h((string)$q).'</td></tr>';
     }
-    $pdf->SetFont('Arial', 'B', 10);
-    $pdf->SetX($rightX);
-    $pdf->Cell($colWidth - 15, 6, to_pdf_text('Totale'), 0, 0, 'R');
-    $pdf->Cell(15, 6, to_pdf_text((string)$totCamere), 0, 1, 'R');
-} elseif ($tipologiaCamere !== '') {
-    $drawParagraph($pdf, $tipologiaCamere);
+    $rows .= '<tr class="tr-strong"><td>Totale camere</td><td class="t-r">'.h((string)$tot).'</td></tr>';
+
+    $camereHtml = '
+      <table class="simple-table">
+        <thead><tr><th>Tipologia</th><th class="t-r">Qtà</th></tr></thead>
+        <tbody>'.$rows.'</tbody>
+      </table>
+    ';
 } else {
-    $drawParagraph($pdf, 'Nessuna camera selezionata.');
+    $camereHtml = '<div class="muted">Nessuna camera selezionata.</div>';
 }
 
-$pdf->AddPage();
-
-$drawSectionTitle($pdf, 'TRATTAMENTO');
-$drawParagraph($pdf, $trattamento !== '' ? $trattamento : '---');
-$drawParagraph($pdf, $areaPreferita !== '' ? $areaPreferita : '---');
-$pdf->Ln(6);
-
-$pdf->SetY(20);
-$pdf->SetX(110);
-$drawSectionTitle($pdf, 'SALA RISTORANTE');
-$pdf->SetX(110);
-$saleRistoranteLines = [];
-foreach ($pastiRows as $row) {
-    $salaId = trim((string)($row['sala_ristorante'] ?? ''));
-    if ($salaId === '') {
-        continue;
-    }
-    $salaLabel = $saleRistorantiMap[$salaId] ?? $salaId;
-    $parts = array_filter([
-        $row['tipo'] ?: 'Pasto',
-        $row['data'] ? format_date($row['data']) : '',
-        $row['ora'] ?: ''
-    ]);
-    $saleRistoranteLines[] = trim(implode(' ', $parts) . ' - ' . $salaLabel);
-}
-if (!$saleRistoranteLines) {
-    $drawParagraph($pdf, 'Nessuna sala ristorante indicata.');
-} else {
-    foreach ($saleRistoranteLines as $line) {
-        $drawParagraph($pdf, $line);
-    }
-}
-
-$pdf->Ln(6);
-$pdf->SetX($leftMargin);
-$pdf->SetDrawColor($blue[0], $blue[1], $blue[2]);
-$pdf->Line($leftMargin, $pdf->GetY(), 210 - $rightMargin, $pdf->GetY());
-$pdf->Ln(6);
-
-$drawSectionTitle($pdf, 'MENÙ');
-
+$pastiHtml = '';
 if ($pastiRows) {
     foreach ($pastiRows as $row) {
-        $titleParts = array_filter([
-            $row['tipo'] ?: 'Pasto',
-            $row['data'] ? format_date($row['data']) : '',
-            $row['ora'] ? $row['ora'] : ''
-        ]);
-        $pdf->SetFont('Arial', 'B', 10);
-        $setBlue($pdf);
-        $pdf->Cell(0, 6, to_pdf_text(strtoupper(implode(' ', $titleParts))), 0, 1);
-        $setDark($pdf);
-        $lines = parse_lines((string)$row['note']);
-        if (!$lines) {
-            $lines = ['Menù da definire'];
+        $tipo = trim((string)($row['tipo'] ?? ''));
+        $dd   = !empty($row['data']) ? format_date($row['data']) : '';
+        $ora  = format_time($row['ora'] ?? '');
+
+        $sId  = trim((string)($row['sala_ristorante'] ?? ''));
+        $sNm  = ($sId !== '' ? ($saleMap[$sId] ?? $sId) : '');
+        $sala = ($sNm !== '' ? 'Sala ' . $sNm : '');
+
+        $lines = parse_lines((string)($row['note'] ?? ''));
+        if (!$lines) $lines = ['Menu da definire'];
+
+        $lis = '';
+        foreach ($lines as $l) {
+            $lis .= '<li>'.h($l).'</li>';
         }
-        foreach ($lines as $line) {
-            $pdf->SetX($leftMargin + 6);
-            $pdf->Cell(4, 5, '-', 0, 0);
-            $pdf->Cell(0, 5, to_pdf_text($line), 0, 1);
-        }
-        $pdf->Ln(3);
+
+        $pastiHtml .= '
+          <div class="block">
+            <table class="mealbar" width="100%" cellspacing="0" cellpadding="0">
+              <tr>
+                <td class="mealbar-date">
+                  <div class="d1">'.h($dd).'</div>
+                  <div class="d2">'.h($ora).'</div>
+                </td>
+                <td class="mealbar-type">'.h(mb_strtoupper($tipo)).'</td>
+                <td class="mealbar-sala">'.h($sala).'</td>
+              </tr>
+            </table>
+            <ul class="bullets">'.$lis.'</ul>
+          </div>
+        ';
     }
 } else {
-    $drawParagraph($pdf, 'Nessun menù inserito.');
+    $pastiHtml = '<div class="muted">Nessun pasto programmato.</div>';
 }
 
-$pdf->AddPage();
+$extraHtml = '';
+if ($extraRows) {
+    foreach ($extraRows as $row) {
+        $dd   = !empty($row['data']) ? format_date($row['data']) : '';
+        $ora  = format_time($row['ora'] ?? '');
+        $desc = trim((string)($row['descrizione'] ?? ''));
 
-$drawSectionTitle($pdf, 'ALLERGIE / INTOLLERANZE');
-$allergieLines = $noteAllergie !== '' ? parse_lines($noteAllergie) : [];
-$lineCount = max(8, count($allergieLines) + 2);
-for ($i = 0; $i < $lineCount; $i++) {
-    $text = $allergieLines[$i] ?? '';
-    if ($text !== '') {
-        $pdf->SetTextColor($red[0], $red[1], $red[2]);
-        $pdf->SetFont('Arial', 'B', 10);
-        $pdf->Cell(0, 6, to_pdf_text($text), 0, 1);
-    } else {
-        $pdf->Ln(6);
+        $note = trim((string)($row['note'] ?? ''));
+
+        $extraHtml .= '
+          <div class="block">
+            <table class="mealbar" width="100%" cellspacing="0" cellpadding="0">
+              <tr>
+                <td class="mealbar-date">
+                  <div class="d1">'.h($dd).'</div>
+                  <div class="d2">'.h($ora).'</div>
+                </td>
+                <td class="mealbar-type">'.h(mb_strtoupper($desc)).'</td>
+                <td class="mealbar-sala"></td>
+              </tr>
+            </table>
+            '.($note !== '' ? '<div class="note">'.nl2br(h($note)).'</div>' : '').'
+          </div>
+        ';
     }
-    $pdf->SetDrawColor($blue[0], $blue[1], $blue[2]);
-    $pdf->Line($leftMargin, $pdf->GetY(), 210 - $rightMargin, $pdf->GetY());
+} else {
+    $extraHtml = '<div class="muted">Nessuna attività inserita.</div>';
 }
 
-$pdf->Ln(10);
-$setBlue($pdf);
-$pdf->SetFont('Arial', 'B', 11);
-$pdf->Cell(0, 6, to_pdf_text('DISTRIBUZIONE TAVOLI'), 0, 1);
+$notesHtml = '';
+$notes = [
+    'Ricevimento'         => $noteRicevimento,
+    'Cucina / ristorante' => $noteCucina,
+    'Housekeeping'        => $noteHousekeeping,
+    'Manutenzione'        => $noteManutenzione,
+];
+foreach ($notes as $title => $val) {
+    $val = trim((string)$val);
+    if ($val === '') continue;
+    $notesHtml .= '
+      <div class="note-block">
+        <div class="subhead">'.h($title).'</div>
+        <div class="note">'.nl2br(h($val)).'</div>
+      </div>
+    ';
+}
+if ($notesHtml === '') {
+    $notesHtml = '<div class="muted">Nessuna nota inserita.</div>';
+}
 
-$distribuzioneLines = [];
-foreach ($extraRows as $row) {
-    $parts = array_filter([
-        $row['descrizione'],
-        $row['data'] ? format_date($row['data']) : '',
-        $row['ora'],
-        $row['note']
-    ]);
-    if ($parts) {
-        $distribuzioneLines[] = implode(' - ', $parts);
+$allergieHtml = '';
+if (trim($noteAllergie) !== '') {
+    $allergieHtml = '<div class="note">'.nl2br(h($noteAllergie)).'</div>';
+} else {
+    $allergieHtml = '<div class="muted">Nessuna allergia segnalata.</div>';
+}
+
+$gruppoLabel = ($nomeGruppo !== '' ? 'Gruppo: ' . $nomeGruppo : '');
+
+$rootPath = realpath(__DIR__ . '/..') ?: (__DIR__ . '/..'); // per chroot
+
+$html = '
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <style>
+    @page { margin: 110px 34px 80px 34px; } /* top right bottom left */
+
+    body {
+      font-family: "DejaVu Sans", sans-serif;
+      font-size: 12px;
+      color: #111827;
     }
-}
 
-if (!$distribuzioneLines) {
-    $pdf->SetTextColor($red[0], $red[1], $red[2]);
-    $pdf->SetFont('Arial', 'B', 10);
-    $pdf->Cell(0, 6, to_pdf_text('(in attesa)'), 0, 1);
-}
-
-$lineCount = max(6, count($distribuzioneLines) + 2);
-for ($i = 0; $i < $lineCount; $i++) {
-    $text = $distribuzioneLines[$i] ?? '';
-    if ($text !== '') {
-        $pdf->SetTextColor($red[0], $red[1], $red[2]);
-        $pdf->SetFont('Arial', 'B', 10);
-        $pdf->Cell(0, 6, to_pdf_text($text), 0, 1);
-    } else {
-        $pdf->Ln(6);
+    /* Header / Footer (fixed) */
+    .header {
+      position: fixed;
+      top: -90px;
+      left: 0;
+      right: 0;
+      height: 80px;
     }
-    $pdf->SetDrawColor($blue[0], $blue[1], $blue[2]);
-    $pdf->Line($leftMargin, $pdf->GetY(), 210 - $rightMargin, $pdf->GetY());
-}
+    .header .bar {
+      background: #1C4A8F;
+      color: #fff;
+      padding: 14px 16px;
+    }
+    .header .title {
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: 0.3px;
+      margin: 0;
+      line-height: 1.1;
+    }
+    .header .meta {
+      font-size: 11px;
+      opacity: 0.9;
+      margin-top: 4px;
+      line-height: 1.2;
+    }
+    .header .logo {
+      text-align: right;
+      vertical-align: middle;
+      width: 140px;
+    }
+    .header .line {
+      border-bottom: 1px solid #E5E7EB;
+    }
 
-$pdf->AddPage();
+    .footer {
+      position: fixed;
+      bottom: -55px;
+      left: 0;
+      right: 0;
+      height: 45px;
+      border-top: 1px solid #E5E7EB;
+      color: #6B7280;
+      font-size: 10px;
+      padding-top: 8px;
+    }
+    .pageNumber:before { content: counter(page); }
+    .totalPages:before { content: counter(pages); }
 
-$drawSectionTitle($pdf, 'NOTE PER REPARTI', 'C');
-$pdf->Ln(4);
+    /* Titles */
+    .section {
+      margin: 0 0 14px 0;
+      page-break-inside: avoid;
+    }
+    .section-title {
+      margin: 0 0 10px 0;
+      padding: 10px 12px;
+      border: 1px solid #E5E7EB;
+      border-left: 8px solid #1C4A8F;
+      background: #F8FAFC;
+      color: #1C4A8F;
+      font-size: 15px;
+      font-weight: 800;
+      letter-spacing: .2px;
+    }
+    /* sottotitolo: volutamente più “leggero” del titolo */
+    .section-sub {
+      margin: -2px 0 12px 0;
+      padding-left: 14px;
+      color: #6B7280;
+      font-size: 12px;
+      font-weight: 600;
+    }
 
-$drawSectionTitle($pdf, 'RICEVIMENTO');
-$pdf->SetDrawColor($blue[0], $blue[1], $blue[2]);
-$pdf->Line($leftMargin, $pdf->GetY(), 210 - $rightMargin, $pdf->GetY());
-$pdf->Ln(4);
-$drawParagraph($pdf, $noteRicevimento !== '' ? $noteRicevimento : 'Nessuna nota per il ricevimento.');
-$pdf->Ln(6);
+    /* KV grid */
+    .grid {
+      border: 1px solid #E5E7EB;
+      background: #fff;
+      padding: 10px;
+    }
+    .kv-row { width: 100%; border-collapse: collapse; }
+    .kv-cell { width: 50%; vertical-align: top; padding: 6px; }
+    .kv {
+      border: 1px solid #EEF2F7;
+      background: #FFFFFF;
+      padding: 10px;
+      height: 46px;
+    }
+    .kv-label {
+      font-size: 9px;
+      color: #6B7280;
+      font-weight: 700;
+      letter-spacing: 0.3px;
+    }
+    .kv-value {
+      margin-top: 4px;
+      font-size: 12px;
+      color: #111827;
+      font-weight: 700;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
 
-$drawSectionTitle($pdf, 'CUCINA / RISTORANTE');
-$pdf->SetDrawColor($blue[0], $blue[1], $blue[2]);
-$pdf->Line($leftMargin, $pdf->GetY(), 210 - $rightMargin, $pdf->GetY());
-$pdf->Ln(4);
-$drawParagraph($pdf, $noteCucina !== '' ? $noteCucina : 'Nessuna nota per cucina/ristorante.');
-$pdf->Ln(6);
+    /* Tables */
+    .simple-table {
+      width: 100%;
+      border-collapse: collapse;
+      border: 1px solid #E5E7EB;
+      background: #fff;
+    }
+    .simple-table th {
+      text-align: left;
+      padding: 10px;
+      font-size: 10px;
+      color: #6B7280;
+      background: #F8FAFC;
+      border-bottom: 1px solid #E5E7EB;
+    }
+    .simple-table td {
+      padding: 10px;
+      border-bottom: 1px solid #EEF2F7;
+    }
+    .simple-table .tr-strong td { font-weight: 800; }
+    .t-r { text-align: right; }
 
-$drawSectionTitle($pdf, 'HOUSEKEEPING');
-$pdf->SetDrawColor($blue[0], $blue[1], $blue[2]);
-$pdf->Line($leftMargin, $pdf->GetY(), 210 - $rightMargin, $pdf->GetY());
-$pdf->Ln(4);
-$drawParagraph($pdf, $noteHousekeeping !== '' ? $noteHousekeeping : 'Nessuna nota per housekeeping.');
+    /* Meal bar (NO bordi interni, un unico rettangolo) */
+    .block { margin: 0 0 10px 0; }
+    .mealbar {
+      border: 1px solid #E5E7EB;
+      background: #F8FAFC;
+    }
+    .mealbar td { padding: 12px 14px; vertical-align: middle; }
+    .mealbar-date { width: 140px; }
+    .mealbar-date .d1 { font-size: 14px; font-weight: 800; color:#111827; }
+    .mealbar-date .d2 { font-size: 11px; font-weight: 700; color:#6B7280; margin-top: 3px; }
+    .mealbar-type {
+      text-align: center;
+      font-size: 20px;
+      font-weight: 900;
+      color: #1C4A8F;
+      letter-spacing: 0.6px;
+    }
+    .mealbar-sala {
+      width: 220px;
+      text-align: right;
+      font-size: 13px;
+      font-weight: 800;
+      color:#111827;
+    }
 
-$pdf->AddPage();
+    /* Bullets */
+    .bullets {
+      margin: 8px 0 0 22px;
+      padding: 0;
+    }
+    .bullets li {
+      margin: 0 0 4px 0;
+      line-height: 1.25;
+    }
 
-$drawSectionTitle($pdf, 'MANUTENZIONE');
-$pdf->SetDrawColor($blue[0], $blue[1], $blue[2]);
-$pdf->Line($leftMargin, $pdf->GetY(), 210 - $rightMargin, $pdf->GetY());
-$pdf->Ln(4);
-$drawParagraph($pdf, $noteManutenzione !== '' ? $noteManutenzione : 'Nessuna segnalazione particolare.');
+    .note-block { margin: 0 0 12px 0; }
+    .subhead {
+      font-size: 11px;
+      font-weight: 800;
+      color: #1C4A8F;
+      margin: 0 0 6px 0;
+      padding-left: 2px;
+    }
+    .note {
+      border: 1px solid #E5E7EB;
+      background: #FFFFFF;
+      padding: 10px 12px;
+      color: #111827;
+      line-height: 1.35;
+    }
 
-$pdf->Ln(30);
-$pdf->SetFont('Arial', 'I', 10);
-$pdf->SetTextColor($dark[0], $dark[1], $dark[2]);
-$pdf->SetX(120);
-$pdf->Cell(0, 6, to_pdf_text('La Direzione'), 0, 1, 'L');
-$pdf->SetX(120);
-$pdf->Line(120, $pdf->GetY(), 190, $pdf->GetY());
+    .muted { color:#6B7280; }
 
-$filenameBase = $nomeGruppo !== '' ? strtolower(preg_replace('/\s+/', '-', $nomeGruppo)) : 'scheda-gruppo';
-$filename = preg_replace('/[^a-z0-9\-_]/', '', $filenameBase) ?: 'scheda-gruppo';
+    /* Page breaks */
+    .break { page-break-before: always; }
+  </style>
+</head>
+<body>
 
-while (ob_get_level() > 0) {
+  <!-- HEADER -->
+  <div class="header">
+    <table width="100%" cellspacing="0" cellpadding="0">
+      <tr>
+        <td class="bar">
+          <div class="title">SCHEDA ARRIVO GRUPPI</div>
+          <div class="meta">'.h(HOTEL_NOME).($gruppoLabel !== '' ? ' &nbsp;|&nbsp; '.h($gruppoLabel) : '').'</div>
+        </td>
+        <td class="bar logo">
+          '.($logoUri !== '' ? '<img src="'.h($logoUri).'" style="height:34px;">' : '').'
+        </td>
+      </tr>
+      <tr><td colspan="2" class="line"></td></tr>
+    </table>
+  </div>
+
+  <!-- FOOTER -->
+  <div class="footer">
+    <table width="100%" cellspacing="0" cellpadding="0">
+      <tr>
+        <td>
+          '.h(HOTEL_NOME).' - '.h(HOTEL_INDIRIZZO).' - Tel. '.h(HOTEL_TEL).'<br>
+          Email: '.h(HOTEL_EMAIL).' &nbsp;|&nbsp; Web: '.h(HOTEL_WEB).'
+        </td>
+        <td style="text-align:right;">
+          Pag. <span class="pageNumber"></span>/<span class="totalPages"></span><br>
+          Creato: '.h($printedAt).'
+        </td>
+      </tr>
+    </table>
+  </div>
+
+  <!-- PAGINA 1 -->
+  <div class="section">
+    <div class="section-title">Dati gruppo</div>
+    <div class="grid">
+      <table class="kv-row">
+        <tr>
+          <td class="kv-cell">'.kv_card('Gruppo', $nomeGruppo).'</td>
+          <td class="kv-cell">'.kv_card('Agenzia / Ente', $agenzia).'</td>
+        </tr>
+        <tr>
+          <td class="kv-cell">'.kv_card('Referente', $referente).'</td>
+          <td class="kv-cell">'.kv_card('Telefono', $telefono).'</td>
+        </tr>
+        <tr>
+          <td class="kv-cell">'.kv_card('Email', $email).'</td>
+          <td class="kv-cell"></td>
+        </tr>
+      </table>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Soggiorno</div>
+    <div class="grid">
+      <table class="kv-row">
+        <tr>
+          <td class="kv-cell">'.kv_card('Check-in', $dataArrivo).'</td>
+          <td class="kv-cell">'.kv_card('Check-out', $dataPartenza).'</td>
+        </tr>
+        <tr>
+          <td class="kv-cell">'.kv_card('Orario check-in', $checkinOrario).'</td>
+          <td class="kv-cell">'.kv_card('Notti', (string)calc_notti($dataArrivoRaw, $dataPartenzaRaw)).'</td>
+        </tr>
+        <tr>
+          <td class="kv-cell">'.kv_card('Trattamento', $trattamento).'</td>
+          <td class="kv-cell"></td>
+        </tr>
+      </table>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Partecipanti</div>
+    <div class="grid">
+      <table class="kv-row">
+        <tr>
+          <td class="kv-cell">'.kv_card('Adulti', (string)$numeroAdulti).'</td>
+          <td class="kv-cell">'.kv_card('Bambini', (string)$numeroBambini).'</td>
+        </tr>
+        <tr>
+          <td class="kv-cell">'.kv_card('Totale', (string)$numeroPersone).'</td>
+          <td class="kv-cell"></td>
+        </tr>
+      </table>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Alloggi</div>
+    '.$camereHtml.'
+  </div>
+
+  <!-- PAGINA 2 -->
+  <div class="break"></div>
+  <div class="section">
+    <div class="section-title">Pasti e sala ristorante</div>
+    <div class="section-sub">Elenco pasti</div>
+    '.$pastiHtml.'
+  </div>
+
+  <!-- PAGINA 3 -->
+  <div class="break"></div>
+  <div class="section">
+    <div class="section-title">Attività / extra</div>
+    <div class="section-sub">Elenco attività</div>
+    '.$extraHtml.'
+  </div>
+
+  <!-- PAGINA 4 -->
+  <div class="break"></div>
+  <div class="section">
+    <div class="section-title">Note per reparti</div>
+    '.$notesHtml.'
+  </div>
+
+  <!-- PAGINA 5 -->
+  <div class="break"></div>
+  <div class="section">
+    <div class="section-title">Allergie / intolleranze</div>
+    '.$allergieHtml.'
+  </div>
+
+</body>
+</html>
+';
+
+/* =========================
+   DOMPDF RENDER
+   ========================= */
+$options = new Options();
+$options->set('isRemoteEnabled', true);
+$options->set('isHtml5ParserEnabled', true);
+$options->set('defaultFont', 'DejaVu Sans');
+
+// IMPORTANTISSIMO per immagini locali
+// limita l'accesso ai file al root del progetto
+$options->setChroot($rootPath);
+
+$dompdf = new Dompdf($options);
+$dompdf->setPaper('A4', 'portrait');
+$dompdf->loadHtml($html, 'UTF-8');
+
+try {
+    $dompdf->render();
+} catch (Throwable $e) {
+    // se succede, non mandare output sporco: meglio errore pulito
     ob_end_clean();
+    http_response_code(500);
+    echo 'Errore PDF: ' . h($e->getMessage());
+    exit;
 }
 
-$pdf->Output('D', $filename . '.pdf');
+/* =========================
+   OUTPUT PDF (NO OUTPUT SPORCO)
+   ========================= */
+ob_end_clean();
+
+header('Content-Type: application/pdf');
+header('Content-Disposition: attachment; filename="'.$filename.'"');
+header('Cache-Control: private, max-age=0, must-revalidate');
+header('Pragma: public');
+
+echo $dompdf->output();
+exit;
