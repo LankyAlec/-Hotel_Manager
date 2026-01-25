@@ -749,6 +749,7 @@ CREATE TABLE `gruppi_arrivi` (
   `note_operativa` text DEFAULT NULL,
   `note_ricevimento` text DEFAULT NULL,
   `note_cucina` text DEFAULT NULL,
+  `note_disposizione_tavoli` text DEFAULT NULL,
   `note_allergie` text DEFAULT NULL,
   `note_housekeeping` text DEFAULT NULL,
   `note_manutenzione` text DEFAULT NULL,
