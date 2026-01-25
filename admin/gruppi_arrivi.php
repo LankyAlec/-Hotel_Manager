@@ -1396,13 +1396,28 @@ $shouldShowModal = $shouldShowForm;
                 const match = Array.from(tipoSelect.options).find((opt) => opt.textContent?.trim().toLowerCase() === tipoValue.toLowerCase());
                 if (match) {
                     tipoSelect.value = match.value;
+                } else {
+                    const customOption = document.createElement('option');
+                    customOption.value = tipoValue;
+                    customOption.textContent = tipoValue;
+                    tipoSelect.appendChild(customOption);
+                    tipoSelect.value = tipoValue;
                 }
             }
         }
         const salaSelect = mainRow.querySelector('select.form-select-sm:last-of-type');
         if (salaSelect) {
             const salaValue = data.sala_ristorante ?? data.sala ?? '';
-            salaSelect.value = salaValue !== null && salaValue !== undefined ? String(salaValue) : '';
+            const salaValueString = salaValue !== null && salaValue !== undefined ? String(salaValue) : '';
+            salaSelect.value = salaValueString;
+            if (!salaSelect.value && salaValueString) {
+                const salaLabel = saleRistorantiMap.get(salaValueString) || `Sala ${salaValueString}`;
+                const customOption = document.createElement('option');
+                customOption.value = salaValueString;
+                customOption.textContent = salaLabel;
+                salaSelect.appendChild(customOption);
+                salaSelect.value = salaValueString;
+            }
         }
         const noteRow = document.createElement('tr');
         noteRow.dataset.group = groupId;
