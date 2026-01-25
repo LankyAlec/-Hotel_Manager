@@ -112,6 +112,12 @@ function ensure_gruppi_arrivi_table(mysqli $mysqli): void
 
 function normalize_pasti_rows($rows): array
 {
+    if (is_string($rows)) {
+        $decoded = json_decode($rows, true);
+        if (is_array($decoded)) {
+            $rows = $decoded;
+        }
+    }
     if (!is_array($rows)) {
         return [];
     }
@@ -793,7 +799,7 @@ $shouldShowModal = $shouldShowForm;
 </style>
 
 <?php if ($alert): ?>
-<div class="alert alert-<?= h($alertType) ?>">
+<div class="alert alert-<?= h($alertType) ?> alert-dismissible fade show" role="alert">
     <?= h($alert) ?>
 </div>
 <?php endif; ?>
@@ -1262,14 +1268,14 @@ $shouldShowModal = $shouldShowForm;
                                 <td class="text-muted"><?php if(strlen($record['pasti_json'])>2){echo "Si";}else{echo "No";} ?></td>
                                 <td class="text-end">
                                     <div class="d-inline-flex flex-wrap gap-2 justify-content-end">
-                                        <a class="btn btn-sm btn-outline-primary js-edit-scheda" href="<?= BASE_URL ?>/admin/gruppi_arrivi.php?id=<?= (int)$record['id'] ?>&open=1" data-id="<?= (int)$record['id'] ?>">
-                                            <i class="bi bi-pencil-square"></i> Modifica
+                                        <a class="btn btn-sm btn-outline-primary js-edit-scheda" href="<?= BASE_URL ?>/admin/gruppi_arrivi.php?id=<?= (int)$record['id'] ?>&open=1" data-id="<?= (int)$record['id'] ?>" title="Modifica" aria-label="Modifica">
+                                            <i class="bi bi-pencil-square"></i>
                                         </a>
                                         <form method="post" class="d-inline" onsubmit="return confirm('Confermi l\'eliminazione della scheda?');">
                                             <input type="hidden" name="action" value="delete">
                                             <input type="hidden" name="delete_id" value="<?= (int)$record['id'] ?>">
-                                            <button class="btn btn-sm btn-outline-danger" type="submit">
-                                                <i class="bi bi-trash"></i> Elimina
+                                            <button class="btn btn-sm btn-outline-danger" type="submit" title="Elimina" aria-label="Elimina">
+                                                <i class="bi bi-trash"></i>
                                             </button>
                                         </form>
                                     </div>
@@ -1364,11 +1370,11 @@ $shouldShowModal = $shouldShowForm;
             <td>
                 <select class="form-select form-select-sm" data-field="tipo" required>
                     <option value="">Seleziona</option>
-                    <option ${data.tipo === 'Colazione' ? 'selected' : ''}>Colazione</option>
-                    <option ${data.tipo === 'Pranzo' ? 'selected' : ''}>Pranzo</option>
-                    <option ${data.tipo === 'Cena' ? 'selected' : ''}>Cena</option>
-                    <option ${data.tipo === 'Brunch' ? 'selected' : ''}>Brunch</option>
-                    <option ${data.tipo === 'Altro' ? 'selected' : ''}>Altro</option>
+                    <option value="Colazione">Colazione</option>
+                    <option value="Pranzo">Pranzo</option>
+                    <option value="Cena">Cena</option>
+                    <option value="Brunch">Brunch</option>
+                    <option value="Altro">Altro</option>
                 </select>
             </td>
             <td><input type="time" class="form-control form-control-sm" data-field="ora" value="${data.ora || ''}" required></td>
@@ -1382,9 +1388,21 @@ $shouldShowModal = $shouldShowForm;
                 <button type="button" class="btn btn-sm btn-outline-danger"><i class="bi bi-x"></i></button>
             </td>
         `;
+        const tipoSelect = mainRow.querySelector('select[data-field="tipo"]');
+        if (tipoSelect) {
+            const tipoValue = (data.tipo || data.voce || '').toString().trim();
+            tipoSelect.value = tipoValue;
+            if (!tipoSelect.value && tipoValue) {
+                const match = Array.from(tipoSelect.options).find((opt) => opt.textContent?.trim().toLowerCase() === tipoValue.toLowerCase());
+                if (match) {
+                    tipoSelect.value = match.value;
+                }
+            }
+        }
         const salaSelect = mainRow.querySelector('select.form-select-sm:last-of-type');
         if (salaSelect) {
-            salaSelect.value = data.sala_ristorante ? String(data.sala_ristorante) : '';
+            const salaValue = data.sala_ristorante ?? data.sala ?? '';
+            salaSelect.value = salaValue !== null && salaValue !== undefined ? String(salaValue) : '';
         }
         const noteRow = document.createElement('tr');
         noteRow.dataset.group = groupId;
@@ -1808,7 +1826,22 @@ $shouldShowModal = $shouldShowForm;
         rinumeraRighe();
     });
 
+    const autoDismissAlert = () => {
+        const alertEl = document.querySelector('.alert.alert-dismissible');
+        if (!alertEl) return;
+        window.setTimeout(() => {
+            if (!alertEl.parentElement) return;
+            if (window.bootstrap?.Alert) {
+                const alertInstance = bootstrap.Alert.getOrCreateInstance(alertEl);
+                alertInstance.close();
+            } else {
+                alertEl.remove();
+            }
+        }, 3000);
+    };
+
     resetFormData(currentData, storedPasti, storedExtra, storedCamere);
+    autoDismissAlert();
 
     const newSchedaBtn = document.getElementById('openNewScheda');
     newSchedaBtn?.addEventListener('click', () => {
@@ -1901,12 +1934,8 @@ $shouldShowModal = $shouldShowForm;
             button.className = 'btn btn-outline-primary btn-sm js-load-group';
             button.textContent = 'Carica';
             button.addEventListener('click', () => {
-                resetFormData(
-                    gruppo,
-                    Array.isArray(gruppo.pasti) ? gruppo.pasti : [],
-                    Array.isArray(gruppo.extra) ? gruppo.extra : [],
-                    gruppo.camere && typeof gruppo.camere === 'object' ? gruppo.camere : {}
-                );
+                resetFormData(emptyData, [], [], {});
+                setAnagraficaFields(gruppo, { resetId: false });
                 if (groupSearchInput) {
                     groupSearchInput.value = gruppo.nome_gruppo || '';
                 }
