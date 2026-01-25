@@ -1370,11 +1370,11 @@ $shouldShowModal = $shouldShowForm;
             <td>
                 <select class="form-select form-select-sm" data-field="tipo" required>
                     <option value="">Seleziona</option>
-                    <option ${data.tipo === 'Colazione' ? 'selected' : ''}>Colazione</option>
-                    <option ${data.tipo === 'Pranzo' ? 'selected' : ''}>Pranzo</option>
-                    <option ${data.tipo === 'Cena' ? 'selected' : ''}>Cena</option>
-                    <option ${data.tipo === 'Brunch' ? 'selected' : ''}>Brunch</option>
-                    <option ${data.tipo === 'Altro' ? 'selected' : ''}>Altro</option>
+                    <option value="Colazione">Colazione</option>
+                    <option value="Pranzo">Pranzo</option>
+                    <option value="Cena">Cena</option>
+                    <option value="Brunch">Brunch</option>
+                    <option value="Altro">Altro</option>
                 </select>
             </td>
             <td><input type="time" class="form-control form-control-sm" data-field="ora" value="${data.ora || ''}" required></td>
@@ -1388,9 +1388,21 @@ $shouldShowModal = $shouldShowForm;
                 <button type="button" class="btn btn-sm btn-outline-danger"><i class="bi bi-x"></i></button>
             </td>
         `;
+        const tipoSelect = mainRow.querySelector('select[data-field="tipo"]');
+        if (tipoSelect) {
+            const tipoValue = (data.tipo || data.voce || '').toString().trim();
+            tipoSelect.value = tipoValue;
+            if (!tipoSelect.value && tipoValue) {
+                const match = Array.from(tipoSelect.options).find((opt) => opt.textContent?.trim().toLowerCase() === tipoValue.toLowerCase());
+                if (match) {
+                    tipoSelect.value = match.value;
+                }
+            }
+        }
         const salaSelect = mainRow.querySelector('select.form-select-sm:last-of-type');
         if (salaSelect) {
-            salaSelect.value = data.sala_ristorante ? String(data.sala_ristorante) : '';
+            const salaValue = data.sala_ristorante ?? data.sala ?? '';
+            salaSelect.value = salaValue !== null && salaValue !== undefined ? String(salaValue) : '';
         }
         const noteRow = document.createElement('tr');
         noteRow.dataset.group = groupId;
