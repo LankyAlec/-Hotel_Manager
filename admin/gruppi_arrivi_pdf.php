@@ -9,6 +9,8 @@ if (empty($_SESSION['utente_id']) || ($_SESSION['privilegi'] ?? '') !== 'root') 
     exit;
 }
 
+ini_set('display_errors', '0');
+
 function table_exists(mysqli $db, string $table): bool
 {
     $escaped = $db->real_escape_string($table);
@@ -44,7 +46,13 @@ function calc_notti(?string $arrivo, ?string $partenza): int
 
 function to_pdf_text(string $value): string
 {
-    $converted = iconv('UTF-8', 'windows-1252//TRANSLIT', $value);
+    if ($value === '') {
+        return '';
+    }
+    if (function_exists('mb_convert_encoding')) {
+        return mb_convert_encoding($value, 'Windows-1252', 'UTF-8');
+    }
+    $converted = @iconv('UTF-8', 'Windows-1252//TRANSLIT//IGNORE', $value);
     return $converted === false ? $value : $converted;
 }
 
@@ -455,5 +463,9 @@ $pdf->Line(120, $pdf->GetY(), 190, $pdf->GetY());
 
 $filenameBase = $nomeGruppo !== '' ? strtolower(preg_replace('/\s+/', '-', $nomeGruppo)) : 'scheda-gruppo';
 $filename = preg_replace('/[^a-z0-9\-_]/', '', $filenameBase) ?: 'scheda-gruppo';
+
+while (ob_get_level() > 0) {
+    ob_end_clean();
+}
 
 $pdf->Output('D', $filename . '.pdf');
