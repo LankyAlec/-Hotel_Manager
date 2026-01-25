@@ -129,7 +129,7 @@ function normalize_pasti_rows($rows): array
         }
         $data = trim((string)($row['data'] ?? ''));
         $tipo = trim((string)($row['tipo'] ?? $row['voce'] ?? ''));
-        $ora = trim((string)($row['ora'] ?? ''));
+        $ora  = trim((string)($row['ora'] ?? ''));
         $sala = trim((string)($row['sala_ristorante'] ?? $row['sala'] ?? ''));
         $note = trim((string)($row['note'] ?? ''));
 
@@ -258,7 +258,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         note_housekeeping=?, note_manutenzione=?, pasti_json=?, extra_json=?
                     WHERE id=?");
                 $stmt->bind_param(
-                    "ssssssssiiissssssssssssi",
+                    "ssssssssiiisssssssssssi",
                     $nomeGruppo,
                     $referente,
                     $agenzia,
@@ -297,7 +297,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     (nome_gruppo, referente, agenzia, telefono, email, data_arrivo, data_partenza, checkin_orario, numero_persone, numero_adulti, numero_bambini, camere_json, aree_riservate_json,trattamento, note_operativa, note_ricevimento, note_cucina, note_allergie, note_housekeeping, note_manutenzione, pasti_json, extra_json)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
                 $stmt->bind_param(
-                    "ssssssssiiissssssssssss",
+                    "ssssssssiiisssssssssss",
                     $nomeGruppo,
                     $referente,
                     $agenzia,
@@ -1390,35 +1390,16 @@ $shouldShowModal = $shouldShowForm;
         `;
         const tipoSelect = mainRow.querySelector('select[data-field="tipo"]');
         if (tipoSelect) {
-            const tipoValue = (data.tipo || data.voce || '').toString().trim();
-            tipoSelect.value = tipoValue;
-            if (!tipoSelect.value && tipoValue) {
-                const match = Array.from(tipoSelect.options).find((opt) => opt.textContent?.trim().toLowerCase() === tipoValue.toLowerCase());
-                if (match) {
-                    tipoSelect.value = match.value;
-                } else {
-                    const customOption = document.createElement('option');
-                    customOption.value = tipoValue;
-                    customOption.textContent = tipoValue;
-                    tipoSelect.appendChild(customOption);
-                    tipoSelect.value = tipoValue;
-                }
-            }
+          const tipoValue = (data.tipo || data.voce || '').toString().trim();
+          tipoSelect.value = tipoValue;
         }
-        const salaSelect = mainRow.querySelector('select.form-select-sm:last-of-type');
+
+        const salaSelect = mainRow.querySelector('select[data-field="sala_ristorante"]');
         if (salaSelect) {
-            const salaValue = data.sala_ristorante ?? data.sala ?? '';
-            const salaValueString = salaValue !== null && salaValue !== undefined ? String(salaValue) : '';
-            salaSelect.value = salaValueString;
-            if (!salaSelect.value && salaValueString) {
-                const salaLabel = saleRistorantiMap.get(salaValueString) || `Sala ${salaValueString}`;
-                const customOption = document.createElement('option');
-                customOption.value = salaValueString;
-                customOption.textContent = salaLabel;
-                salaSelect.appendChild(customOption);
-                salaSelect.value = salaValueString;
-            }
+          const salaValue = data.sala_ristorante ?? data.sala ?? '';
+          salaSelect.value = salaValue !== null && salaValue !== undefined ? String(salaValue) : '';
         }
+
         const noteRow = document.createElement('tr');
         noteRow.dataset.group = groupId;
         noteRow.dataset.type = 'pasto-note';

@@ -6,17 +6,44 @@ use Dompdf\Options;
 
 /**
  * /admin/gruppi_arrivi_pdf.php
- * Genera PDF “Scheda Arrivo Gruppi” con Dompdf (HTML/CSS).
+ * PDF “Scheda Arrivo Gruppi” (stile moderno) con Dompdf.
  *
- * NOTE IMPORTANTI:
- * - NIENTE output prima del PDF (anche un warning rompe il file)
- * - usa DejaVu Sans per UTF-8
- * - immagini locali: usa file:// + realpath (e abilita chroot)
+ * NOTE:
+ * - NIENTE output prima del PDF (warning/notices rompono il file)
+ * - Richiede estensione PHP: zlib (OBBLIGATORIA), gd (consigliata per immagini)
+ * - Usa chroot + path relativo per immagini locali
+ * - Non include h(): deve essere già disponibile dai tuoi include
  */
 
 ob_start();
 
+ini_set('display_errors', '0');
+ini_set('log_errors', '1');
+error_reporting(E_ALL);
+
 require_once __DIR__ . '/../config/db.php';
+// Se hai helpers con h(), includilo qui (consigliato):
+// require_once __DIR__ . '/../includes/helpers.php';
+
+/* =========================
+   AUTH
+   ========================= */
+if (session_status() !== PHP_SESSION_ACTIVE) session_start();
+
+if (empty($_SESSION['utente_id']) || ($_SESSION['privilegi'] ?? '') !== 'root') {
+    header("Location: " . BASE_URL . "/dashboard.php");
+    exit;
+}
+
+/* =========================
+   HOTEL CONFIG (EDITA QUI)
+   ========================= */
+const HOTEL_NOME       = 'PARK HOTEL PARADISO';
+const HOTEL_INDIRIZZO  = 'Via Contrada Ramaldo, 94015 Piazza Armerina (EN)';
+const HOTEL_TEL        = '+39 334 819 6774 | +39 0935 684908';
+const HOTEL_EMAIL      = 'info@parkhotelparadiso.it';
+const HOTEL_WEB        = 'http://www.parkhotelparadiso.it';
+const HOTEL_LOGO_REL   = 'img/logo.jpg'; // relativo alla root del progetto (chroot)
 
 /* =========================
    DOMPDF (autoload)
@@ -40,36 +67,23 @@ foreach (array_unique($autoloadPaths) as $autoloadPath) {
 }
 
 if (!$autoloaded) {
-    ob_end_clean();
+    while (ob_get_level() > 0) ob_end_clean();
     http_response_code(500);
-    echo 'Errore PDF: autoload Dompdf non trovato. Verifica il percorso vendor/autoload.php.';
+    echo 'Errore PDF: autoload Dompdf non trovato. Verifica vendor/autoload.php.';
+    exit;
+}
+
+// zlib obbligatoria (gzcompress) → evita crash Cpdf
+if (!function_exists('gzcompress')) {
+    while (ob_get_level() > 0) ob_end_clean();
+    http_response_code(500);
+    echo 'Errore PDF: estensione PHP zlib non attiva (manca gzcompress). Abilita zlib nel profilo PHP di Web Station.';
     exit;
 }
 
 /* =========================
-   AUTH
+   HELPERS LOCALI (no h)
    ========================= */
-if (session_status() !== PHP_SESSION_ACTIVE) session_start();
-
-if (empty($_SESSION['utente_id']) || ($_SESSION['privilegi'] ?? '') !== 'root') {
-    header("Location: " . BASE_URL . "/dashboard.php");
-    exit;
-}
-
-/* =========================
-   CONFIG HOTEL (EDITA QUI)
-   ========================= */
-const HOTEL_NOME       = 'PARK HOTEL PARADISO';
-const HOTEL_INDIRIZZO  = 'Via Contrada Ramaldo, 94015 Piazza Armerina (EN)';
-const HOTEL_TEL        = '+39 334 819 6774 | +39 0935 684908';
-const HOTEL_EMAIL      = 'info@parkhotelparadiso.it';
-const HOTEL_WEB        = 'http://www.parkhotelparadiso.it';
-const HOTEL_LOGO_PATH  = __DIR__ . '/../img/logo.jpg'; // JPG consigliato
-
-/* =========================
-   HELPERS
-   ========================= */
-
 function format_date(?string $value): string {
     $v = trim((string)$value);
     if ($v === '') return '';
@@ -95,7 +109,6 @@ function calc_notti(?string $arrivo, ?string $partenza): int {
     $end   = DateTime::createFromFormat('Y-m-d', $p);
     if (!($start instanceof DateTime) || !($end instanceof DateTime)) return 0;
 
-    // notti = giorni tra checkin e checkout
     return max(0, (int)$start->diff($end)->format('%a'));
 }
 
@@ -154,14 +167,6 @@ function get_sale_ristoranti_map(mysqli $db): array {
     return $map;
 }
 
-function file_uri(?string $path): string {
-    $p = trim((string)$path);
-    if ($p === '') return '';
-    $rp = realpath($p);
-    if ($rp === false || !is_file($rp)) return '';
-    return 'file://' . $rp;
-}
-
 /* =========================
    PAYLOAD (POST)
    ========================= */
@@ -207,7 +212,7 @@ $extraRows = normalize_rows($payload['extra'] ?? [], ['data','descrizione','ora'
 $saleMap = get_sale_ristoranti_map($mysqli);
 
 $printedAt = (new DateTime())->format('d/m/Y H:i');
-$logoUri   = file_uri(HOTEL_LOGO_PATH);
+$notti     = calc_notti($dataArrivoRaw, $dataPartenzaRaw);
 
 // filename
 $filenameBase = $nomeGruppo !== '' ? strtolower(preg_replace('/\s+/', '-', $nomeGruppo)) : 'scheda-gruppo';
@@ -215,12 +220,20 @@ $filenameSafe = preg_replace('/[^a-z0-9\-_]/', '', $filenameBase) ?: 'scheda-gru
 $filename     = $filenameSafe . '.pdf';
 
 /* =========================
-   HTML BUILDER
+   ASSETS (chroot + logo rel)
+   ========================= */
+$rootPath = realpath(__DIR__ . '/..') ?: (__DIR__ . '/..');
+$logoAbs  = $rootPath . DIRECTORY_SEPARATOR . str_replace(['/', '\\'], DIRECTORY_SEPARATOR, HOTEL_LOGO_REL);
+$logoRelOk = (is_file($logoAbs) ? HOTEL_LOGO_REL : '');
+
+/* =========================
+   HTML COMPONENTS
    ========================= */
 function kv_card(string $label, string $value): string {
     $label = trim($label);
     $value = trim($value);
     if ($label === '' && $value === '') return '';
+    if ($value === '') $value = '—';
     return '
       <div class="kv">
         <div class="kv-label">'.h(mb_strtoupper($label)).'</div>
@@ -229,6 +242,28 @@ function kv_card(string $label, string $value): string {
     ';
 }
 
+function badge(string $text): string {
+    $t = trim($text);
+    if ($t === '') return '';
+    return '<span class="badge">'.h($t).'</span>';
+}
+
+function dept_block(string $title, string $value): string {
+    $v = trim($value);
+    if ($v === '') $v = '—';
+    return '
+      <div class="dept">
+        <div class="dept-head">'.h($title).'</div>
+        <div class="dept-body">'.nl2br(h($v)).'</div>
+      </div>
+    ';
+}
+
+/* =========================
+   BUILD SECTIONS
+   ========================= */
+
+// Alloggi
 $camereHtml = '';
 if ($camere) {
     $tot = 0;
@@ -249,6 +284,7 @@ if ($camere) {
     $camereHtml = '<div class="muted">Nessuna camera selezionata.</div>';
 }
 
+// Pasti
 $pastiHtml = '';
 if ($pastiRows) {
     foreach ($pastiRows as $row) {
@@ -258,7 +294,7 @@ if ($pastiRows) {
 
         $sId  = trim((string)($row['sala_ristorante'] ?? ''));
         $sNm  = ($sId !== '' ? ($saleMap[$sId] ?? $sId) : '');
-        $sala = ($sNm !== '' ? 'Sala ' . $sNm : '');
+        $sala = ($sNm !== '' ? 'Sala ' . $sNm : '—');
 
         $lines = parse_lines((string)($row['note'] ?? ''));
         if (!$lines) $lines = ['Menu da definire'];
@@ -269,18 +305,22 @@ if ($pastiRows) {
         }
 
         $pastiHtml .= '
-          <div class="block">
-            <table class="mealbar" width="100%" cellspacing="0" cellpadding="0">
-              <tr>
-                <td class="mealbar-date">
-                  <div class="d1">'.h($dd).'</div>
-                  <div class="d2">'.h($ora).'</div>
-                </td>
-                <td class="mealbar-type">'.h(mb_strtoupper($tipo)).'</td>
-                <td class="mealbar-sala">'.h($sala).'</td>
-              </tr>
-            </table>
-            <ul class="bullets">'.$lis.'</ul>
+          <div class="item">
+            <div class="item-head">
+              <table>
+                <tr>
+                  <td class="item-date">
+                    <div class="d">'.h($dd !== '' ? $dd : '—').'</div>
+                    <div class="t">'.h($ora !== '' ? $ora : '—').'</div>
+                  </td>
+                  <td class="item-type">'.h(mb_strtoupper($tipo !== '' ? $tipo : 'PASTO')).'</td>
+                  <td class="item-sala">'.h($sala).'</td>
+                </tr>
+              </table>
+            </div>
+            <div class="item-body">
+              <ul class="bullets">'.$lis.'</ul>
+            </div>
           </div>
         ';
     }
@@ -288,28 +328,32 @@ if ($pastiRows) {
     $pastiHtml = '<div class="muted">Nessun pasto programmato.</div>';
 }
 
+// Extra
 $extraHtml = '';
 if ($extraRows) {
     foreach ($extraRows as $row) {
         $dd   = !empty($row['data']) ? format_date($row['data']) : '';
         $ora  = format_time($row['ora'] ?? '');
         $desc = trim((string)($row['descrizione'] ?? ''));
-
         $note = trim((string)($row['note'] ?? ''));
 
         $extraHtml .= '
-          <div class="block">
-            <table class="mealbar" width="100%" cellspacing="0" cellpadding="0">
-              <tr>
-                <td class="mealbar-date">
-                  <div class="d1">'.h($dd).'</div>
-                  <div class="d2">'.h($ora).'</div>
-                </td>
-                <td class="mealbar-type">'.h(mb_strtoupper($desc)).'</td>
-                <td class="mealbar-sala"></td>
-              </tr>
-            </table>
-            '.($note !== '' ? '<div class="note">'.nl2br(h($note)).'</div>' : '').'
+          <div class="item">
+            <div class="item-head">
+              <table>
+                <tr>
+                  <td class="item-date">
+                    <div class="d">'.h($dd !== '' ? $dd : '—').'</div>
+                    <div class="t">'.h($ora !== '' ? $ora : '—').'</div>
+                  </td>
+                  <td class="item-type">'.h(mb_strtoupper($desc !== '' ? $desc : 'ATTIVITÀ')).'</td>
+                  <td class="item-sala"></td>
+                </tr>
+              </table>
+            </div>
+            <div class="item-body">
+              '.($note !== '' ? '<div class="note">'.nl2br(h($note)).'</div>' : '<div class="muted">Nessuna nota.</div>').'
+            </div>
           </div>
         ';
     }
@@ -317,360 +361,295 @@ if ($extraRows) {
     $extraHtml = '<div class="muted">Nessuna attività inserita.</div>';
 }
 
-$notesHtml = '';
-$notes = [
-    'Ricevimento'         => $noteRicevimento,
-    'Cucina / ristorante' => $noteCucina,
-    'Housekeeping'        => $noteHousekeeping,
-    'Manutenzione'        => $noteManutenzione,
-];
-foreach ($notes as $title => $val) {
-    $val = trim((string)$val);
-    if ($val === '') continue;
-    $notesHtml .= '
-      <div class="note-block">
-        <div class="subhead">'.h($title).'</div>
-        <div class="note">'.nl2br(h($val)).'</div>
-      </div>
-    ';
-}
-if ($notesHtml === '') {
-    $notesHtml = '<div class="muted">Nessuna nota inserita.</div>';
-}
+// Notes per reparti
+$notesHtml = '
+  <div class="dept-grid">
+    '.dept_block('Ricevimento', $noteRicevimento).'
+    '.dept_block('Cucina / ristorante', $noteCucina).'
+    '.dept_block('Housekeeping', $noteHousekeeping).'
+    '.dept_block('Manutenzione', $noteManutenzione).'
+  </div>
+';
 
-$allergieHtml = '';
-if (trim($noteAllergie) !== '') {
-    $allergieHtml = '<div class="note">'.nl2br(h($noteAllergie)).'</div>';
-} else {
-    $allergieHtml = '<div class="muted">Nessuna allergia segnalata.</div>';
-}
+// Allergie
+$allergieHtml = (trim($noteAllergie) !== '')
+    ? '<div class="note">'.nl2br(h($noteAllergie)).'</div>'
+    : '<div class="muted">Nessuna allergia segnalata.</div>';
 
-$gruppoLabel = ($nomeGruppo !== '' ? 'Gruppo: ' . $nomeGruppo : '');
+// Header label
+$gruppoLabel = ($nomeGruppo !== '' ? 'Gruppo: ' . $nomeGruppo : 'Gruppo: —');
 
-$rootPath = realpath(__DIR__ . '/..') ?: (__DIR__ . '/..'); // per chroot
+$headerInfoParts = [];
+$headerInfoParts[] = ($nomeGruppo !== '' ? $nomeGruppo : '—');
+$headerInfoParts[] = 'Check-in: ' . ($dataArrivo !== '' ? $dataArrivo : '—');
+$headerInfoParts[] = 'Check-out: ' . ($dataPartenza !== '' ? $dataPartenza : '—');
+$headerInfoParts[] = 'Persone: ' . (string)$numeroPersone;
 
+$headerInfoLine = implode('  •  ', $headerInfoParts);
+
+
+// Cover meta line
+$coverLineParts = [];
+if ($dataArrivo !== '')   $coverLineParts[] = 'Check-in: ' . $dataArrivo;
+if ($dataPartenza !== '') $coverLineParts[] = 'Check-out: ' . $dataPartenza;
+if ($notti > 0)           $coverLineParts[] = 'Notti: ' . $notti;
+$coverLine = implode('  •  ', $coverLineParts);
+if ($coverLine === '') $coverLine = 'Date soggiorno non indicate';
+
+$headerInfoLine = 'Gruppo: ' . ($nomeGruppo !== '' ? $nomeGruppo : '—')
+    . '  •  Check-in: ' . ($dataArrivo !== '' ? $dataArrivo : '—')
+    . '  •  Check-out: ' . ($dataPartenza !== '' ? $dataPartenza : '—')
+    . '  •  Persone: ' . (string)$numeroPersone;
+
+
+/* =========================
+   HTML
+   ========================= */
 $html = '
 <!doctype html>
 <html lang="it">
 <head>
   <meta charset="utf-8">
   <style>
-    @page { margin: 110px 34px 80px 34px; } /* top right bottom left */
+    @page { margin: 118px 34px 78px 34px; }
 
-    body {
-      font-family: "DejaVu Sans", sans-serif;
-      font-size: 12px;
-      color: #111827;
+    body{ font-family:"DejaVu Sans",sans-serif; font-size:12px; color:#0f172a; }
+    .muted{ color:#64748b; }
+    .t-r{ text-align:right; }
+
+    /* ===== Header ===== */
+    .header{ position:fixed; top:-98px; left:0; right:0; height:92px; }
+    .header-wrap{ border:1px solid #e2e8f0; border-radius:14px; overflow:hidden; background:#fff; }
+    .header-top{ background:#0b3a82; color:#fff; padding:14px 16px; }
+    .header-title{ font-size:16px; font-weight:900; letter-spacing:.3px; margin:0; line-height:1.15; }
+    .header-sub{ margin-top:6px; font-size:11px; opacity:.92; line-height:1.2; }
+
+    .logo-img{ height:36px; }
+
+    .header-bottom{ padding:10px 16px; }
+    .hotel-meta{ font-size:10px; color:#475569; line-height:1.35; }
+
+    /* ===== Footer ===== */
+    .footer{
+      position:fixed; bottom:-56px; left:0; right:0; height:46px;
+      color:#64748b; font-size:9.5px; padding-top:8px;
+      border-top:1px solid #e2e8f0;
     }
 
-    /* Header / Footer (fixed) */
-    .header {
-      position: fixed;
-      top: -90px;
-      left: 0;
-      right: 0;
-      height: 80px;
+    /* ===== Titles ===== */
+    .section{ margin:0 0 14px 0; page-break-inside:avoid; }
+    .section-title{
+      margin:0 0 10px 0; font-size:14px; font-weight:900; color:#0b3a82;
+      letter-spacing:.2px;
     }
-    .header .bar {
-      background: #1C4A8F;
-      color: #fff;
-      padding: 14px 16px;
+    .section-title .dot{
+      display:inline-block; width:10px; height:10px; border-radius:3px; background:#0b3a82;
+      margin-right:8px; vertical-align:middle;
     }
-    .header .title {
-      font-size: 16px;
-      font-weight: 700;
-      letter-spacing: 0.3px;
-      margin: 0;
-      line-height: 1.1;
+    .section-sub{
+      margin:-2px 0 10px 0; color:#64748b; font-size:11px; font-weight:800;
+      padding-left: 18px;
     }
-    .header .meta {
-      font-size: 11px;
-      opacity: 0.9;
-      margin-top: 4px;
-      line-height: 1.2;
-    }
-    .header .logo {
-      text-align: right;
+
+    /* ===== Cover ===== */
+    .cover{ border:1px solid #e2e8f0; border-radius:16px; background:#fff; padding:14px; margin: 0 0 14px 0; }
+    .cover-title{ font-size:15px; font-weight:900; color:#0b3a82; margin:0; line-height:1.2; }
+    .cover-meta{ margin-top:8px; color:#475569; font-size:11px; line-height:1.35; font-weight:800; }
+    .badge{
+      display:inline-block; padding:2px 8px; border-radius:999px;
+      background:#eef2ff; border:1px solid #e2e8f0; color:#1e3a8a;
+      font-weight:900; font-size:10px; letter-spacing:.2px; margin-left:6px;
       vertical-align: middle;
-      width: 140px;
-    }
-    .header .line {
-      border-bottom: 1px solid #E5E7EB;
     }
 
-    .footer {
-      position: fixed;
-      bottom: -55px;
-      left: 0;
-      right: 0;
-      height: 45px;
-      border-top: 1px solid #E5E7EB;
-      color: #6B7280;
-      font-size: 10px;
-      padding-top: 8px;
-    }
-    .pageNumber:before { content: counter(page); }
-    .totalPages:before { content: counter(pages); }
+    /* ===== Cards / KV ===== */
+    .card{ border:1px solid #e2e8f0; background:#fff; border-radius:14px; padding:12px; }
+    table.kvgrid{ width:100%; border-collapse:separate; border-spacing:10px; }
+    td.kvcell{ width:50%; vertical-align:top; }
+    .kv{ border:1px solid #eef2f7; border-radius:12px; padding:10px 12px; background:#f8fafc; }
+    .kv-label{ font-size:9px; color:#64748b; font-weight:900; letter-spacing:.35px; }
+    .kv-value{ margin-top:6px; font-size:12px; font-weight:900; color:#0f172a; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 
-    /* Titles */
-    .section {
-      margin: 0 0 14px 0;
-      page-break-inside: avoid;
+    /* ===== Tables ===== */
+    .simple-table{
+      width:100%; border-collapse:separate; border-spacing:0;
+      border:1px solid #e2e8f0; border-radius:14px; overflow:hidden; background:#fff;
     }
-    .section-title {
-      margin: 0 0 10px 0;
-      padding: 10px 12px;
-      border: 1px solid #E5E7EB;
-      border-left: 8px solid #1C4A8F;
-      background: #F8FAFC;
-      color: #1C4A8F;
-      font-size: 15px;
-      font-weight: 800;
-      letter-spacing: .2px;
+    .simple-table th{
+      text-align:left; padding:10px 12px; font-size:10px; color:#475569;
+      background:#f1f5f9; border-bottom:1px solid #e2e8f0;
     }
-    /* sottotitolo: volutamente più “leggero” del titolo */
-    .section-sub {
-      margin: -2px 0 12px 0;
-      padding-left: 14px;
-      color: #6B7280;
-      font-size: 12px;
-      font-weight: 600;
-    }
+    .simple-table td{ padding:10px 12px; border-bottom:1px solid #eef2f7; }
+    .simple-table tbody tr:nth-child(even) td{ background:#fcfdff; }
+    .simple-table .tr-strong td{ font-weight:900; background:#f8fafc; }
 
-    /* KV grid */
-    .grid {
-      border: 1px solid #E5E7EB;
-      background: #fff;
-      padding: 10px;
+    /* ===== Items ===== */
+    .item{
+      border:1px solid #e2e8f0; border-radius:14px; overflow:hidden;
+      margin:0 0 10px 0; background:#fff;
     }
-    .kv-row { width: 100%; border-collapse: collapse; }
-    .kv-cell { width: 50%; vertical-align: top; padding: 6px; }
-    .kv {
-      border: 1px solid #EEF2F7;
-      background: #FFFFFF;
-      padding: 10px;
-      height: 46px;
+    .item-head{ background:#f8fafc; border-bottom:1px solid #e2e8f0; padding:10px 12px; }
+    .item-head table{ width:100%; border-collapse:collapse; }
+    .item-date{ width:170px; font-weight:900; color:#0f172a; }
+    .item-date .d{ font-size:12px; }
+    .item-date .t{ font-size:11px; font-weight:800; color:#64748b; margin-top:2px; }
+    .item-type{ text-align:center; font-weight:900; color:#0b3a82; font-size:16px; letter-spacing:.4px; }
+    .item-sala{ width:220px; text-align:right; font-weight:900; color:#0f172a; font-size:12px; }
+    .item-body{ padding:10px 14px 12px 14px; }
+
+    ul.bullets{ margin:6px 0 0 18px; padding:0; }
+    ul.bullets li{ margin:0 0 4px 0; line-height:1.3; }
+
+    .note{ border:1px solid #e2e8f0; border-radius:12px; background:#fff; padding:10px 12px; line-height:1.35; }
+
+    /* ===== Departments grid ===== */
+    .dept-grid{ width:100%; }
+    .dept{
+      border:1px solid #e2e8f0; border-radius:14px; background:#fff;
+      padding:12px; margin:0 0 10px 0;
     }
-    .kv-label {
-      font-size: 9px;
-      color: #6B7280;
-      font-weight: 700;
-      letter-spacing: 0.3px;
-    }
-    .kv-value {
-      margin-top: 4px;
-      font-size: 12px;
-      color: #111827;
-      font-weight: 700;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
+    .dept-head{ font-size:11px; font-weight:900; color:#0b3a82; margin:0 0 8px 0; }
+    .dept-body{
+      border:1px solid #eef2f7; border-radius:12px; background:#f8fafc;
+      padding:10px 12px; line-height:1.35; color:#0f172a; font-weight:800;
     }
 
-    /* Tables */
-    .simple-table {
-      width: 100%;
-      border-collapse: collapse;
-      border: 1px solid #E5E7EB;
-      background: #fff;
-    }
-    .simple-table th {
-      text-align: left;
-      padding: 10px;
-      font-size: 10px;
-      color: #6B7280;
-      background: #F8FAFC;
-      border-bottom: 1px solid #E5E7EB;
-    }
-    .simple-table td {
-      padding: 10px;
-      border-bottom: 1px solid #EEF2F7;
-    }
-    .simple-table .tr-strong td { font-weight: 800; }
-    .t-r { text-align: right; }
+    .break{ page-break-before:always; }
 
-    /* Meal bar (NO bordi interni, un unico rettangolo) */
-    .block { margin: 0 0 10px 0; }
-    .mealbar {
-      border: 1px solid #E5E7EB;
-      background: #F8FAFC;
-    }
-    .mealbar td { padding: 12px 14px; vertical-align: middle; }
-    .mealbar-date { width: 140px; }
-    .mealbar-date .d1 { font-size: 14px; font-weight: 800; color:#111827; }
-    .mealbar-date .d2 { font-size: 11px; font-weight: 700; color:#6B7280; margin-top: 3px; }
-    .mealbar-type {
-      text-align: center;
-      font-size: 20px;
-      font-weight: 900;
-      color: #1C4A8F;
-      letter-spacing: 0.6px;
-    }
-    .mealbar-sala {
-      width: 220px;
-      text-align: right;
-      font-size: 13px;
-      font-weight: 800;
-      color:#111827;
-    }
+    .footer{ position:fixed; bottom:-56px; left:0; right:0; height:46px;
+      color:#64748b; font-size:9.5px; padding-top:8px; border-top:1px solid #e2e8f0; }
+    .pagebox{ display:inline-block; min-width:40px; text-align:right; }
 
-    /* Bullets */
-    .bullets {
-      margin: 8px 0 0 22px;
-      padding: 0;
-    }
-    .bullets li {
-      margin: 0 0 4px 0;
-      line-height: 1.25;
-    }
-
-    .note-block { margin: 0 0 12px 0; }
-    .subhead {
-      font-size: 11px;
-      font-weight: 800;
-      color: #1C4A8F;
-      margin: 0 0 6px 0;
-      padding-left: 2px;
-    }
-    .note {
-      border: 1px solid #E5E7EB;
-      background: #FFFFFF;
-      padding: 10px 12px;
-      color: #111827;
-      line-height: 1.35;
-    }
-
-    .muted { color:#6B7280; }
-
-    /* Page breaks */
-    .break { page-break-before: always; }
   </style>
 </head>
 <body>
 
   <!-- HEADER -->
   <div class="header">
-    <table width="100%" cellspacing="0" cellpadding="0">
-      <tr>
-        <td class="bar">
-          <div class="title">SCHEDA ARRIVO GRUPPI</div>
-          <div class="meta">'.h(HOTEL_NOME).($gruppoLabel !== '' ? ' &nbsp;|&nbsp; '.h($gruppoLabel) : '').'</div>
-        </td>
-        <td class="bar logo">
-          '.($logoUri !== '' ? '<img src="'.h($logoUri).'" style="height:34px;">' : '').'
-        </td>
-      </tr>
-      <tr><td colspan="2" class="line"></td></tr>
-    </table>
+    <div class="header-wrap">
+      <table width="100%" cellspacing="0" cellpadding="0">
+        <tr>
+          <td class="header-top" style="width:75%;">
+            <div class="header-title">SCHEDA ARRIVO GRUPPI</div>
+            <div class="header-meta">'.h($headerInfoLine).'</div>
+          </td>
+          <td class="header-top" style="text-align:right;">
+            '.($logoRelOk !== '' ? '<img class="logo-img" src="'.h($logoRelOk).'">' : '').'
+          </td>
+        </tr>
+      </table>
+    </div>
   </div>
 
   <!-- FOOTER -->
   <div class="footer">
     <table width="100%" cellspacing="0" cellpadding="0">
       <tr>
-        <td>
-          '.h(HOTEL_NOME).' - '.h(HOTEL_INDIRIZZO).' - Tel. '.h(HOTEL_TEL).'<br>
-          Email: '.h(HOTEL_EMAIL).' &nbsp;|&nbsp; Web: '.h(HOTEL_WEB).'
+        <td style="width:78%;">
+          '.h(HOTEL_INDIRIZZO).'  •  Tel. '.h(HOTEL_TEL).'<br>
+          '.h(HOTEL_EMAIL).'  •  '.h(HOTEL_WEB).'
         </td>
-        <td style="text-align:right;">
-          Pag. <span class="pageNumber"></span>/<span class="totalPages"></span><br>
-          Creato: '.h($printedAt).'
+        <td class="t-r" style="width:22%; font-weight:900;">
+          <span class="pagebox"></span>
         </td>
       </tr>
     </table>
   </div>
 
+
+
+  <!-- COVER -->
+
   <!-- PAGINA 1 -->
   <div class="section">
-    <div class="section-title">Dati gruppo</div>
-    <div class="grid">
-      <table class="kv-row">
+    <div class="section-title"><span class="dot"></span>Dati gruppo</div>
+    <div class="card">
+      <table class="kvgrid">
         <tr>
-          <td class="kv-cell">'.kv_card('Gruppo', $nomeGruppo).'</td>
-          <td class="kv-cell">'.kv_card('Agenzia / Ente', $agenzia).'</td>
+          <td class="kvcell">'.kv_card('Gruppo', $nomeGruppo).'</td>
+          <td class="kvcell">'.kv_card('Agenzia / Ente', $agenzia).'</td>
         </tr>
         <tr>
-          <td class="kv-cell">'.kv_card('Referente', $referente).'</td>
-          <td class="kv-cell">'.kv_card('Telefono', $telefono).'</td>
+          <td class="kvcell">'.kv_card('Referente', $referente).'</td>
+          <td class="kvcell">'.kv_card('Telefono', $telefono).'</td>
         </tr>
         <tr>
-          <td class="kv-cell">'.kv_card('Email', $email).'</td>
-          <td class="kv-cell"></td>
-        </tr>
-      </table>
-    </div>
-  </div>
-
-  <div class="section">
-    <div class="section-title">Soggiorno</div>
-    <div class="grid">
-      <table class="kv-row">
-        <tr>
-          <td class="kv-cell">'.kv_card('Check-in', $dataArrivo).'</td>
-          <td class="kv-cell">'.kv_card('Check-out', $dataPartenza).'</td>
-        </tr>
-        <tr>
-          <td class="kv-cell">'.kv_card('Orario check-in', $checkinOrario).'</td>
-          <td class="kv-cell">'.kv_card('Notti', (string)calc_notti($dataArrivoRaw, $dataPartenzaRaw)).'</td>
-        </tr>
-        <tr>
-          <td class="kv-cell">'.kv_card('Trattamento', $trattamento).'</td>
-          <td class="kv-cell"></td>
+          <td class="kvcell">'.kv_card('Email', $email).'</td>
+          <td class="kvcell"></td>
         </tr>
       </table>
     </div>
   </div>
 
   <div class="section">
-    <div class="section-title">Partecipanti</div>
-    <div class="grid">
-      <table class="kv-row">
+    <div class="section-title"><span class="dot"></span>Soggiorno</div>
+    <div class="card">
+      <table class="kvgrid">
         <tr>
-          <td class="kv-cell">'.kv_card('Adulti', (string)$numeroAdulti).'</td>
-          <td class="kv-cell">'.kv_card('Bambini', (string)$numeroBambini).'</td>
+          <td class="kvcell">'.kv_card('Check-in', $dataArrivo).'</td>
+          <td class="kvcell">'.kv_card('Check-out', $dataPartenza).'</td>
         </tr>
         <tr>
-          <td class="kv-cell">'.kv_card('Totale', (string)$numeroPersone).'</td>
-          <td class="kv-cell"></td>
+          <td class="kvcell">'.kv_card('Orario check-in', $checkinOrario).'</td>
+          <td class="kvcell">'.kv_card('Notti', (string)$notti).'</td>
+        </tr>
+        <tr>
+          <td class="kvcell">'.kv_card('Trattamento', $trattamento).'</td>
+          <td class="kvcell"></td>
         </tr>
       </table>
     </div>
   </div>
 
   <div class="section">
-    <div class="section-title">Alloggi</div>
+    <div class="section-title"><span class="dot"></span>Partecipanti</div>
+    <div class="card">
+      <table class="kvgrid">
+        <tr>
+          <td class="kvcell">'.kv_card('Adulti', (string)$numeroAdulti).'</td>
+          <td class="kvcell">'.kv_card('Bambini', (string)$numeroBambini).'</td>
+        </tr>
+        <tr>
+          <td class="kvcell">'.kv_card('Totale', (string)$numeroPersone).'</td>
+          <td class="kvcell"></td>
+        </tr>
+      </table>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title"><span class="dot"></span>Alloggi</div>
     '.$camereHtml.'
   </div>
 
   <!-- PAGINA 2 -->
-  <div class="break"></div>
   <div class="section">
-    <div class="section-title">Pasti e sala ristorante</div>
+    <div class="section-title"><span class="dot"></span>Pasti e sala ristorante</div>
     <div class="section-sub">Elenco pasti</div>
     '.$pastiHtml.'
   </div>
 
   <!-- PAGINA 3 -->
-  <div class="break"></div>
   <div class="section">
-    <div class="section-title">Attività / extra</div>
+    <div class="section-title"><span class="dot"></span>Allergie / intolleranze</div>
+    <div class="section-sub">Allergie / intolleranze (generale)</div>
+    '.$allergieHtml.'
+  </div>
+
+  <!-- PAGINA 4 -->
+  <div class="section">
+    <div class="section-title"><span class="dot"></span>Attività / extra</div>
     <div class="section-sub">Elenco attività</div>
     '.$extraHtml.'
   </div>
 
-  <!-- PAGINA 4 -->
-  <div class="break"></div>
+  <!-- PAGINA 5 -->
   <div class="section">
-    <div class="section-title">Note per reparti</div>
+    <div class="section-title"><span class="dot"></span>Note per reparti</div>
     '.$notesHtml.'
   </div>
 
-  <!-- PAGINA 5 -->
-  <div class="break"></div>
-  <div class="section">
-    <div class="section-title">Allergie / intolleranze</div>
-    '.$allergieHtml.'
-  </div>
+  
 
 </body>
 </html>
@@ -683,9 +662,6 @@ $options = new Options();
 $options->set('isRemoteEnabled', true);
 $options->set('isHtml5ParserEnabled', true);
 $options->set('defaultFont', 'DejaVu Sans');
-
-// IMPORTANTISSIMO per immagini locali
-// limita l'accesso ai file al root del progetto
 $options->setChroot($rootPath);
 
 $dompdf = new Dompdf($options);
@@ -694,23 +670,45 @@ $dompdf->loadHtml($html, 'UTF-8');
 
 try {
     $dompdf->render();
+
+    // Paginazione affidabile (evita counter(pages) che spesso è 0)
+    $canvas = $dompdf->getCanvas();
+    $font   = $dompdf->getFontMetrics()->getFont('DejaVu Sans', 'normal');
+
+    // Coordinate tarate per A4 portrait con margini @page sopra
+    $canvas->page_text(
+        520, 820,                 // X,Y: tarato per finire nella colonna destra del footer
+        "{PAGE_NUM}/{PAGE_COUNT}", // <-- formato richiesto
+        $font,
+        9,
+        [100, 116, 139]
+    );
+
+
 } catch (Throwable $e) {
-    // se succede, non mandare output sporco: meglio errore pulito
-    ob_end_clean();
+    while (ob_get_level() > 0) ob_end_clean();
     http_response_code(500);
     echo 'Errore PDF: ' . h($e->getMessage());
     exit;
 }
 
 /* =========================
-   OUTPUT PDF (NO OUTPUT SPORCO)
+   OUTPUT PDF (ultra-safe)
    ========================= */
-ob_end_clean();
+$pdf = $dompdf->output();
+
+// chiudi QUALSIASI buffer aperto
+while (ob_get_level() > 0) ob_end_clean();
+
+// evita encoding/bytes strani
+ini_set('zlib.output_compression', '0');
+header_remove('Content-Encoding');
 
 header('Content-Type: application/pdf');
 header('Content-Disposition: attachment; filename="'.$filename.'"');
+header('Content-Length: ' . strlen($pdf));
 header('Cache-Control: private, max-age=0, must-revalidate');
 header('Pragma: public');
 
-echo $dompdf->output();
+echo $pdf;
 exit;
