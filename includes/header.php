@@ -51,6 +51,9 @@ function in_gruppo($codice){
             display: flex;
             flex-direction: column;
         }
+        .app-main {
+            flex: 1 0 auto;
+        }
         .navbar-brand { font-weight:600; }
         .nav-section-title {
             font-size:.75rem;
@@ -231,4 +234,4 @@ function in_gruppo($codice){
     </div>
 </nav>
 
-<div class="container-fluid mt-4">
+<div class="container-fluid mt-4 app-main">

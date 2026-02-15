@@ -251,7 +251,7 @@ if ($stmt) {
             <h5 class="mb-1"><i class="bi bi-door-open"></i> Camere</h5>
           </div>
           <a class="btn btn-primary btn-sm btn-icon" href="<?= BASE_URL ?>/prenotazioni/calendario.php">
-            <i class="bi bi-lightning-charge"></i> Prenotazione veloce
+            <i class="bi bi-lightning-charge"></i> Prenotazione
           </a>
         </div>
 

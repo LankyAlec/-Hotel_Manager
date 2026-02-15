@@ -67,6 +67,8 @@ try {
   $edificioId = qint($_GET['edificio_id'] ?? 0, 0);
   $pianoId    = qint($_GET['piano_id'] ?? 0, 0);
   $cameraId   = qint($_GET['camera_id'] ?? 0, 0);
+  $assegnataId = qint($_GET['assegnata_a'] ?? 0, 0);
+  $unassigned = ((int)($_GET['unassigned'] ?? 0) === 1);
 
   $perPage = qint($_GET['per_page'] ?? 10, 1);
   $pD = qint($_GET['page_da_fare'] ?? 1, 1);
@@ -87,6 +89,7 @@ try {
   if ($hasCreatedBy)   $joinsUsers .= " LEFT JOIN utenti uC ON uC.id = t.created_by";
   if ($hasStartedBy)   $joinsUsers .= " LEFT JOIN utenti uS ON uS.id = t.started_by";
   if ($hasCompletedBy) $joinsUsers .= " LEFT JOIN utenti uF ON uF.id = t.completed_by";
+  $joinsUsers .= " LEFT JOIN utenti uA ON uA.id = t.assegnata_a";
 
   $select = "
     t.id, t.camera_id, t.data, t.tipo, t.stato,
@@ -105,6 +108,7 @@ try {
   if ($hasCreatedBy)   $select .= ", (" . utenti_name_expr($mysqli, 'uC') . ") AS created_by_name";
   if ($hasStartedBy)   $select .= ", (" . utenti_name_expr($mysqli, 'uS') . ") AS started_by_name";
   if ($hasCompletedBy) $select .= ", (" . utenti_name_expr($mysqli, 'uF') . ") AS completed_by_name";
+  $select .= ", (" . utenti_name_expr($mysqli, 'uA') . ") AS assegnata_name";
 
   $from = "
     FROM pulizie_task t
@@ -134,6 +138,12 @@ try {
     $where[] = "c.piano_id = " . (int)$pianoId;
   } elseif ($edificioId > 0) {
     $where[] = "p.edificio_id = " . (int)$edificioId;
+  }
+
+  if ($unassigned) {
+    $where[] = "t.assegnata_a IS NULL";
+  } elseif ($assegnataId > 0) {
+    $where[] = "t.assegnata_a = " . (int)$assegnataId;
   }
 
   if ($q !== '') {
@@ -216,6 +226,7 @@ try {
       $dataTask = (string)$r['data'];
       $tipoTask = (string)$r['tipo'];
       $assA = (int)$r['assegnata_a'];
+      $assName = (string)($r['assegnata_name'] ?? '');
       $note = (string)$r['note'];
 
       $edNome = (string)($r['edificio_nome'] ?? '');
@@ -246,6 +257,17 @@ try {
         $moveBtns .= "<button type='button' class='btn btn-outline-primary btn-mini js-move' data-id='$id' data-to='IN_CORSO' title='Riapri'><i class='bi bi-arrow-counterclockwise'></i></button>";
       }
 
+      $currentUid = (int)($_SESSION['utente_id'] ?? $_SESSION['uid'] ?? $_SESSION['user_id'] ?? 0);
+      $assignBtn = "";
+      if ($assA === 0 && $currentUid > 0) {
+        $assignBtn = "<button type='button' class='btn btn-outline-success btn-mini js-assign-me' data-id='$id' title='Assegna a me'><i class='bi bi-person-check'></i></button>";
+      }
+
+      $assignedBadge = '';
+      if (trim($assName) !== '') {
+        $assignedBadge = " • <span class='badge-soft'>Assegnata: " . h($assName) . "</span>";
+      }
+
       $buf .= "
         <div class='tcard'
           data-id='".h((string)$id)."'
@@ -265,12 +287,13 @@ try {
           <div class='top'>
             <div>
               <div class='title'>".h($tit)."</div>
-              <div class='small text-muted'>".h($sub)." • <span class='badge-soft'>".h($tipoTask)."</span> • <span class='badge-soft'>".h($dataTask)."</span></div>
+              <div class='small text-muted'>".h($sub)." • <span class='badge-soft'>".h($tipoTask)."</span> • <span class='badge-soft'>".h($dataTask)."</span>$assignedBadge</div>
             </div>
             <div class='tacts'>
               <button type='button' class='btn btn-outline-secondary btn-mini js-edit' title='Modifica'>
                 <i class='bi bi-pencil'></i>
               </button>
+              $assignBtn
               $moveBtns
             </div>
           </div>

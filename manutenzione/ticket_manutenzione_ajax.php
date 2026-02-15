@@ -63,6 +63,8 @@ function utenti_name_expr(mysqli $mysqli, string $alias): string {
 /* ========= input ========= */
 $q = trim((string)($_GET['q'] ?? ''));
 $priorita = trim((string)($_GET['priorita'] ?? 'ALL'));
+$assignee = (int)($_GET['assegnato_a'] ?? 0);
+$unassigned = ((int)($_GET['unassigned'] ?? 0) === 1);
 $perPage = max(1, min(50, (int)($_GET['per_page'] ?? 15)));
 
 $pageA = max(1, (int)($_GET['page_aperto'] ?? 1));
@@ -96,6 +98,14 @@ if ($priorita !== '' && $priorita !== 'ALL') {
   $where[] = "t.priorita = ?";
   $types .= 's';
   $vals[] = $priorita;
+}
+
+if ($unassigned) {
+  $where[] = "t.assegnato_a IS NULL";
+} elseif ($assignee > 0) {
+  $where[] = "t.assegnato_a = ?";
+  $types .= 'i';
+  $vals[] = $assignee;
 }
 
 $whereSql = $where ? ('WHERE '.implode(' AND ', $where)) : '';
@@ -266,6 +276,11 @@ function makeCard(array $r, bool $annullatoList=false): string {
 
   $actions = [];
   $actions[] = '<button type="button" class="btn btn-outline-secondary btn-mini js-edit-ticket" title="Modifica"><i class="bi bi-pencil"></i></button>';
+
+  $currentUid = (int)($_SESSION['utente_id'] ?? 0);
+  if (!$annullatoList && $asId === 0 && $currentUid > 0) {
+    $actions[] = '<button type="button" class="btn btn-outline-success btn-mini js-assign-me" data-id="'.$id.'" title="Assegna a me"><i class="bi bi-person-check"></i></button>';
+  }
 
   if (!$annullatoList) {
     if ($stato === 'APERTO') {

@@ -136,7 +136,7 @@ try {
 
     $sql = "SELECT c.id AS camera_id, c.piano_id, p.edificio_id
             FROM struttura_camere c
-            LEFT JOIN piani p ON p.id = c.piano_id
+            LEFT JOIN struttura_piani p ON p.id = c.piano_id
             WHERE c.id = ?
             LIMIT 1";
     $st = $mysqli->prepare($sql);

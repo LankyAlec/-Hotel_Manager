@@ -78,7 +78,7 @@ include __DIR__ . '/../includes/header.php';
 .ann-chip .form-check{ margin:0; }
 .ann-chip .form-check-input{ cursor:pointer; }
 .ann-chip .lbl{ font-size:.95rem; color:#111827; font-weight:600; }
-.ann-chip .count{
+  .ann-chip .count{
   display:inline-flex;
   align-items:center;
   justify-content:center;
@@ -100,7 +100,21 @@ include __DIR__ . '/../includes/header.php';
   font-weight:800;
   box-shadow: 0 .25rem .85rem rgba(13,110,253,.18);
 }
-.btn-cta i{ margin-right:6px; }
+  .btn-cta i{ margin-right:6px; }
+
+  .filter-chip{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    padding:8px 12px;
+    border-radius:14px;
+    background:#f9fafb;
+    border:1px solid rgba(0,0,0,.10);
+    height:42px;
+  }
+  .filter-chip .form-check{ margin:0; }
+  .filter-chip .form-check-input{ cursor:pointer; }
+  .filter-chip .lbl{ font-size:.95rem; color:#111827; font-weight:600; }
 
   .tickets-top{ display:flex; gap:12px; flex-wrap:wrap; align-items:center; justify-content:space-between; }
   .tickets-filters{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
@@ -240,6 +254,24 @@ include __DIR__ . '/../includes/header.php';
         <option value="ALTA">ALTA</option>
         <option value="URGENTE">URGENTE</option>
       </select>
+
+      <select class="form-select select-pill" id="f_assignee" style="width: 220px;">
+        <option value="0">Assegnato a: tutti</option>
+      </select>
+
+      <div class="filter-chip">
+        <div class="form-check form-switch d-flex align-items-center gap-2">
+          <input class="form-check-input" type="checkbox" id="f_my">
+          <label class="form-check-label lbl" for="f_my">Solo miei</label>
+        </div>
+      </div>
+
+      <div class="filter-chip">
+        <div class="form-check form-switch d-flex align-items-center gap-2">
+          <input class="form-check-input" type="checkbox" id="f_unassigned">
+          <label class="form-check-label lbl" for="f_unassigned">Non assegnati</label>
+        </div>
+      </div>
 
       <div class="ann-chip">
         <div class="form-check form-switch d-flex align-items-center gap-2">
@@ -458,10 +490,14 @@ include __DIR__ . '/../includes/header.php';
 <script>
 (function(){
   const PER_PAGE = 15;
+  const CURRENT_UID = <?= (int)($_SESSION['utente_id'] ?? 0) ?>;
 
   // filtri
   const qEl = document.getElementById('q');
   const prEl = document.getElementById('priorita');
+  const assigneeEl = document.getElementById('f_assignee');
+  const myOnlyEl = document.getElementById('f_my');
+  const unassignedEl = document.getElementById('f_unassigned');
 
   // annullati
   const annSwitch = document.getElementById('showAnnullati');
@@ -589,9 +625,19 @@ include __DIR__ . '/../includes/header.php';
   }
 
   function currentFilters(){
+    let assignee = parseInt(assigneeEl.value || '0', 10);
+    const myOnly = !!myOnlyEl.checked;
+    const unassigned = !!unassignedEl.checked;
+
+    if (myOnly && CURRENT_UID > 0) {
+      assignee = CURRENT_UID;
+    }
+
     return {
       q: qEl.value.trim(),
-      priorita: prEl.value || 'ALL'
+      priorita: prEl.value || 'ALL',
+      assegnato_a: assignee,
+      unassigned: unassigned ? 1 : 0
     };
   }
 
@@ -623,6 +669,12 @@ include __DIR__ . '/../includes/header.php';
     const items = await apiMeta('assegnati');
     fillSelect(selAs, items, '<option value="0">Non assegnato</option>');
     selAs.value = String(selectedId || 0);
+  }
+
+  async function loadAssigneeFilter(selectedId = 0){
+    const items = await apiMeta('assegnati');
+    fillSelect(assigneeEl, items, '<option value="0">Assegnato a: tutti</option>');
+    assigneeEl.value = String(selectedId || 0);
   }
   async function loadEdifici(selectedId = 0) {
     const items = await apiMeta('edifici');
@@ -742,6 +794,21 @@ include __DIR__ . '/../includes/header.php';
   }
   qEl.addEventListener('input', scheduleReload);
   prEl.addEventListener('change', scheduleReload);
+  assigneeEl.addEventListener('change', scheduleReload);
+
+  function syncFilterToggles(){
+    if (myOnlyEl.checked) {
+      unassignedEl.checked = false;
+      assigneeEl.disabled = true;
+    } else if (unassignedEl.checked) {
+      myOnlyEl.checked = false;
+      assigneeEl.disabled = true;
+    } else {
+      assigneeEl.disabled = false;
+    }
+  }
+  myOnlyEl.addEventListener('change', ()=>{ syncFilterToggles(); scheduleReload(); });
+  unassignedEl.addEventListener('change', ()=>{ syncFilterToggles(); scheduleReload(); });
 
   // paginazione board
   prevA.addEventListener('click', async ()=>{ if(pages.APERTO>1){ pages.APERTO--; await loadBoard(); }});
@@ -960,6 +1027,26 @@ btnNew.addEventListener('click', openCreate);
   });
 
   document.addEventListener('click', async (e) => {
+    const btnAssign = e.target.closest('.js-assign-me');
+    if (btnAssign){
+      const id = parseInt(btnAssign.dataset.id || '0', 10);
+      if (!id || !CURRENT_UID) return;
+      btnAssign.disabled = true;
+      try{
+        const fd = new FormData();
+        fd.append('id', String(id));
+        fd.append('assegnato_a', String(CURRENT_UID));
+        await apiJson('ticket_manutenzione_assign_ajax.php', { method:'POST', body:fd });
+        await loadBoard();
+        if (annSwitch.checked) await loadAnnullati();
+      } catch(err){
+        alert(err.message || 'Errore');
+      } finally {
+        btnAssign.disabled = false;
+      }
+      return;
+    }
+
     const btnEdit = e.target.closest('.js-edit-ticket');
     if (btnEdit){
       const card = btnEdit.closest('.tcard');
@@ -1005,6 +1092,8 @@ btnNew.addEventListener('click', openCreate);
       console.warn('[Ticket] Bootstrap JS non disponibile: le modali non possono aprirsi.');
     }
 
+    try { await loadAssigneeFilter(0); } catch(e) { console.error(e); }
+    syncFilterToggles();
     await loadBoard().catch(console.error);
   })();
 

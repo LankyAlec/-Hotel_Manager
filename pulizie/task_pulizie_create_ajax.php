@@ -29,7 +29,8 @@ function post_int(string $k): int { return (int)($_POST[$k] ?? 0); }
 function post_str(string $k): string { return trim((string)($_POST[$k] ?? '')); }
 
 $camera_id = post_int('camera_id');
-// La data viene ricavata automaticamente (oggi) lato server.
+$dataIn    = post_str('data');
+// La data è opzionale: se non valida, usa oggi.
 $data      = date('Y-m-d');
 $tipo      = post_str('tipo');
 $assegnata = post_int('assegnata_a');
@@ -42,7 +43,14 @@ if ($tipo === '') $tipo = 'STANDARD';
 $allowedTipo = ['STANDARD','EXTRA','CAMBIO_BIANCHERIA','CHECKOUT'];
 if (!in_array($tipo, $allowedTipo, true)) $tipo = 'STANDARD';
 
-$uid = (int)($_SESSION['uid'] ?? $_SESSION['user_id'] ?? 0);
+if ($dataIn !== '') {
+  $d = DateTime::createFromFormat('Y-m-d', $dataIn);
+  if ($d && $d->format('Y-m-d') === $dataIn) {
+    $data = $dataIn;
+  }
+}
+
+$uid = (int)($_SESSION['utente_id'] ?? $_SESSION['uid'] ?? $_SESSION['user_id'] ?? 0);
 $created_by = $uid > 0 ? $uid : 0;
 
 $sql = "INSERT INTO pulizie_task

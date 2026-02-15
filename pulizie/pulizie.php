@@ -104,6 +104,20 @@ include __DIR__ . '/../includes/header.php';
   .form-select.select-slim{ padding-top: 6px; padding-bottom: 6px; }
 
   .tiny-help{ font-size: .82rem; color: #6c757d; }
+
+  .filter-chip{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    padding:6px 10px;
+    border-radius:12px;
+    background:#f9fafb;
+    border:1px solid rgba(0,0,0,.10);
+    height:38px;
+  }
+  .filter-chip .form-check{ margin:0; }
+  .filter-chip .form-check-input{ cursor:pointer; }
+  .filter-chip .lbl{ font-size:.9rem; color:#111827; font-weight:600; }
 </style>
 
 <div class="container-fluid">
@@ -141,6 +155,24 @@ include __DIR__ . '/../includes/header.php';
         <select class="form-select select-slim" id="f_camera" style="width: 190px;" disabled>
           <option value="0">Camera: tutte</option>
         </select>
+
+        <select class="form-select select-slim" id="f_assegnata" style="width: 200px;">
+          <option value="0">Assegnata a: tutte</option>
+        </select>
+
+        <div class="filter-chip">
+          <div class="form-check form-switch d-flex align-items-center gap-2">
+            <input class="form-check-input" type="checkbox" id="f_my">
+            <label class="form-check-label lbl" for="f_my">Solo mie</label>
+          </div>
+        </div>
+
+        <div class="filter-chip">
+          <div class="form-check form-switch d-flex align-items-center gap-2">
+            <input class="form-check-input" type="checkbox" id="f_unassigned">
+            <label class="form-check-label lbl" for="f_unassigned">Non assegnate</label>
+          </div>
+        </div>
 
         <button class="btn btn-primary" id="btnNew">
           <i class="bi bi-plus-circle"></i> Nuova pulizia
@@ -272,6 +304,11 @@ include __DIR__ . '/../includes/header.php';
           </div>
 
           <div class="col-md-4">
+            <label class="form-label">Data</label>
+            <input type="date" class="form-control" id="data_task">
+          </div>
+
+          <div class="col-md-4">
             <label class="form-label">Assegnata a</label>
             <select class="form-select" id="assegnata_a">
               <option value="0">Non assegnata</option>
@@ -321,6 +358,7 @@ include __DIR__ . '/../includes/header.php';
 <script>
 (function(){
   const PER_PAGE = 10;
+  const CURRENT_UID = <?= (int)($_SESSION['utente_id'] ?? $_SESSION['uid'] ?? $_SESSION['user_id'] ?? 0) ?>;
 
   const qEl = document.getElementById('q');
   const fData = document.getElementById('f_data');
@@ -328,6 +366,9 @@ include __DIR__ . '/../includes/header.php';
   const fEd = document.getElementById('f_edificio');
   const fPi = document.getElementById('f_piano');
   const fCa = document.getElementById('f_camera');
+  const fAss = document.getElementById('f_assegnata');
+  const fMy = document.getElementById('f_my');
+  const fUnassigned = document.getElementById('f_unassigned');
 
   const btnNew = document.getElementById('btnNew');
 
@@ -362,6 +403,7 @@ include __DIR__ . '/../includes/header.php';
   const cameraSel = document.getElementById('camera_id');
 
   const tipoEl = document.getElementById('tipo');
+  const dataEl = document.getElementById('data_task');
   const assegnataSel = document.getElementById('assegnata_a');
   const noteEl = document.getElementById('note');
 
@@ -416,13 +458,20 @@ include __DIR__ . '/../includes/header.php';
   }
 
   function currentFilters(){
+    let ass = parseInt(fAss.value||'0',10);
+    const myOnly = !!fMy.checked;
+    const unassigned = !!fUnassigned.checked;
+    if (myOnly && CURRENT_UID > 0) ass = CURRENT_UID;
+
     return {
       q: (qEl.value||'').trim(),
       data: (fData.value||'').trim(),
       tipo: (fTipo.value||'ALL'),
       edificio_id: parseInt(fEd.value||'0',10),
       piano_id: parseInt(fPi.value||'0',10),
-      camera_id: parseInt(fCa.value||'0',10)
+      camera_id: parseInt(fCa.value||'0',10),
+      assegnata_a: ass,
+      unassigned: unassigned ? 1 : 0
     };
   }
 
@@ -516,6 +565,12 @@ include __DIR__ . '/../includes/header.php';
     assegnataSel.value = String(selectedId||0);
   }
 
+  async function loadAssigneeFilter(selectedId=0){
+    const j = await apiMeta('assegnate');
+    fillSelect(fAss, j.items || [], '<option value="0">Assegnata a: tutte</option>');
+    fAss.value = String(selectedId||0);
+  }
+
   fEd.addEventListener('change', async ()=>{
     const eid = parseInt(fEd.value||'0',10);
     await loadPiani(eid, 0);
@@ -528,6 +583,21 @@ include __DIR__ . '/../includes/header.php';
     resetPages(); await loadBoard();
   });
   fCa.addEventListener('change', async ()=>{ resetPages(); await loadBoard(); });
+  fAss.addEventListener('change', async ()=>{ resetPages(); await loadBoard(); });
+
+  function syncFilterToggles(){
+    if (fMy.checked) {
+      fUnassigned.checked = false;
+      fAss.disabled = true;
+    } else if (fUnassigned.checked) {
+      fMy.checked = false;
+      fAss.disabled = true;
+    } else {
+      fAss.disabled = false;
+    }
+  }
+  fMy.addEventListener('change', async ()=>{ syncFilterToggles(); resetPages(); await loadBoard(); });
+  fUnassigned.addEventListener('change', async ()=>{ syncFilterToggles(); resetPages(); await loadBoard(); });
 
   // ===== board =====
   async function loadBoard(){
@@ -640,6 +710,9 @@ include __DIR__ . '/../includes/header.php';
 
     tipoEl.value = 'STANDARD';
     noteEl.value = '';
+    if (dataEl) {
+      dataEl.value = (fData && fData.value) ? fData.value : new Date().toISOString().slice(0,10);
+    }
 
     bsTask?.show();
   }
@@ -669,6 +742,7 @@ include __DIR__ . '/../includes/header.php';
 
     tipoEl.value = card.dataset.tipo || 'STANDARD';
     noteEl.value = card.dataset.note || '';
+    if (dataEl) dataEl.value = card.dataset.data || '';
 
     fillMetaFromCard(card);
 
@@ -683,6 +757,7 @@ include __DIR__ . '/../includes/header.php';
     const payload = {
       id: idEl.value,
       camera_id: parseInt(cameraSel.value||'0',10),
+      data: (dataEl && dataEl.value) ? dataEl.value : '',
       tipo: tipoEl.value || 'STANDARD',
       assegnata_a: parseInt(assegnataSel.value||'0',10),
       note: noteEl.value.trim(),
@@ -744,6 +819,25 @@ include __DIR__ . '/../includes/header.php';
   });
 
   document.addEventListener('click', async (e)=>{
+    const btnAssign = e.target.closest('.js-assign-me');
+    if (btnAssign){
+      const id = parseInt(btnAssign.dataset.id||'0',10);
+      if (!id || !CURRENT_UID) return;
+      btnAssign.disabled = true;
+      try{
+        const fd = new FormData();
+        fd.append('id', String(id));
+        fd.append('assegnata_a', String(CURRENT_UID));
+        await apiJson('task_pulizie_assign_ajax.php', { method:'POST', body: fd });
+        await loadBoard();
+      } catch(err){
+        alert(err.message || 'Errore');
+      } finally {
+        btnAssign.disabled = false;
+      }
+      return;
+    }
+
     const btnEdit = e.target.closest('.js-edit');
     if (btnEdit){
       const card = btnEdit.closest('.tcard');
@@ -786,6 +880,8 @@ include __DIR__ . '/../includes/header.php';
       await loadEdifici(0);
       await loadPiani(0,0);
       await loadCamere(0,0);
+      await loadAssigneeFilter(0);
+      syncFilterToggles();
     } catch (e) {
       console.error(e);
     }
