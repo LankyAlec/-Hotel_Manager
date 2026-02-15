@@ -1,6 +1,13 @@
 <?php
 require_once '../config/db.php';
 
+$connection = $mysqli;
+$csrf = $_POST['csrf_token'] ?? '';
+if (!csrf_validate((string)$csrf, 'forgot_form')) {
+    header("Location: forgot.php?ok=1");
+    exit;
+}
+
 $email = trim($_POST['email'] ?? '');
 if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
     header("Location: forgot.php?ok=1");
@@ -8,30 +15,24 @@ if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
 }
 
 $token = bin2hex(random_bytes(32));
-$scadenza = date('Y-m-d H:i:s', time() + 60*60); // 1 ora
+$scadenza = date('Y-m-d H:i:s', time() + 60*60);
 
-$stmt = $mysqli->prepare("SELECT id, attivo FROM utenti WHERE email=? LIMIT 1");
-$stmt->bind_param("s", $email);
-$stmt->execute();
-$u = $stmt->get_result()->fetch_assoc();
+$email_esc = mysqli_real_escape_string($connection, $email);
+$sql = "SELECT id, attivo FROM utenti WHERE email='$email_esc' LIMIT 1";
+$ris = mysqli_query($connection, $sql);
+$u = $ris ? mysqli_fetch_assoc($ris) : null;
 
-/*
-  Non rivelare se l’email esiste o no.
-  Se l’utente esiste e attivo, salva token.
-*/
 if ($u && (int)$u['attivo'] === 1) {
-    $stmt = $mysqli->prepare("UPDATE utenti SET reset_token=?, reset_scadenza=? WHERE id=?");
-    $stmt->bind_param("ssi", $token, $scadenza, $u['id']);
-    $stmt->execute();
+    $token_esc = mysqli_real_escape_string($connection, $token);
+    $scadenza_esc = mysqli_real_escape_string($connection, $scadenza);
+    $uid = (int)$u['id'];
+    $sqlUpd = "UPDATE utenti SET reset_token='$token_esc', reset_scadenza='$scadenza_esc' WHERE id=$uid";
+    mysqli_query($connection, $sqlUpd);
 
-    // Link di reset (adatta BASE_URL al tuo percorso)
-    $link = "http://" . $_SERVER['HTTP_HOST'] . BASE_URL . "/auth/reset.php?token=" . $token;
+    $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+    $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+    $link = $scheme . '://' . $host . BASE_URL . "/auth/reset.php?token=" . urlencode($token);
 
-    /*
-      QUI: invio email.
-      In produzione usa PHPMailer.
-      Per ora: logga / stampa / salva.
-    */
     // error_log("RESET LINK per $email: $link");
 }
 

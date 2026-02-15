@@ -1,9 +1,16 @@
 <?php
 require_once '../config/db.php';
 
+$connection = $mysqli;
+
 function back_err($msg){
     header("Location: register.php?err=" . urlencode($msg));
     exit;
+}
+
+$csrf = $_POST['csrf_token'] ?? '';
+if (!csrf_validate((string)$csrf, 'register_form')) {
+    back_err('Sessione scaduta. Riprova.');
 }
 
 $nome     = trim($_POST['nome'] ?? '');
@@ -23,28 +30,30 @@ if (strlen($pass) < 8) {
 }
 
 $hash = password_hash($pass, PASSWORD_DEFAULT);
-$token = bin2hex(random_bytes(32)); // 64 char
-$scadenza = date('Y-m-d H:i:s', time() + 48*3600); // 48 ore
+$token = bin2hex(random_bytes(32));
+$scadenza = date('Y-m-d H:i:s', time() + 48*3600);
 
-$stmt = $mysqli->prepare("SELECT id FROM utenti WHERE username=? OR email=? LIMIT 1");
-$stmt->bind_param("ss", $username, $email);
-$stmt->execute();
-$exists = $stmt->get_result()->fetch_assoc();
-if ($exists) back_err("Username o email già in uso.");
+$nome_esc = mysqli_real_escape_string($connection, $nome);
+$cognome_esc = mysqli_real_escape_string($connection, $cognome);
+$username_esc = mysqli_real_escape_string($connection, $username);
+$email_esc = mysqli_real_escape_string($connection, $email);
+$hash_esc = mysqli_real_escape_string($connection, $hash);
+$token_esc = mysqli_real_escape_string($connection, $token);
+$scadenza_esc = mysqli_real_escape_string($connection, $scadenza);
 
-$stmt = $mysqli->prepare("
-    INSERT INTO utenti (username,email,password_hash,nome,cognome,privilegi,attivo,richiesta_registrazione,registrazione_token,registrazione_scadenza)
-    VALUES (?,?,?,?,?,'standard',0,1,?,?)
-");
-$stmt->bind_param("sssssss", $username, $email, $hash, $nome, $cognome, $token, $scadenza);
+$sql = "SELECT id FROM utenti WHERE username='$username_esc' OR email='$email_esc' LIMIT 1";
+$ris = mysqli_query($connection, $sql);
+$exists = $ris ? mysqli_fetch_assoc($ris) : null;
+if ($exists) {
+    back_err("Username o email già in uso.");
+}
 
-if (!$stmt->execute()) {
+$sqlIns = "INSERT INTO utenti (username,email,password_hash,nome,cognome,privilegi,attivo,richiesta_registrazione,registrazione_token,registrazione_scadenza)
+           VALUES ('$username_esc','$email_esc','$hash_esc','$nome_esc','$cognome_esc','standard',0,1,'$token_esc','$scadenza_esc')";
+
+if (!mysqli_query($connection, $sqlIns)) {
     back_err("Errore salvataggio registrazione.");
 }
 
-/*
-  Qui puoi inviare una mail all’operatore/root con link di approvazione.
-  Per ora, semplice pagina OK.
-*/
 header("Location: register_ok.php");
 exit;

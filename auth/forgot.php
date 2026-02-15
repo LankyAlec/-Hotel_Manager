@@ -1,6 +1,7 @@
 <?php
 require_once '../config/db.php';
 $ok = !empty($_GET['ok']);
+$csrf = csrf_token('forgot_form');
 ?>
 <!doctype html>
 <html lang="it">
@@ -21,9 +22,10 @@ $ok = !empty($_GET['ok']);
         </div>
       <?php endif; ?>
 
-      <form method="post" action="forgot_send.php">
+      <form method="post" action="forgot_send.php" autocomplete="off">
+        <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">
         <label class="form-label">Email</label>
-        <input class="form-control" type="email" name="email" required>
+        <input class="form-control" type="email" name="email" required autocomplete="email">
         <button class="btn btn-primary w-100 mt-3">Invia link</button>
       </form>
 
