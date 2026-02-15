@@ -3,9 +3,15 @@ require_once '../config/db.php';
 
 $token = $_POST['token'] ?? '';
 $pass  = $_POST['password'] ?? '';
+$csrf  = $_POST['csrf_token'] ?? '';
 
-if ($token==='' || strlen($pass) < 8) {
-    header("Location: reset.php?token=" . urlencode($token) . "&err=" . urlencode("Password non valida (min 8)."));
+if (!csrf_validate((string)$csrf, 'reset_form')) {
+    header("Location: reset.php?token=" . urlencode((string)$token) . "&err=" . urlencode('Sessione scaduta. Riprova.'));
+    exit;
+}
+
+if ($token === '' || strlen($pass) < 8) {
+    header("Location: reset.php?token=" . urlencode((string)$token) . "&err=" . urlencode("Password non valida (min 8)."));
     exit;
 }
 
@@ -14,8 +20,14 @@ $stmt->bind_param("s", $token);
 $stmt->execute();
 $u = $stmt->get_result()->fetch_assoc();
 
-if (!$u) die("Token non valido.");
-if (empty($u['reset_scadenza']) || strtotime($u['reset_scadenza']) < time()) die("Token scaduto.");
+if (!$u) {
+    http_response_code(400);
+    exit('Token non valido.');
+}
+if (empty($u['reset_scadenza']) || strtotime((string)$u['reset_scadenza']) < time()) {
+    http_response_code(400);
+    exit('Token scaduto.');
+}
 
 $hash = password_hash($pass, PASSWORD_DEFAULT);
 

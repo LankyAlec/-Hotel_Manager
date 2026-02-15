@@ -6,6 +6,11 @@ function back_err($msg){
     exit;
 }
 
+$csrf = $_POST['csrf_token'] ?? '';
+if (!csrf_validate((string)$csrf, 'register_form')) {
+    back_err('Sessione scaduta. Riprova.');
+}
+
 $nome     = trim($_POST['nome'] ?? '');
 $cognome  = trim($_POST['cognome'] ?? '');
 $username = trim($_POST['username'] ?? '');
@@ -42,9 +47,5 @@ if (!$stmt->execute()) {
     back_err("Errore salvataggio registrazione.");
 }
 
-/*
-  Qui puoi inviare una mail all’operatore/root con link di approvazione.
-  Per ora, semplice pagina OK.
-*/
 header("Location: register_ok.php");
 exit;

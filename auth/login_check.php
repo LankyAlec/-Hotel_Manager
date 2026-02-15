@@ -3,6 +3,12 @@ require_once '../config/db.php';
 
 $login    = trim($_POST['login'] ?? '');
 $password = $_POST['password'] ?? '';
+$csrf     = $_POST['csrf_token'] ?? '';
+
+if (!csrf_validate((string)$csrf, 'login_form')) {
+    header("Location: login.php?error=1");
+    exit;
+}
 
 if ($login === '' || $password === '') {
     header("Location: login.php?error=1");
@@ -39,12 +45,19 @@ if (!$utente || !$utente['attivo'] || !password_verify($password, $utente['passw
     exit;
 }
 
+session_regenerate_id(true);
 $_SESSION['utente_id']  = $utente['id'];
 $_SESSION['username']   = $utente['username'];
 $_SESSION['email']      = $utente['email'];
 $_SESSION['privilegi']  = $utente['privilegi'];
+unset($_SESSION['gruppi']);
 
-$mysqli->query("UPDATE utenti SET ultimo_login = NOW() WHERE id = {$utente['id']}");
+$uid = (int)$utente['id'];
+$stmt = $mysqli->prepare("UPDATE utenti SET ultimo_login = NOW() WHERE id = ?");
+if ($stmt) {
+    $stmt->bind_param('i', $uid);
+    $stmt->execute();
+}
 
 header("Location: ../dashboard.php");
 exit;

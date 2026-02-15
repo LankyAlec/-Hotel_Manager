@@ -7,6 +7,7 @@ if (!empty($_SESSION['utente_id'])) {
 }
 
 $err = $_GET['err'] ?? '';
+$csrf = csrf_token('register_form');
 ?>
 <!doctype html>
 <html lang="it">
@@ -23,11 +24,12 @@ $err = $_GET['err'] ?? '';
 
       <?php if ($err): ?>
         <div class="alert alert-danger small">
-          <?= htmlspecialchars($err) ?>
+          <?= h($err) ?>
         </div>
       <?php endif; ?>
 
       <form method="post" action="register_save.php" autocomplete="off">
+        <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">
         <div class="row g-2">
           <div class="col-6">
             <label class="form-label">Nome</label>
@@ -41,17 +43,17 @@ $err = $_GET['err'] ?? '';
 
         <div class="mt-2">
           <label class="form-label">Username</label>
-          <input class="form-control" name="username" required>
+          <input class="form-control" name="username" required autocomplete="username">
         </div>
 
         <div class="mt-2">
           <label class="form-label">Email</label>
-          <input class="form-control" type="email" name="email" required>
+          <input class="form-control" type="email" name="email" required autocomplete="email">
         </div>
 
         <div class="mt-2">
           <label class="form-label">Password</label>
-          <input class="form-control" type="password" name="password" minlength="8" required>
+          <input class="form-control" type="password" name="password" minlength="8" required autocomplete="new-password">
           <div class="form-text">Minimo 8 caratteri.</div>
         </div>
 
