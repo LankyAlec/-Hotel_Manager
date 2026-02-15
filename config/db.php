@@ -9,7 +9,8 @@ error_reporting(E_ALL);
 session_start();
 
 define('APP_NAME', 'Hotel Manager');
-define('BASE_URL', '/hotel');
+$_baseUrl = rtrim((string)(getenv('BASE_URL') ?: '/hotel'), '/');
+define('BASE_URL', $_baseUrl === '' ? '/' : $_baseUrl);
 
 $db_host = 'localhost';
 $db_user = '';
@@ -41,6 +42,27 @@ function h($s): string {
 function redirect(string $url): void {
   header('Location: ' . $url);
   exit;
+}
+
+function csrf_token(string $scope = 'default'): string {
+  if (!isset($_SESSION['_csrf']) || !is_array($_SESSION['_csrf'])) {
+    $_SESSION['_csrf'] = [];
+  }
+
+  if (empty($_SESSION['_csrf'][$scope])) {
+    $_SESSION['_csrf'][$scope] = bin2hex(random_bytes(32));
+  }
+
+  return (string)$_SESSION['_csrf'][$scope];
+}
+
+function csrf_validate(string $token, string $scope = 'default'): bool {
+  $stored = $_SESSION['_csrf'][$scope] ?? '';
+  if (!is_string($stored) || $stored === '' || $token === '') {
+    return false;
+  }
+
+  return hash_equals($stored, $token);
 }
 
 

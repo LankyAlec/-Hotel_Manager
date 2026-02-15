@@ -2,17 +2,27 @@
 require_once '../config/db.php';
 
 $token = $_GET['token'] ?? '';
-if ($token === '') { die("Token mancante."); }
+if ($token === '') {
+    http_response_code(400);
+    exit('Token mancante.');
+}
 
 $stmt = $mysqli->prepare("SELECT id, reset_scadenza FROM utenti WHERE reset_token=? LIMIT 1");
 $stmt->bind_param("s", $token);
 $stmt->execute();
 $u = $stmt->get_result()->fetch_assoc();
 
-if (!$u) die("Token non valido.");
-if (empty($u['reset_scadenza']) || strtotime($u['reset_scadenza']) < time()) die("Token scaduto.");
+if (!$u) {
+    http_response_code(400);
+    exit('Token non valido.');
+}
+if (empty($u['reset_scadenza']) || strtotime((string)$u['reset_scadenza']) < time()) {
+    http_response_code(400);
+    exit('Token scaduto.');
+}
 
 $err = $_GET['err'] ?? '';
+$csrf = csrf_token('reset_form');
 ?>
 <!doctype html>
 <html lang="it">
@@ -28,13 +38,14 @@ $err = $_GET['err'] ?? '';
       <h4 class="mb-3">Reimposta password</h4>
 
       <?php if ($err): ?>
-        <div class="alert alert-danger small"><?= htmlspecialchars($err) ?></div>
+        <div class="alert alert-danger small"><?= h($err) ?></div>
       <?php endif; ?>
 
-      <form method="post" action="reset_save.php">
-        <input type="hidden" name="token" value="<?= htmlspecialchars($token) ?>">
+      <form method="post" action="reset_save.php" autocomplete="off">
+        <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">
+        <input type="hidden" name="token" value="<?= h($token) ?>">
         <label class="form-label">Nuova password</label>
-        <input class="form-control" type="password" name="password" minlength="8" required>
+        <input class="form-control" type="password" name="password" minlength="8" required autocomplete="new-password">
         <button class="btn btn-primary w-100 mt-3">Salva</button>
       </form>
     </div>

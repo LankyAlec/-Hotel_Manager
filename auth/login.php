@@ -5,6 +5,8 @@ if (isset($_SESSION['utente_id'])) {
     header("Location: ../dashboard.php");
     exit;
 }
+
+$csrf = csrf_token('login_form');
 ?>
 
 <!doctype html>
@@ -27,15 +29,16 @@ if (isset($_SESSION['utente_id'])) {
                 </div>
             <?php endif; ?>
 
-            <form method="post" action="login_check.php">
+            <form method="post" action="login_check.php" autocomplete="off">
+                <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">
                 <div class="mb-3">
                     <label class="form-label">Username o Email</label>
-                    <input type="text" name="login" class="form-control" required>
+                    <input type="text" name="login" class="form-control" required autocomplete="username">
                 </div>
 
                 <div class="mb-3">
                     <label class="form-label">Password</label>
-                    <input type="password" name="password" class="form-control" required>
+                    <input type="password" name="password" class="form-control" required autocomplete="current-password">
                 </div>
 
                 <button class="btn btn-primary w-100">Accedi</button>
