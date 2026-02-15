@@ -1,6 +1,7 @@
 <?php
 require_once '../config/db.php';
 
+$connection = $mysqli;
 $token = $_POST['token'] ?? '';
 $pass  = $_POST['password'] ?? '';
 $csrf  = $_POST['csrf_token'] ?? '';
@@ -15,10 +16,10 @@ if ($token === '' || strlen($pass) < 8) {
     exit;
 }
 
-$stmt = $mysqli->prepare("SELECT id, reset_scadenza FROM utenti WHERE reset_token=? LIMIT 1");
-$stmt->bind_param("s", $token);
-$stmt->execute();
-$u = $stmt->get_result()->fetch_assoc();
+$token_esc = mysqli_real_escape_string($connection, $token);
+$sql = "SELECT id, reset_scadenza FROM utenti WHERE reset_token='$token_esc' LIMIT 1";
+$ris = mysqli_query($connection, $sql);
+$u = $ris ? mysqli_fetch_assoc($ris) : null;
 
 if (!$u) {
     http_response_code(400);
@@ -30,10 +31,10 @@ if (empty($u['reset_scadenza']) || strtotime((string)$u['reset_scadenza']) < tim
 }
 
 $hash = password_hash($pass, PASSWORD_DEFAULT);
-
-$stmt = $mysqli->prepare("UPDATE utenti SET password_hash=?, reset_token=NULL, reset_scadenza=NULL WHERE id=?");
-$stmt->bind_param("si", $hash, $u['id']);
-$stmt->execute();
+$hash_esc = mysqli_real_escape_string($connection, $hash);
+$uid = (int)$u['id'];
+$sqlUpd = "UPDATE utenti SET password_hash='$hash_esc', reset_token=NULL, reset_scadenza=NULL WHERE id=$uid";
+mysqli_query($connection, $sqlUpd);
 
 header("Location: login.php");
 exit;

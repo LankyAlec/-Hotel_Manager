@@ -1,6 +1,7 @@
 <?php
 require_once '../config/db.php';
 
+$connection = $mysqli;
 $login    = trim($_POST['login'] ?? '');
 $password = $_POST['password'] ?? '';
 $csrf     = $_POST['csrf_token'] ?? '';
@@ -15,49 +16,35 @@ if ($login === '' || $password === '') {
     exit;
 }
 
-if (!isset($mysqli) || !($mysqli instanceof mysqli)) {
-    error_log('Login: variabile $mysqli non inizializzata');
+if (!($connection instanceof mysqli)) {
+    error_log('Login: connessione DB non inizializzata');
     header("Location: login.php?error=1");
     exit;
 }
 
-$stmt = $mysqli->prepare("
-    SELECT id, username, email, password_hash, privilegi, attivo
-    FROM utenti
-    WHERE username = ? OR email = ?
-    LIMIT 1
-");
+$login_esc = mysqli_real_escape_string($connection, $login);
+$sql = "SELECT id, username, email, password_hash, privilegi, attivo
+        FROM utenti
+        WHERE username = '$login_esc' OR email = '$login_esc'
+        LIMIT 1";
+$ris = mysqli_query($connection, $sql);
+$utente = $ris ? mysqli_fetch_assoc($ris) : null;
 
-if (!$stmt) {
-    error_log('Login prepare error: ' . $mysqli->error);
-    header("Location: login.php?error=1");
-    exit;
-}
-
-$stmt->bind_param("ss", $login, $login);
-$stmt->execute();
-$result = $stmt->get_result();
-
-$utente = $result->fetch_assoc();
-
-if (!$utente || !$utente['attivo'] || !password_verify($password, $utente['password_hash'])) {
+if (!$utente || !(int)$utente['attivo'] || !password_verify($password, (string)$utente['password_hash'])) {
     header("Location: login.php?error=1");
     exit;
 }
 
 session_regenerate_id(true);
-$_SESSION['utente_id']  = $utente['id'];
-$_SESSION['username']   = $utente['username'];
-$_SESSION['email']      = $utente['email'];
-$_SESSION['privilegi']  = $utente['privilegi'];
+$_SESSION['utente_id']  = (int)$utente['id'];
+$_SESSION['username']   = (string)$utente['username'];
+$_SESSION['email']      = (string)$utente['email'];
+$_SESSION['privilegi']  = (string)$utente['privilegi'];
 unset($_SESSION['gruppi']);
 
 $uid = (int)$utente['id'];
-$stmt = $mysqli->prepare("UPDATE utenti SET ultimo_login = NOW() WHERE id = ?");
-if ($stmt) {
-    $stmt->bind_param('i', $uid);
-    $stmt->execute();
-}
+$sqlUpd = "UPDATE utenti SET ultimo_login = NOW() WHERE id = $uid";
+mysqli_query($connection, $sqlUpd);
 
 header("Location: ../dashboard.php");
 exit;

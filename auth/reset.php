@@ -1,16 +1,17 @@
 <?php
 require_once '../config/db.php';
 
+$connection = $mysqli;
 $token = $_GET['token'] ?? '';
 if ($token === '') {
     http_response_code(400);
     exit('Token mancante.');
 }
 
-$stmt = $mysqli->prepare("SELECT id, reset_scadenza FROM utenti WHERE reset_token=? LIMIT 1");
-$stmt->bind_param("s", $token);
-$stmt->execute();
-$u = $stmt->get_result()->fetch_assoc();
+$token_esc = mysqli_real_escape_string($connection, $token);
+$sql = "SELECT id, reset_scadenza FROM utenti WHERE reset_token='$token_esc' LIMIT 1";
+$ris = mysqli_query($connection, $sql);
+$u = $ris ? mysqli_fetch_assoc($ris) : null;
 
 if (!$u) {
     http_response_code(400);
