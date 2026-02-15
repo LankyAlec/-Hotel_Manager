@@ -12,8 +12,8 @@ define('APP_NAME', 'Hotel Manager');
 define('BASE_URL', '/hotel');
 
 $db_host = 'localhost';
-$db_user = 'LankyAlec';
-$db_pass = '-Alessio89-';
+$db_user = '';
+$db_pass = '';
 $db_name = 'Hotel';
 $db_port = 3306;
 
