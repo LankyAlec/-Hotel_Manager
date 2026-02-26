@@ -12,21 +12,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add'])) {
     flash_set('danger', 'Nome obbligatorio');
     mag_redirect('gestione_magazzini.php');
   }
-  $stmt = mysqli_prepare($conn, "INSERT IGNORE INTO magazzini (nome, note) VALUES (?, ?)");
-  if (!$stmt) {
+  $nomeEsc = mysqli_real_escape_string($conn, $nome);
+  $noteSql = ($note !== '')
+    ? "'" . mysqli_real_escape_string($conn, $note) . "'"
+    : "NULL";
+  $sql = "INSERT IGNORE INTO magazzini (nome, note) VALUES ('{$nomeEsc}', {$noteSql})";
+  if (!mysqli_query($conn, $sql)) {
     error_log('magazzini.php add: ' . mysqli_error($conn));
     flash_set('danger', 'Errore (controlla error_log PHP).');
     mag_redirect('gestione_magazzini.php');
   }
-  $noteParam = ($note !== '' ? $note : null);
-  mysqli_stmt_bind_param($stmt, 'ss', $nome, $noteParam);
-  if (!mysqli_stmt_execute($stmt)) {
-    error_log('magazzini.php add: ' . mysqli_error($conn));
-    flash_set('danger', 'Errore (controlla error_log PHP).');
-    mysqli_stmt_close($stmt);
-    mag_redirect('gestione_magazzini.php');
-  }
-  mysqli_stmt_close($stmt);
   flash_set('success', 'Magazzino salvato');
   mag_redirect('gestione_magazzini.php');
 }
@@ -34,16 +29,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add'])) {
 if (isset($_GET['del'])) {
   $id = qint($_GET['del'], 0);
   if ($id > 0) {
-    $stmt = mysqli_prepare($conn, "DELETE FROM magazzini WHERE id=? LIMIT 1");
-    if ($stmt) {
-      mysqli_stmt_bind_param($stmt, 'i', $id);
-      if (!mysqli_stmt_execute($stmt)) {
-        error_log('magazzini.php del: ' . mysqli_error($conn));
-        flash_set('danger', 'Errore eliminazione (probabile magazzino usato da prodotti).');
-        mysqli_stmt_close($stmt);
-        mag_redirect('gestione_magazzini.php');
-      }
-      mysqli_stmt_close($stmt);
+    $sql = "DELETE FROM magazzini WHERE id=" . (int)$id . " LIMIT 1";
+    if (mysqli_query($conn, $sql)) {
       flash_set('success', 'Magazzino eliminato');
     } else {
       error_log('magazzini.php del: ' . mysqli_error($conn));

@@ -18,11 +18,10 @@ $flash_err = $_SESSION['flash_err'] ?? '';
 unset($_SESSION['flash_ok'], $_SESSION['flash_err']);
 
 /* Carico servizio */
-$stmt = $mysqli->prepare("SELECT * FROM servizi WHERE id=? LIMIT 1");
-if (!$stmt) die("Errore DB: " . $mysqli->error);
-$stmt->bind_param("i", $id);
-$stmt->execute();
-$servizio = $stmt->get_result()->fetch_assoc();
+$sqlServizio = "SELECT * FROM servizi WHERE id=" . (int)$id . " LIMIT 1";
+$resServizio = mysqli_query($mysqli, $sqlServizio);
+if (!$resServizio) die("Errore DB: " . $mysqli->error);
+$servizio = mysqli_fetch_assoc($resServizio);
 
 if (!$servizio) die("Servizio non trovato.");
 
@@ -39,20 +38,18 @@ $illimitato = (int)($servizio['slot_illimitato'] ?? 0) === 1;
 
 /* Tariffe esistenti */
 $tariffe = [];
-$stmt = $mysqli->prepare("SELECT * FROM servizi_tariffe WHERE servizio_id=? ORDER BY dal DESC, id DESC");
-if (!$stmt) die("Errore DB: " . $mysqli->error);
-$stmt->bind_param("i", $id);
-$stmt->execute();
-$tariffe = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+$sqlTariffe = "SELECT * FROM servizi_tariffe WHERE servizio_id=" . (int)$id . " ORDER BY dal DESC, id DESC";
+$resTariffe = mysqli_query($mysqli, $sqlTariffe);
+if (!$resTariffe) die("Errore DB: " . $mysqli->error);
+$tariffe = mysqli_fetch_all($resTariffe, MYSQLI_ASSOC);
 
 /* Se sto editando una tariffa, la pre-carico nel form */
 $editing = null;
 if ($editTariffaId > 0) {
-  $stmt = $mysqli->prepare("SELECT * FROM servizi_tariffe WHERE id=? AND servizio_id=? LIMIT 1");
-  if ($stmt) {
-    $stmt->bind_param("ii", $editTariffaId, $id);
-    $stmt->execute();
-    $editing = $stmt->get_result()->fetch_assoc();
+  $sqlEditing = "SELECT * FROM servizi_tariffe WHERE id=" . (int)$editTariffaId . " AND servizio_id=" . (int)$id . " LIMIT 1";
+  $resEditing = mysqli_query($mysqli, $sqlEditing);
+  if ($resEditing) {
+    $editing = mysqli_fetch_assoc($resEditing);
   }
 }
 

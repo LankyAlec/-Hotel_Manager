@@ -29,16 +29,9 @@ if ($azione === 'toggle_attivo') {
         exit;
     }
 
-    $stmt = $mysqli->prepare("UPDATE servizi SET attivo = IF(attivo=1,0,1) WHERE id=?");
-    if (!$stmt) {
+    $sql = "UPDATE servizi SET attivo = IF(attivo=1,0,1) WHERE id=" . (int)$id;
+    if (!mysqli_query($mysqli, $sql)) {
         $_SESSION['flash_err'] = "Errore DB: " . $mysqli->error;
-        header("Location: servizi.php");
-        exit;
-    }
-
-    $stmt->bind_param("i", $id);
-    if (!$stmt->execute()) {
-        $_SESSION['flash_err'] = "Errore DB: " . $stmt->error;
         header("Location: servizi.php");
         exit;
     }
@@ -58,16 +51,12 @@ if ($azione === 'delete') {
 
     try {
         // cancella prima i figli (se id è un figlio, non cancella nulla qui: ok)
-        $stmt = $mysqli->prepare("DELETE FROM servizi WHERE parent_id=?");
-        if (!$stmt) throw new RuntimeException($mysqli->error);
-        $stmt->bind_param("i", $id);
-        if (!$stmt->execute()) throw new RuntimeException($stmt->error);
+        $sqlChild = "DELETE FROM servizi WHERE parent_id=" . (int)$id;
+        if (!mysqli_query($mysqli, $sqlChild)) throw new RuntimeException($mysqli->error);
 
         // poi il record richiesto
-        $stmt = $mysqli->prepare("DELETE FROM servizi WHERE id=?");
-        if (!$stmt) throw new RuntimeException($mysqli->error);
-        $stmt->bind_param("i", $id);
-        if (!$stmt->execute()) throw new RuntimeException($stmt->error);
+        $sqlMain = "DELETE FROM servizi WHERE id=" . (int)$id;
+        if (!mysqli_query($mysqli, $sqlMain)) throw new RuntimeException($mysqli->error);
 
         $mysqli->commit();
         header("Location: servizi.php");
@@ -130,13 +119,11 @@ if ($id > 0 && $parent_id !== null && $parent_id === $id) {
 
 /* Se parent_id valorizzato: deve esistere ed essere un padre */
 if ($parent_id !== null) {
-    $stmt = $mysqli->prepare("SELECT id FROM servizi WHERE id=? AND parent_id IS NULL LIMIT 1");
-    if (!$stmt) flash_back("Errore DB: " . $mysqli->error, $old, $id);
+    $sqlParent = "SELECT id FROM servizi WHERE id=" . (int)$parent_id . " AND parent_id IS NULL LIMIT 1";
+    $resParent = mysqli_query($mysqli, $sqlParent);
+    if (!$resParent) flash_back("Errore DB: " . $mysqli->error, $old, $id);
 
-    $stmt->bind_param("i", $parent_id);
-    $stmt->execute();
-
-    if (!$stmt->get_result()->fetch_assoc()) {
+    if (!mysqli_fetch_assoc($resParent)) {
         flash_back("Servizio padre non valido.", $old, $id);
     }
 
@@ -157,90 +144,57 @@ if ($slot_illimitato === 1) {
 }
 
 /* Nome unico */
+$nomeEsc = mysqli_real_escape_string($mysqli, $nome);
 if ($id > 0) {
-    $stmt = $mysqli->prepare("SELECT id FROM servizi WHERE nome=? AND id<>? LIMIT 1");
-    if (!$stmt) flash_back("Errore DB: " . $mysqli->error, $old, $id);
-    $stmt->bind_param("si", $nome, $id);
+    $sqlNome = "SELECT id FROM servizi WHERE nome='{$nomeEsc}' AND id<>" . (int)$id . " LIMIT 1";
 } else {
-    $stmt = $mysqli->prepare("SELECT id FROM servizi WHERE nome=? LIMIT 1");
-    if (!$stmt) flash_back("Errore DB: " . $mysqli->error, $old, $id);
-    $stmt->bind_param("s", $nome);
+    $sqlNome = "SELECT id FROM servizi WHERE nome='{$nomeEsc}' LIMIT 1";
 }
-$stmt->execute();
-if ($stmt->get_result()->fetch_assoc()) {
+$resNome = mysqli_query($mysqli, $sqlNome);
+if (!$resNome) flash_back("Errore DB: " . $mysqli->error, $old, $id);
+if (mysqli_fetch_assoc($resNome)) {
     flash_back("Esiste già un servizio con questo nome.", $old, $id);
 }
 
 /* UPDATE / INSERT */
+$descrEsc = mysqli_real_escape_string($mysqli, $descrizione);
+$noteEsc = mysqli_real_escape_string($mysqli, $note);
+$durataSql = ($durata_slot_min === null) ? 'NULL' : (string)(int)$durata_slot_min;
+$stepSql = ($step_extra_min === null) ? 'NULL' : (string)(int)$step_extra_min;
+$parentSql = ($parent_id === null) ? 'NULL' : (string)(int)$parent_id;
+
 if ($id > 0) {
+    $sql = "UPDATE servizi SET "
+        . "nome='" . $nomeEsc . "', "
+        . "descrizione='" . $descrEsc . "', "
+        . "max_persone=" . (int)$max_persone . ", "
+        . "durata_slot_min=" . $durataSql . ", "
+        . "step_extra_min=" . $stepSql . ", "
+        . "attivo=" . (int)$attivo . ", "
+        . "prenotabile=" . (int)$prenotabile . ", "
+        . "slot_illimitato=" . (int)$slot_illimitato . ", "
+        . "parent_id=" . $parentSql . ", "
+        . "note='" . $noteEsc . "' "
+        . "WHERE id=" . (int)$id;
 
-    $sql = "
-        UPDATE servizi
-        SET nome=?,
-            descrizione=?,
-            max_persone=?,
-            durata_slot_min=?,
-            step_extra_min=?,
-            attivo=?,
-            prenotabile=?,
-            slot_illimitato=?,
-            parent_id=?,
-            note=?
-        WHERE id=?
-    ";
-    $stmt = $mysqli->prepare($sql);
-    if (!$stmt) flash_back("Errore DB: " . $mysqli->error, $old, $id);
-
-    // ✅ 11 parametri:
-    // nome(s), descr(s), max(i), durata(i), step(i), attivo(i), pren(i), illim(i), parent(i), note(s), id(i)
-    // => "ssiiiiiiisii"? NO
-    // => "ss" + 7*i + "s" + "i" = "ssiiiiiiisi"
-    $stmt->bind_param(
-        "ssiiiiiiisi",
-        $nome,
-        $descrizione,
-        $max_persone,
-        $durata_slot_min,
-        $step_extra_min,
-        $attivo,
-        $prenotabile,
-        $slot_illimitato,
-        $parent_id,
-        $note,
-        $id
-    );
-
-    if (!$stmt->execute()) flash_back("Errore DB: " . $stmt->error, $old, $id);
+    if (!mysqli_query($mysqli, $sql)) flash_back("Errore DB: " . $mysqli->error, $old, $id);
     $savedId = $id;
 
 } else {
+    $sql = "INSERT INTO servizi "
+        . "(nome, descrizione, max_persone, durata_slot_min, step_extra_min, attivo, prenotabile, slot_illimitato, parent_id, note) VALUES ("
+        . "'" . $nomeEsc . "', "
+        . "'" . $descrEsc . "', "
+        . (int)$max_persone . ", "
+        . $durataSql . ", "
+        . $stepSql . ", "
+        . (int)$attivo . ", "
+        . (int)$prenotabile . ", "
+        . (int)$slot_illimitato . ", "
+        . $parentSql . ", "
+        . "'" . $noteEsc . "')";
 
-    $sql = "
-        INSERT INTO servizi
-          (nome, descrizione, max_persone, durata_slot_min, step_extra_min, attivo, prenotabile, slot_illimitato, parent_id, note)
-        VALUES (?,?,?,?,?,?,?,?,?,?)
-    ";
-    $stmt = $mysqli->prepare($sql);
-    if (!$stmt) flash_back("Errore DB: " . $mysqli->error, $old, 0);
-
-    // ✅ 10 parametri:
-    // nome(s), descr(s), max(i), durata(i), step(i), attivo(i), pren(i), illim(i), parent(i), note(s)
-    // => "ss" + 7*i + "s" = "ssiiiiiiis"
-    $stmt->bind_param(
-        "ssiiiiiiis",
-        $nome,
-        $descrizione,
-        $max_persone,
-        $durata_slot_min,
-        $step_extra_min,
-        $attivo,
-        $prenotabile,
-        $slot_illimitato,
-        $parent_id,
-        $note
-    );
-
-    if (!$stmt->execute()) flash_back("Errore DB: " . $stmt->error, $old, 0);
+    if (!mysqli_query($mysqli, $sql)) flash_back("Errore DB: " . $mysqli->error, $old, 0);
 
     $savedId = (int)$mysqli->insert_id;
     if ($savedId <= 0) flash_back("Inserimento eseguito ma ID non ottenuto.", $old, 0);

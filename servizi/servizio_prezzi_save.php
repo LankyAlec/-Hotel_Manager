@@ -19,7 +19,6 @@ function parse_price(string $label, $value): float {
     return 0.0;
   }
 
-  // accetta 10 | 10.5 | 10.50 | 0.99
   if (!preg_match('/^\d+(\.\d{1,2})?$/', $v)) {
     throw new Exception("Valore non valido per $label.");
   }
@@ -32,10 +31,8 @@ function date_or_null($s): ?string {
   $s = trim((string)$s);
   if ($s === '') return null;
 
-  // accetta YYYY-MM-DD (input type date)
   if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $s)) return $s;
 
-  // accetta DD/MM/YYYY
   if (preg_match('/^(\d{2})\/(\d{2})\/(\d{4})$/', $s, $m)) {
     return $m[3] . '-' . $m[2] . '-' . $m[1];
   }
@@ -50,40 +47,35 @@ if ($servizio_id <= 0) {
   go_back(0, '', "Servizio non valido.");
 }
 
-/* Carico servizio e forzo tariffe sul genitore */
-$stmt = $mysqli->prepare("SELECT id, parent_id FROM servizi WHERE id=? LIMIT 1");
-if (!$stmt) go_back($servizio_id, '', "Errore DB: " . $mysqli->error);
-$stmt->bind_param("i", $servizio_id);
-$stmt->execute();
-$srv = $stmt->get_result()->fetch_assoc();
+$sqlSrv = "SELECT id, parent_id FROM servizi WHERE id=" . (int)$servizio_id . " LIMIT 1";
+$resSrv = mysqli_query($mysqli, $sqlSrv);
+if (!$resSrv) go_back($servizio_id, '', "Errore DB: " . $mysqli->error);
+$srv = mysqli_fetch_assoc($resSrv);
 if (!$srv) go_back($servizio_id, '', "Servizio non trovato.");
 
 if (!empty($srv['parent_id'])) {
   go_back((int)$srv['parent_id'], '', "Questo servizio è un componente: le tariffe si gestiscono sul genitore.");
 }
 
-/* DELETE */
 if ($azione === 'delete') {
   if ($tariffa_id <= 0) go_back($servizio_id, '', "Tariffa non valida.");
 
-  $stmt = $mysqli->prepare("DELETE FROM servizi_tariffe WHERE id=? AND servizio_id=?");
-  if (!$stmt) go_back($servizio_id, '', "Errore DB: " . $mysqli->error);
-  $stmt->bind_param("ii", $tariffa_id, $servizio_id);
-  $stmt->execute();
+  $sqlDel = "DELETE FROM servizi_tariffe WHERE id=" . (int)$tariffa_id . " AND servizio_id=" . (int)$servizio_id;
+  if (!mysqli_query($mysqli, $sqlDel)) {
+    go_back($servizio_id, '', "Errore DB: " . $mysqli->error);
+  }
 
   go_back($servizio_id, "Tariffa eliminata.");
 }
 
-/* INSERT / UPDATE */
 if ($azione !== 'insert' && $azione !== 'update') {
   go_back($servizio_id, '', "Azione non valida.");
 }
 
 $dal = date_or_null($_POST['dal'] ?? '');
-$al  = date_or_null($_POST['al'] ?? ''); // può diventare NULL
+$al  = date_or_null($_POST['al'] ?? '');
 
 if (!$dal) go_back($servizio_id, '', "Data 'Dal' non valida.");
-// se AL non valida ma non vuota => errore
 if (trim((string)($_POST['al'] ?? '')) !== '' && !$al) go_back($servizio_id, '', "Data 'Al' non valida.");
 
 if ($al !== null && $al < $dal) {
@@ -99,74 +91,47 @@ try {
 
 $note = trim($_POST['note'] ?? '');
 $attiva = !empty($_POST['attiva']) ? 1 : 0;
-
-/* ✅ NO SOVRAPPOSIZIONI
-   Intervalli [dal, al] con al=NULL = infinito.
-   Sovrapposizione se: dal1 <= al2(inf) AND dal2 <= al1(inf)
-*/
 $endNew = $al ?? '9999-12-31';
 
+$dalEsc = mysqli_real_escape_string($mysqli, $dal);
+$endNewEsc = mysqli_real_escape_string($mysqli, $endNew);
 $sqlOverlap = "
   SELECT id, dal, al
   FROM servizi_tariffe
-  WHERE servizio_id=?
-    AND id <> ?
-    AND dal <= ?
-    AND COALESCE(al, '9999-12-31') >= ?
+  WHERE servizio_id=" . (int)$servizio_id . "
+    AND id <> " . (int)$tariffa_id . "
+    AND dal <= '{$endNewEsc}'
+    AND COALESCE(al, '9999-12-31') >= '{$dalEsc}'
   LIMIT 1
 ";
-$stmt = $mysqli->prepare($sqlOverlap);
-if (!$stmt) go_back($servizio_id, '', "Errore DB: " . $mysqli->error);
-$stmt->bind_param("iiss", $servizio_id, $tariffa_id, $endNew, $dal);
-$stmt->execute();
-$over = $stmt->get_result()->fetch_assoc();
+$resOverlap = mysqli_query($mysqli, $sqlOverlap);
+if (!$resOverlap) go_back($servizio_id, '', "Errore DB: " . $mysqli->error);
+$over = mysqli_fetch_assoc($resOverlap);
 if ($over) {
   $msg = "Periodo sovrapposto a una tariffa esistente (" . $over['dal'] . " → " . ($over['al'] ?: "senza scadenza") . ").";
   go_back($servizio_id, '', $msg);
 }
 
-/* Salva */
+$dalSql = "'" . mysqli_real_escape_string($mysqli, $dal) . "'";
+$alSql = ($al === null) ? 'NULL' : ("'" . mysqli_real_escape_string($mysqli, $al) . "'");
+$slotSql = (float)$prezzo_slot;
+$extraSql = (float)$prezzo_extra;
+$noteSql = "'" . mysqli_real_escape_string($mysqli, $note) . "'";
+
 if ($azione === 'update') {
   if ($tariffa_id <= 0) go_back($servizio_id, '', "Tariffa non valida.");
 
   $sql = "UPDATE servizi_tariffe
-          SET dal=?, al=?, prezzo_slot=?, prezzo_extra=?, note=?, attiva=?
-          WHERE id=? AND servizio_id=?";
-  $stmt = $mysqli->prepare($sql);
-  if (!$stmt) go_back($servizio_id, '', "Errore DB: " . $mysqli->error);
+          SET dal={$dalSql}, al={$alSql}, prezzo_slot={$slotSql}, prezzo_extra={$extraSql}, note={$noteSql}, attiva=" . (int)$attiva . "
+          WHERE id=" . (int)$tariffa_id . " AND servizio_id=" . (int)$servizio_id;
 
-  $stmt->bind_param(
-    "ssddsiis",
-    $dal,
-    $al,
-    $prezzo_slot,
-    $prezzo_extra,
-    $note,
-    $attiva,
-    $tariffa_id,
-    $servizio_id
-  );
-
-  if (!$stmt->execute()) go_back($servizio_id, '', "Errore salvataggio: " . $stmt->error);
+  if (!mysqli_query($mysqli, $sql)) go_back($servizio_id, '', "Errore salvataggio: " . $mysqli->error);
   go_back($servizio_id, "Tariffa aggiornata ✅");
 
 } else {
   $sql = "INSERT INTO servizi_tariffe (servizio_id, dal, al, prezzo_slot, prezzo_extra, note, attiva)
-          VALUES (?,?,?,?,?,?,?)";
-  $stmt = $mysqli->prepare($sql);
-  if (!$stmt) go_back($servizio_id, '', "Errore DB: " . $mysqli->error);
+          VALUES (" . (int)$servizio_id . ", {$dalSql}, {$alSql}, {$slotSql}, {$extraSql}, {$noteSql}, " . (int)$attiva . ")";
 
-  $stmt->bind_param(
-    "issddsi",
-    $servizio_id,
-    $dal,
-    $al,
-    $prezzo_slot,
-    $prezzo_extra,
-    $note,
-    $attiva
-  );
-
-  if (!$stmt->execute()) go_back($servizio_id, '', "Errore salvataggio: " . $stmt->error);
+  if (!mysqli_query($mysqli, $sql)) go_back($servizio_id, '', "Errore salvataggio: " . $mysqli->error);
   go_back($servizio_id, "Tariffa salvata ✅");
 }
