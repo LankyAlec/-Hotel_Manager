@@ -86,7 +86,7 @@ else {
   if ($piano_id <= 0) out(['ok'=>false,'msg'=>'Piano non valido'], 400);
   if ($codice === '' || mb_strlen($codice) > 30) out(['ok'=>false,'msg'=>'Numero camera non valido'], 400);
   if ($capienza < 1 || $capienza > 10) out(['ok'=>false,'msg'=>'Capienza non valida'], 400);
-  if ($hasTipologia && $tipologiaId <= 0) out(['ok'=>false,'msg'=>'Tipologia letti non valida'], 400);
+  if ($hasTipologia && $tipologiaId <= 0) out(['ok'=>false,'msg'=>'Capienza massima non valida'], 400);
 
   $disVal = $disVal > 0 ? 1 : 0;
 

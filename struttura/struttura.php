@@ -246,13 +246,12 @@ if (table_exists($mysqli, 'soggiorni_tipologie_letti')) {
           </div>
 
           <div class="mb-3">
-            <label class="form-label">Capienza base (persone)</label>
-            <input type="number" class="form-control" name="capienza_base" id="editPosti" min="1" max="10" step="1">
+            <input type="hidden" name="capienza_base" id="editPosti">
           </div>
 
           <?php if ($has_tipologie_letti) : ?>
             <div class="mb-3" id="groupTipologiaLetti">
-              <label class="form-label">Tipologia letti</label>
+              <label class="form-label">Capienza massima</label>
               <div class="d-flex gap-2">
                 <select class="form-select" name="id_tipologia_letti" id="editTipologiaLetti" required></select>
                 <?php if ($tipologie_table) : ?>
@@ -261,7 +260,7 @@ if (table_exists($mysqli, 'soggiorni_tipologie_letti')) {
                   </button>
                 <?php endif; ?>
               </div>
-              <div class="form-hint">Associa la camera alla tipologia letti.</div>
+              <div class="form-hint">Seleziona la capienza massima della camera.</div>
             </div>
           <?php endif; ?>
 
@@ -1206,7 +1205,7 @@ if (table_exists($mysqli, 'soggiorni_tipologie_letti')) {
         return;
       }
       if (tipo === 'camera' && editTipologiaLetti && !payload.id_tipologia_letti) {
-        showErr('Seleziona la tipologia letti.');
+        showErr('Seleziona la capienza massima.');
         return;
       }
 
