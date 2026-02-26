@@ -213,6 +213,23 @@ if ($pianoSel === 0 && $edificioSel > 0) {
   .calendar-toolbar .form-control{ max-width:170px; }
 
   .booking-modal .form-label span.required{ color:#dc3545; }
+  .booking-modal .booking-tabs{
+    border-bottom:1px solid rgba(0,0,0,.08);
+    margin-bottom:1rem;
+  }
+  .booking-modal .booking-tabs .nav-link{
+    border:none;
+    color:#495057;
+    font-weight:600;
+    border-radius:.6rem .6rem 0 0;
+  }
+  .booking-modal .booking-tabs .nav-link.active{
+    background:#e9f2ff;
+    color:#0d6efd;
+  }
+  .booking-modal .booking-tab-pane{
+    min-height:260px;
+  }
   .booking-hb-controls .btn-group{ flex-shrink:0; }
   .booking-hb-controls .form-select{ min-width:140px; }
   #changeRoomBox .form-text{ font-size:.75rem; }
@@ -380,131 +397,158 @@ if ($pianoSel === 0 && $edificioSel > 0) {
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <div class="modal-body">
-        <form id="bookingForm" class="row g-3">
+        <ul class="nav nav-tabs booking-tabs" id="bookingTabs" role="tablist">
+          <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="tab-generale" data-bs-toggle="tab" data-bs-target="#pane-generale" type="button" role="tab" aria-controls="pane-generale" aria-selected="true">Generale</button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="tab-ospiti" data-bs-toggle="tab" data-bs-target="#pane-ospiti" type="button" role="tab" aria-controls="pane-ospiti" aria-selected="false">Ospiti</button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="tab-servizi" data-bs-toggle="tab" data-bs-target="#pane-servizi" type="button" role="tab" aria-controls="pane-servizi" aria-selected="false">Servizi</button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="tab-costi" data-bs-toggle="tab" data-bs-target="#pane-costi" type="button" role="tab" aria-controls="pane-costi" aria-selected="false">Anteprima costi</button>
+          </li>
+        </ul>
+
+        <form id="bookingForm" class="tab-content">
           <input type="hidden" name="id" id="bookingId">
-          <div class="col-12 col-md-4">
-            <label class="form-label small">Camera</label>
-            <input type="hidden" name="camera_id" id="bookingCamera" required>
-            <div class="input-group">
-              <input type="text" class="form-control" id="bookingCameraLabel" readonly>
-              <button class="btn btn-outline-secondary" type="button" id="changeRoomBtn">
-                <i class="bi bi-arrow-repeat"></i> Cambia
-              </button>
-            </div>
-            <div class="mt-2 d-none" id="changeRoomBox">
-              <select class="form-select form-select-sm" id="bookingCameraSelect">
-                <option value="">Seleziona una camera</option>
-              </select>
-            </div>
-          </div>
-          <div class="col-6 col-md-4">
-            <label class="form-label small">Check-in</label>
-            <input type="date" class="form-control" name="data_checkin" id="bookingCheckin" required>
-          </div>
-          <div class="col-6 col-md-4">
-            <label class="form-label small">Check-out</label>
-            <input type="date" class="form-control" name="data_checkout" id="bookingCheckout" required>
-          </div>
-          <div class="col-6 col-md-4">
-            <label class="form-label small">Numero ospiti</label>
-            <input type="number" class="form-control" name="numero_ospiti" id="bookingGuestCount" min="1" value="1" required>
-          </div>
-          <div class="col-6 col-md-4">
-            <label class="form-label small">Tipologia camera</label>
-            <select class="form-select" name="tipologia_camera" id="bookingTipologia">
-              <option value="">—</option>
-            </select>
-          </div>
-          <div class="col-6 col-md-4">
-            <label class="form-label small">Housekeeping</label>
-            <input type="number" class="form-control" name="housekeeping" id="bookingHousekeeping" min="0" value="1">
-          </div>
-          <div class="col-12" id="bookingNotesBox">
-            <label class="form-label small">Note soggiorno</label>
-            <textarea class="form-control" name="note" id="bookingNote" rows="2" placeholder="Note generali sul soggiorno"></textarea>
-          </div>
-          <div class="w-100 d-none d-md-block"></div>
-          <div class="col-12 col-md-4">
-            <label class="form-label small">Tipo soggiorno</label>
-            <select class="form-select" name="piano_pasto_sigla" id="bookingPasto">
-              <option value="">—</option>
-              <option value="SP">Solo pernottamento</option>
-              <option value="BB">BB</option>
-              <option value="HB">HB</option>
-              <option value="FB">FB</option>
-            </select>
-          </div>
-          <div class="col-12 col-md-8">
-            <label class="form-label small">Note pasti</label>
-            <input class="form-control" name="note_pasti" id="bookingPastoNote" placeholder="Note per i pasti">
-          </div>
-          <div class="col-12 col-md-6" id="hbBox" style="display:none;">
-            <label class="form-label small">HB: tipo pasto</label>
-            <div class="d-flex flex-wrap align-items-center gap-2 booking-hb-controls">
-              <div class="btn-group btn-group-sm" role="group" aria-label="Modalità HB">
-                <input type="radio" class="btn-check" name="hb_modalita" id="hbModeAll" value="tutte" checked>
-                <label class="btn btn-outline-secondary" for="hbModeAll">Tutte</label>
-                <input type="radio" class="btn-check" name="hb_modalita" id="hbModeCustom" value="personalizzato">
-                <label class="btn btn-outline-secondary" for="hbModeCustom">Personalizzato</label>
+
+          <div class="tab-pane fade show active booking-tab-pane" id="pane-generale" role="tabpanel" aria-labelledby="tab-generale" tabindex="0">
+            <div class="row g-3">
+              <div class="col-12 col-md-4">
+                <label class="form-label small">Camera</label>
+                <input type="hidden" name="camera_id" id="bookingCamera" required>
+                <div class="input-group">
+                  <input type="text" class="form-control" id="bookingCameraLabel" readonly>
+                  <button class="btn btn-outline-secondary" type="button" id="changeRoomBtn">
+                    <i class="bi bi-arrow-repeat"></i> Cambia
+                  </button>
+                </div>
+                <div class="mt-2 d-none" id="changeRoomBox">
+                  <select class="form-select form-select-sm" id="bookingCameraSelect">
+                    <option value="">Seleziona una camera</option>
+                  </select>
+                </div>
               </div>
-              <select class="form-select" name="hb_servizio" id="bookingHb" style="max-width:180px;">
-                <option value="">—</option>
-                <option value="PRANZO">Pranzo</option>
-                <option value="CENA">Cena</option>
-              </select>
+              <div class="col-6 col-md-4">
+                <label class="form-label small">Check-in</label>
+                <input type="date" class="form-control" name="data_checkin" id="bookingCheckin" required>
+              </div>
+              <div class="col-6 col-md-4">
+                <label class="form-label small">Check-out</label>
+                <input type="date" class="form-control" name="data_checkout" id="bookingCheckout" required>
+              </div>
+              <div class="col-6 col-md-4">
+                <label class="form-label small">Numero ospiti</label>
+                <input type="number" class="form-control" name="numero_ospiti" id="bookingGuestCount" min="1" value="1" required>
+              </div>
+              <div class="col-6 col-md-4">
+                <label class="form-label small">Tipologia camera</label>
+                <select class="form-select" name="tipologia_camera" id="bookingTipologia">
+                  <option value="">—</option>
+                </select>
+              </div>
+              <div class="col-6 col-md-4">
+                <label class="form-label small">Housekeeping</label>
+                <input type="number" class="form-control" name="housekeeping" id="bookingHousekeeping" min="0" value="1">
+              </div>
+              <div class="col-12" id="bookingNotesBox">
+                <label class="form-label small">Note soggiorno</label>
+                <textarea class="form-control" name="note" id="bookingNote" rows="2" placeholder="Note generali sul soggiorno"></textarea>
+              </div>
+              <div class="w-100 d-none d-md-block"></div>
+              <div class="col-12 col-md-4">
+                <label class="form-label small">Tipo soggiorno</label>
+                <select class="form-select" name="piano_pasto_sigla" id="bookingPasto">
+                  <option value="">—</option>
+                  <option value="SP">Solo pernottamento</option>
+                  <option value="BB">BB</option>
+                  <option value="HB">HB</option>
+                  <option value="FB">FB</option>
+                </select>
+              </div>
+              <div class="col-12 col-md-8">
+                <label class="form-label small">Note pasti</label>
+                <input class="form-control" name="note_pasti" id="bookingPastoNote" placeholder="Note per i pasti">
+              </div>
+              <div class="col-12 col-md-6" id="hbBox" style="display:none;">
+                <label class="form-label small">HB: tipo pasto</label>
+                <div class="d-flex flex-wrap align-items-center gap-2 booking-hb-controls">
+                  <div class="btn-group btn-group-sm" role="group" aria-label="Modalità HB">
+                    <input type="radio" class="btn-check" name="hb_modalita" id="hbModeAll" value="tutte" checked>
+                    <label class="btn btn-outline-secondary" for="hbModeAll">Tutte</label>
+                    <input type="radio" class="btn-check" name="hb_modalita" id="hbModeCustom" value="personalizzato">
+                    <label class="btn btn-outline-secondary" for="hbModeCustom">Personalizzato</label>
+                  </div>
+                  <select class="form-select" name="hb_servizio" id="bookingHb" style="max-width:180px;">
+                    <option value="">—</option>
+                    <option value="PRANZO">Pranzo</option>
+                    <option value="CENA">Cena</option>
+                  </select>
+                </div>
+                <input type="hidden" name="hb_dettagli" id="bookingHbDettagli">
+              </div>
+
+              <div class="col-12" id="hbCustomBox" style="display:none;">
+                <div class="hb-custom-list">
+                  <div class="text-muted small mb-2">Seleziona pranzo o cena per ogni giornata.</div>
+                  <div id="hbCustomList"></div>
+                </div>
+              </div>
             </div>
-            <input type="hidden" name="hb_dettagli" id="bookingHbDettagli">
           </div>
 
-          <div class="col-12" id="hbCustomBox" style="display:none;">
-            <div class="hb-custom-list">
-              <div class="text-muted small mb-2">Seleziona pranzo o cena per ogni giornata.</div>
-              <div id="hbCustomList"></div>
-            </div>
-          </div>
-          <div class="col-12">
-            <label class="form-label small">Servizi</label>
-            <div class="services-card">
-              <div id="servicesContainer" class="services-grid"></div>
-              <div id="servicesEmpty" class="text-muted small d-none">Nessun servizio attivo disponibile.</div>
+          <div class="tab-pane fade booking-tab-pane" id="pane-ospiti" role="tabpanel" aria-labelledby="tab-ospiti" tabindex="0">
+            <div class="border-top pt-3 mt-3">
+              <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+                <div>
+                  <h6 class="mb-1">Ospiti</h6>
+                  <div class="text-muted small">Compila i dati richiesti per ogni ospite della camera.</div>
+                </div>
+              </div>
+
+              <div class="guest-search-card mb-3">
+                <div class="row g-2 align-items-end">
+                  <div class="col-12 col-md-8">
+                    <label class="form-label small">Ricerca ospite già registrato</label>
+                    <input class="form-control form-control-sm" id="guestSearchInput" placeholder="Nome, cognome, documento o email">
+                  </div>
+                  <div class="col-12 col-md-4">
+                    <button class="btn btn-outline-primary btn-sm w-100" type="button" id="guestSearchBtn">
+                      <i class="bi bi-search"></i> Cerca
+                    </button>
+                  </div>
+                </div>
+                <div id="guestSearchResults" class="guest-search-results mt-2 d-none"></div>
+              </div>
+              <div id="guestsContainer"></div>
+              <div id="guestsEmpty" class="text-muted small d-none">
+                Inserisci almeno 1 ospite (nome e cognome) prima di salvare la prenotazione.
+              </div>
             </div>
           </div>
 
-          <div class="col-12">
-            <label class="form-label small">Anteprima costi</label>
-            <div class="price-preview-card" id="pricePreviewBox">
-              <div id="pricePreviewBody" class="text-muted small">Seleziona le date per vedere il totale.</div>
+          <div class="tab-pane fade booking-tab-pane" id="pane-servizi" role="tabpanel" aria-labelledby="tab-servizi" tabindex="0">
+            <div class="pt-1">
+              <label class="form-label small">Servizi</label>
+              <div class="services-card">
+                <div id="servicesContainer" class="services-grid"></div>
+                <div id="servicesEmpty" class="text-muted small d-none">Nessun servizio attivo disponibile.</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="tab-pane fade booking-tab-pane" id="pane-costi" role="tabpanel" aria-labelledby="tab-costi" tabindex="0">
+            <div class="pt-1">
+              <label class="form-label small">Anteprima costi</label>
+              <div class="price-preview-card" id="pricePreviewBox">
+                <div id="pricePreviewBody" class="text-muted small">Seleziona le date per vedere il totale.</div>
+              </div>
             </div>
           </div>
         </form>
-
-        <div class="border-top pt-3 mt-3">
-          <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
-            <div>
-              <h6 class="mb-1">Ospiti</h6>
-              <div class="text-muted small">Compila i dati richiesti per ogni ospite della camera.</div>
-            </div>
-          </div>
-
-          <div class="guest-search-card mb-3">
-            <div class="row g-2 align-items-end">
-              <div class="col-12 col-md-8">
-                <label class="form-label small">Ricerca ospite già registrato</label>
-                <input class="form-control form-control-sm" id="guestSearchInput" placeholder="Nome, cognome, documento o email">
-              </div>
-              <div class="col-12 col-md-4">
-                <button class="btn btn-outline-primary btn-sm w-100" type="button" id="guestSearchBtn">
-                  <i class="bi bi-search"></i> Cerca
-                </button>
-              </div>
-            </div>
-            <div id="guestSearchResults" class="guest-search-results mt-2 d-none"></div>
-          </div>
-          <div id="guestsContainer"></div>
-          <div id="guestsEmpty" class="text-muted small d-none">
-            Inserisci almeno 1 ospite (nome e cognome) prima di salvare la prenotazione.
-          </div>
-        </div>
       </div>
       <div class="modal-footer">
         <button class="btn btn-outline-danger" type="button" id="deleteBookingBtn" style="display:none;">
@@ -1028,6 +1072,8 @@ if ($pianoSel === 0 && $edificioSel > 0) {
 
 
       guestSearchResults.classList.add('d-none');
+      const firstTabTrigger = document.querySelector('#bookingTabs button[data-bs-target="#pane-generale"]');
+      if (firstTabTrigger) bootstrap.Tab.getOrCreateInstance(firstTabTrigger).show();
       const modal = new bootstrap.Modal(bookingModalEl);
       modal.show();
       updatePricePreview();
@@ -2017,6 +2063,8 @@ if ($pianoSel === 0 && $edificioSel > 0) {
       renderServices(meta.servizi || []);
       toggleHbFields();
       pricePreviewBody.textContent = 'Seleziona le date per vedere il totale.';
+      const firstTabTrigger = document.querySelector('#bookingTabs button[data-bs-target="#pane-generale"]');
+      if (firstTabTrigger) bootstrap.Tab.getOrCreateInstance(firstTabTrigger).show();
     });
 
     renderPianiOptions();
