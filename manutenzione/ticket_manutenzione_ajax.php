@@ -267,9 +267,7 @@ function makeCard(array $r, bool $annullatoList=false): string {
   // Riga: assegnato SOLO se definito
   $badgeAssegnato = '';
   if ($asNome !== '') {
-    $badgeAssegnato = '<div class="meta-row mt-2">
-        <span class="badge badge-soft"><i class="bi bi-person"></i> <b>'.h($asNome).'</b></span>
-      </div>';
+    $badgeAssegnato = '<span class="badge badge-soft"><i class="bi bi-person"></i> <b>'.h($asNome).'</b></span>';
   }
 
   $descHtml = trim($desc) !== '' ? '<div class="desc">'.h($desc).'</div>' : '';
@@ -315,12 +313,11 @@ function makeCard(array $r, bool $annullatoList=false): string {
       <div style="min-width:0; flex:1;">
         <div class="title">#'.$id.' · '.h($titolo).'</div>
 
-        <div class="meta-row mt-1">'.$badgePrio.'</div>
-        <div class="meta-col mt-2">
-          '.($badgeLuogo !== '' ? '<div class="meta-row">'.$badgeLuogo.'</div>' : '').'
-
-          <div class="meta-row mt-1">'.$badgeAperto.'</div>
-          '.($badgeChiuso !== '' ? '<div class="meta-row mt-1">'.$badgeChiuso.'</div>' : '').'
+        <div class="meta-wrap">
+          '.$badgePrio.'
+          '.$badgeLuogo.'
+          '.$badgeAperto.'
+          '.$badgeChiuso.'
           '.$badgeAssegnato.'
         </div>
 

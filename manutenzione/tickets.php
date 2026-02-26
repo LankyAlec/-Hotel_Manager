@@ -162,21 +162,28 @@ include __DIR__ . '/../includes/header.php';
     border:1px solid rgba(0,0,0,.08);
     background:#fff;
     border-radius:16px;
-    padding:12px 12px;
+    padding:10px 11px;
     margin-bottom:12px;
     box-shadow:0 .25rem .75rem rgba(0,0,0,.04);
   }
   .tcard:last-child{ margin-bottom:0; }
-  .tcard .top{ display:flex; gap:10px; align-items:flex-start; justify-content:space-between; }
+  .tcard .top{ display:flex; gap:8px; align-items:flex-start; justify-content:space-between; }
   .tcard .title{ font-weight:700; font-size:.95rem; line-height:1.2; }
-  .tcard .meta{ display:flex; flex-wrap:wrap; gap:8px; margin-top:8px; align-items:center; }
-  .tcard .desc{ margin-top:8px; color:#6c757d; font-size:.88rem; white-space:pre-wrap; }
+  .tcard .desc{ margin-top:7px; color:#6c757d; font-size:.88rem; white-space:pre-wrap; }
 
-  .tacts{ display:flex; align-items:center; gap:8px; flex-shrink:0; }
+  .tcard .meta-wrap{
+    display:flex;
+    flex-wrap:wrap;
+    gap:6px;
+    margin-top:7px;
+    align-items:center;
+  }
+
+  .tacts{ display:flex; align-items:center; gap:6px; flex-shrink:0; }
   .btn-mini{
-    width:42px; height:38px; padding:0;
+    width:38px; height:34px; padding:0;
     display:inline-flex; align-items:center; justify-content:center;
-    border-radius:12px;
+    border-radius:11px;
   }
 
   .badge-soft{ background:rgba(0,0,0,.04); border:1px solid rgba(0,0,0,.08); color:#111; }
@@ -210,8 +217,9 @@ include __DIR__ . '/../includes/header.php';
   /* badge base */
   .tcard .badge {
     border-radius: 999px;
-    padding: .45rem .65rem;
+    padding: .34rem .58rem;
     font-weight: 600;
+    font-size: .8rem;
   }
 
   /* stile "soft" già usato */
@@ -228,8 +236,10 @@ include __DIR__ . '/../includes/header.php';
   .tcard .prio-alta    { background: #f59e0b; } /* arancio */
   .tcard .prio-urgente { background: #ef4444; } /* rosso */
 
-  /* riga meta */
-  .tcard .meta-line { margin-top: .35rem; }
+  @media (max-width: 1400px){
+    .tcard .top{ flex-direction:column; }
+    .tacts{ width:100%; justify-content:flex-end; }
+  }
 
 </style>
 
