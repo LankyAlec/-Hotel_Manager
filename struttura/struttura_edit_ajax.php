@@ -97,7 +97,7 @@ else {
     out(['ok'=>false,'msg'=>'Capienza non valida'], 400);
   }
   if ($hasTipologia && $tipologiaId <= 0) {
-    out(['ok'=>false,'msg'=>'Tipologia letti non valida'], 400);
+    out(['ok'=>false,'msg'=>'Capienza massima non valida'], 400);
   }
   $disVal = $disVal > 0 ? 1 : 0;
 
