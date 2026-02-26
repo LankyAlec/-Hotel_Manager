@@ -14,9 +14,8 @@ if ($id <= 0) { header("Location: servizi.php"); exit; }
   basta controllare prenotazioni_servizi WHERE servizio_id = ?
 */
 
-$stmt = $mysqli->prepare("DELETE FROM servizi WHERE id=?");
-$stmt->bind_param("i", $id);
-$stmt->execute();
+$sql = "DELETE FROM servizi WHERE id=" . (int)$id;
+mysqli_query($mysqli, $sql);
 
 header("Location: servizi.php");
 exit;

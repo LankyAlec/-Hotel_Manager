@@ -12,16 +12,15 @@ if (!isset($_SESSION['utente_id'])) {
 ------------------------------------------------- */
 if (!isset($_SESSION['gruppi'])) {
     $_SESSION['gruppi'] = [];
-    $stmt = $mysqli->prepare("
+    $utenteId = (int)($_SESSION['utente_id'] ?? 0);
+    $sql = "
         SELECT g.codice
         FROM utenti_gruppi g
         JOIN utenti_privilegi up ON up.gruppo_id = g.id
-        WHERE up.utente_id = ?
-    ");
-    $stmt->bind_param("i", $_SESSION['utente_id']);
-    $stmt->execute();
-    $res = $stmt->get_result();
-    while ($r = $res->fetch_assoc()) {
+        WHERE up.utente_id = {$utenteId}
+    ";
+    $res = mysqli_query($mysqli, $sql);
+    while ($res && ($r = $res->fetch_assoc())) {
         $_SESSION['gruppi'][] = $r['codice'];
     }
 }

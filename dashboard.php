@@ -2,13 +2,13 @@
 include __DIR__ . '/includes/header.php';
 
 $oggi = date('Y-m-d');
+$oggiEsc = mysqli_real_escape_string($mysqli, $oggi);
 
 /* ================== CAMERE OCCUPATE vs DISPONIBILI (oggi) ================== */
 
 /* Tot camere attive */
-$stmt = $mysqli->prepare("SELECT COUNT(*) AS tot FROM struttura_camere WHERE attiva = 1");
-$stmt->execute();
-$camere_attive = (int)($stmt->get_result()->fetch_assoc()['tot'] ?? 0);
+$res = mysqli_query($mysqli, "SELECT COUNT(*) AS tot FROM struttura_camere WHERE attiva = 1");
+$camere_attive = (int)(($res && ($r = mysqli_fetch_assoc($res))) ? $r['tot'] : 0);
 
 /* Camere occupate oggi (attive) */
 $sql_camere_occupate = "
@@ -17,13 +17,11 @@ $sql_camere_occupate = "
     JOIN struttura_camere c ON c.id = s.camera_id
     WHERE c.attiva = 1
       AND s.stato = 'occupato'
-      AND ? >= s.data_checkin
-      AND ? <  s.data_checkout
+      AND '{$oggiEsc}' >= s.data_checkin
+      AND '{$oggiEsc}' <  s.data_checkout
 ";
-$stmt = $mysqli->prepare($sql_camere_occupate);
-$stmt->bind_param("ss", $oggi, $oggi);
-$stmt->execute();
-$camere_occupate = (int)($stmt->get_result()->fetch_assoc()['tot'] ?? 0);
+$res = mysqli_query($mysqli, $sql_camere_occupate);
+$camere_occupate = (int)(($res && ($r = mysqli_fetch_assoc($res))) ? $r['tot'] : 0);
 
 /* Camere disponibili oggi:
    - attive
@@ -38,13 +36,13 @@ $sql_camere_disponibili = "
         SELECT DISTINCT camera_id
         FROM soggiorni
         WHERE stato = 'occupato'
-          AND ? >= data_checkin
-          AND ? <  data_checkout
+          AND '{$oggiEsc}' >= data_checkin
+          AND '{$oggiEsc}' <  data_checkout
     ) occ ON occ.camera_id = c.id
     LEFT JOIN (
         SELECT DISTINCT camera_id
         FROM pulizie_task
-        WHERE data = ?
+        WHERE data = '{$oggiEsc}'
           AND stato IN ('DA_FARE','IN_CORSO')
     ) pul ON pul.camera_id = c.id
     LEFT JOIN (
@@ -58,10 +56,8 @@ $sql_camere_disponibili = "
       AND pul.camera_id IS NULL
       AND man.camera_id IS NULL
 ";
-$stmt = $mysqli->prepare($sql_camere_disponibili);
-$stmt->bind_param("sss", $oggi, $oggi, $oggi);
-$stmt->execute();
-$camere_disponibili = (int)($stmt->get_result()->fetch_assoc()['tot'] ?? 0);
+$res = mysqli_query($mysqli, $sql_camere_disponibili);
+$camere_disponibili = (int)(($res && ($r = mysqli_fetch_assoc($res))) ? $r['tot'] : 0);
 
 /* (facoltativo) Camere “non disponibili” = attive - disponibili */
 $camere_non_disponibili = max(0, $camere_attive - $camere_disponibili);
@@ -82,51 +78,43 @@ $sql_presenti = "
     FROM soggiorni s
     JOIN soggiorni_clienti sc ON sc.soggiorno_id = s.id
     WHERE s.stato = 'occupato'
-      AND ? >= s.data_checkin
-      AND ? <  s.data_checkout
+      AND '{$oggiEsc}' >= s.data_checkin
+      AND '{$oggiEsc}' <  s.data_checkout
 ";
-$stmt = $mysqli->prepare($sql_presenti);
-if (!$stmt) { die("prepare presenti failed: " . $mysqli->error); }
-$stmt->bind_param("ss", $oggi, $oggi);
-$stmt->execute();
-$presenti = (int)($stmt->get_result()->fetch_assoc()['tot'] ?? 0);
+$res = mysqli_query($mysqli, $sql_presenti);
+if (!$res) { die("query presenti failed: " . $mysqli->error); }
+$presenti = (int)(mysqli_fetch_assoc($res)['tot'] ?? 0);
 
 
 /* ================== 2) Checkin attesi (oggi) ================== */
 $sql_checkin = "
     SELECT COUNT(*) AS tot
     FROM soggiorni
-    WHERE data_checkin = ?
+    WHERE data_checkin = '{$oggiEsc}'
       AND stato = 'prenotato'
 ";
-$stmt = $mysqli->prepare($sql_checkin);
-$stmt->bind_param("s", $oggi);
-$stmt->execute();
-$checkin_attesi = (int)($stmt->get_result()->fetch_assoc()['tot'] ?? 0);
+$res = mysqli_query($mysqli, $sql_checkin);
+$checkin_attesi = (int)(($res && ($r = mysqli_fetch_assoc($res))) ? $r['tot'] : 0);
 
 /* ================== 3) Checkout attesi (oggi) ================== */
 $sql_checkout = "
     SELECT COUNT(*) AS tot
     FROM soggiorni
-    WHERE data_checkout = ?
+    WHERE data_checkout = '{$oggiEsc}'
       AND stato = 'occupato'
 ";
-$stmt = $mysqli->prepare($sql_checkout);
-$stmt->bind_param("s", $oggi);
-$stmt->execute();
-$checkout_attesi = (int)($stmt->get_result()->fetch_assoc()['tot'] ?? 0);
+$res = mysqli_query($mysqli, $sql_checkout);
+$checkout_attesi = (int)(($res && ($r = mysqli_fetch_assoc($res))) ? $r['tot'] : 0);
 
 /* ================== 4) Camere da rifare (oggi) ================== */
 $sql_camere_rifare = "
     SELECT COUNT(DISTINCT camera_id) AS tot
     FROM pulizie_task
-    WHERE data = ?
+    WHERE data = '{$oggiEsc}'
       AND stato IN ('DA_FARE','IN_CORSO')
 ";
-$stmt = $mysqli->prepare($sql_camere_rifare);
-$stmt->bind_param("s", $oggi);
-$stmt->execute();
-$camere_da_rifare = (int)($stmt->get_result()->fetch_assoc()['tot'] ?? 0);
+$res = mysqli_query($mysqli, $sql_camere_rifare);
+$camere_da_rifare = (int)(($res && ($r = mysqli_fetch_assoc($res))) ? $r['tot'] : 0);
 
 /* ================== 5) Manutenzioni da compiere ================== */
 $sql_manut = "
@@ -149,14 +137,12 @@ $sql_ristorante = "
     FROM soggiorni s
     JOIN soggiorni_clienti sc ON sc.soggiorno_id = s.id
     WHERE s.stato = 'occupato'
-      AND ? >= s.data_checkin
-      AND ? <  s.data_checkout
+      AND '{$oggiEsc}' >= s.data_checkin
+      AND '{$oggiEsc}' <  s.data_checkout
     GROUP BY s.piano_pasto_sigla, hb_servizio
 ";
-$stmt = $mysqli->prepare($sql_ristorante);
-$stmt->bind_param("ss", $oggi, $oggi);
-$stmt->execute();
-$rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+$res = mysqli_query($mysqli, $sql_ristorante);
+$rows = $res ? mysqli_fetch_all($res, MYSQLI_ASSOC) : [];
 
 $attesi_colazione = 0;
 $attesi_pranzo    = 0;
@@ -212,25 +198,22 @@ $sql_magazzino = "
                 FROM magazzino_lotti l
                 WHERE l.prodotto_id = p.id
                   AND l.data_scadenza IS NOT NULL
-                  AND l.data_scadenza <= DATE_ADD(CURDATE(), INTERVAL ? DAY)
+                  AND l.data_scadenza <= DATE_ADD(CURDATE(), INTERVAL {$magazzinoDays} DAY)
             ) AS expiring
         FROM magazzino_prodotti p
         WHERE p.attivo = 1
     ) AS t
 ";
 
-$stmt = $mysqli->prepare($sql_magazzino);
-if ($stmt) {
-    $stmt->bind_param('i', $magazzinoDays);
-    $stmt->execute();
-    $res = $stmt->get_result();
-    $row = $res ? $res->fetch_assoc() : null;
+$res = mysqli_query($mysqli, $sql_magazzino);
+if ($res) {
+    $row = mysqli_fetch_assoc($res) ?: null;
 
     $magazzino_ok  = true;
     $prodotti_mag  = (int)($row['prodotti_presenti'] ?? 0);
     $prodotti_scad = (int)($row['prodotti_in_scadenza'] ?? 0);
 } else {
-    error_log('Magazzino stats prepare error: ' . $mysqli->error);
+    error_log('Magazzino stats query error: ' . $mysqli->error);
 }
 ?>
 

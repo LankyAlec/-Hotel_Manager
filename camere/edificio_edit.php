@@ -30,11 +30,10 @@ $servizio = [
 
 /* Se edit e NON ho old flash, carico dal DB */
 if ($id > 0 && empty($flashOld)) {
-    $stmt = $mysqli->prepare("SELECT * FROM servizi WHERE id=? LIMIT 1");
-    if (!$stmt) die("Prepare failed: " . $mysqli->error);
-    $stmt->bind_param("i", $id);
-    $stmt->execute();
-    $row = $stmt->get_result()->fetch_assoc();
+    $sql = "SELECT * FROM servizi WHERE id=" . (int)$id . " LIMIT 1";
+    $res = mysqli_query($mysqli, $sql);
+    if (!$res) die("Query failed: " . $mysqli->error);
+    $row = mysqli_fetch_assoc($res);
     if (!$row) die("Servizio non trovato.");
     $servizio = $row;
 }
