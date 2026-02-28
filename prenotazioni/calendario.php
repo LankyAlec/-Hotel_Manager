@@ -1167,6 +1167,31 @@ if ($pianoSel === 0 && $edificioSel > 0) {
             </div>
           </div>
           <div class="col-6 col-md-3">
+            <label class="form-label small">Età (anni)</label>
+            <input type="number" min="0" class="form-control form-control-sm" name="eta" value="${escapeHtml(guest.eta ?? '')}">
+          </div>
+          <div class="col-12 col-md-9">
+            <label class="form-label small d-block">Esenzione tassa di soggiorno</label>
+            <div class="d-flex flex-wrap gap-3 mt-1">
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="esenzione_motivo_salute" ${guest.esenzione_motivo_salute ? 'checked' : ''}>
+                <label class="form-check-label small">Motivi di salute</label>
+              </div>
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="esenzione_accompagnatore_sanitario" ${guest.esenzione_accompagnatore_sanitario ? 'checked' : ''}>
+                <label class="form-check-label small">Accompagnatore sanitario</label>
+              </div>
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="esenzione_disabilita" ${guest.esenzione_disabilita ? 'checked' : ''}>
+                <label class="form-check-label small">Disabilità non autosufficiente</label>
+              </div>
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="esenzione_accompagnatore_disabile" ${guest.esenzione_accompagnatore_disabile ? 'checked' : ''}>
+                <label class="form-check-label small">Accompagnatore disabile</label>
+              </div>
+            </div>
+          </div>
+          <div class="col-6 col-md-3">
             <label class="form-label small">Email</label>
             <input class="form-control form-control-sm" name="email" value="${escapeHtml(guest.email ?? '')}">
           </div>

@@ -144,6 +144,7 @@ function save_guest(mysqli $db, int $soggiornoId, ?int $guestId, array $payload)
         'nome' => 's',
         'cognome' => 's',
         'data_nascita' => 's',
+        'eta' => 'i',
         'nazionalita' => 's',
         'indirizzo' => 's',
         'documento_tipo' => 's',
