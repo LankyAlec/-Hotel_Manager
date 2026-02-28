@@ -1145,6 +1145,27 @@ if ($pianoSel === 0 && $edificioSel > 0) {
             <label class="form-label small">N° Documento <span class="required">*</span></label>
             <input class="form-control form-control-sm" name="documento_numero" value="${escapeHtml(guest.documento_numero ?? '')}" required>
           </div>
+          <div class="col-12 col-md-12">
+            <label class="form-label small d-block">Esenzione tassa di soggiorno</label>
+            <div class="d-flex flex-wrap gap-3 mt-1">
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="esenzione_motivo_salute" ${guest.esenzione_motivo_salute ? 'checked' : ''}>
+                <label class="form-check-label small">Motivi di salute</label>
+              </div>
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="esenzione_accompagnatore_sanitario" ${guest.esenzione_accompagnatore_sanitario ? 'checked' : ''}>
+                <label class="form-check-label small">Accompagnatore sanitario</label>
+              </div>
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="esenzione_disabilita" ${guest.esenzione_disabilita ? 'checked' : ''}>
+                <label class="form-check-label small">Disabilità non autosufficiente</label>
+              </div>
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="esenzione_accompagnatore_disabile" ${guest.esenzione_accompagnatore_disabile ? 'checked' : ''}>
+                <label class="form-check-label small">Accompagnatore disabile</label>
+              </div>
+            </div>
+          </div>
           <div class="col-6 col-md-3">
             <label class="form-label small">Età (anni)</label>
             <input type="number" min="0" class="form-control form-control-sm" name="eta" value="${escapeHtml(guest.eta ?? '')}">
@@ -1217,7 +1238,6 @@ if ($pianoSel === 0 && $edificioSel > 0) {
       card.querySelector('input[name="indirizzo"]').value = guest.indirizzo || '';
       card.querySelector('select[name="documento_tipo"]').value = guest.documento_tipo || '';
       card.querySelector('input[name="documento_numero"]').value = guest.documento_numero || '';
-      card.querySelector('input[name="eta"]').value = guest.eta || '';
       card.querySelector('input[name="esenzione_motivo_salute"]').checked = !!guest.esenzione_motivo_salute;
       card.querySelector('input[name="esenzione_accompagnatore_sanitario"]').checked = !!guest.esenzione_accompagnatore_sanitario;
       card.querySelector('input[name="esenzione_disabilita"]').checked = !!guest.esenzione_disabilita;
@@ -1827,6 +1847,7 @@ if ($pianoSel === 0 && $edificioSel > 0) {
         piano_pasto_sigla: bookingPasto.value,
         servizi: selectedServices,
         ospiti: collectGuestsFromUI(),
+        numero_ospiti: getTargetGuestCount(),
         city_tax_school_group_exempt: bookingSchoolGroupExempt?.checked ? 1 : 0,
       };
       const res = await fetchJson('prenotazioni_ajax.php', {
@@ -1839,10 +1860,11 @@ if ($pianoSel === 0 && $edificioSel > 0) {
       }
       const nights = (res.camera?.breakdown || []).length;
       const cameraTotal = res.camera?.total ?? 0;
+      const roomTotal = res.camera?.room_total ?? 0;
       const cityTaxTotal = res.camera?.city_tax_total ?? 0;
       const serviziTotal = res.servizi?.total ?? 0;
       const tipologiaMissing = !bookingTipologia.value;
-      const defaultNightlyRate = nights > 0 ? (cameraTotal / nights) : 0;
+      const defaultNightlyRate = nights > 0 ? (roomTotal / nights) : 0;
       const cameraDates = (res.camera?.breakdown || []).map(r => r.date);
       const serviziRows = (res.servizi?.items || []).map(r => `
         <tr>
@@ -1942,6 +1964,7 @@ if ($pianoSel === 0 && $edificioSel > 0) {
         data_checkin: bookingCheckin.value,
         data_checkout: bookingCheckout.value,
         piano_pasto_sigla: bookingPasto.value,
+        numero_ospiti: getTargetGuestCount(),
       };
       const res = await fetchJson('prenotazioni_ajax.php', {
         method: 'POST',

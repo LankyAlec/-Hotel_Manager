@@ -84,11 +84,6 @@ function normalize_bool($value): bool {
 }
 
 function normalize_guest_age(array $guest, ?DateTime $nightDate = null): ?int {
-    if (isset($guest['eta']) && $guest['eta'] !== '' && is_numeric($guest['eta'])) {
-        $age = (int)$guest['eta'];
-        return $age >= 0 ? $age : null;
-    }
-
     $dob = trim((string)($guest['data_nascita'] ?? ''));
     if ($dob === '') return null;
     $birthDate = DateTime::createFromFormat('Y-m-d', $dob);
@@ -138,6 +133,10 @@ function get_city_tax_rules(mysqli $db): array {
         'cost' => (float)($row['costo'] ?? 0),
         'age_exemption_until' => is_numeric($row['esenzione_per_eta_fino'] ?? null) ? (int)$row['esenzione_per_eta_fino'] : null,
     ];
+}
+
+function escape_sql_string(mysqli $db, ?string $value): string {
+    return "'" . $db->real_escape_string((string)$value) . "'";
 }
 
 function get_servizi_column(mysqli $db): ?string {
@@ -407,7 +406,7 @@ function get_servizi(mysqli $db): array {
     return array_values(array_filter($byParent, fn($item) => is_array($item) && array_key_exists('id', $item)));
 }
 
-function get_camera_pricing_preview(mysqli $db, int $cameraId, ?string $tipologia, ?string $pasto, string $checkin, string $checkout, array $ospiti = [], bool $schoolGroupExempt = false): array {
+function get_camera_pricing_preview(mysqli $db, int $cameraId, ?string $tipologia, ?string $pasto, string $checkin, string $checkout, array $ospiti = [], bool $schoolGroupExempt = false, int $numeroOspiti = 0): array {
     if (!table_exists($db, 'soggiorni_tariffe')) return ['breakdown' => [], 'total' => 0.0];
     $priceCol = get_soggiorni_tariffe_price_column($db, $pasto);
     if (!$priceCol) return ['breakdown' => [], 'total' => 0.0];
@@ -423,15 +422,23 @@ function get_camera_pricing_preview(mysqli $db, int $cameraId, ?string $tipologi
     foreach ($ospiti as $guest) {
         if (!is_array($guest)) continue;
         $normalizedGuests[] = [
-            'eta' => $guest['eta'] ?? null,
             'data_nascita' => $guest['data_nascita'] ?? null,
-            'esenzione_tassa_soggiorno' => normalize_bool($guest['esenzione_tassa_soggiorno'] ?? false),
-            'esenzione_scuola' => normalize_bool($guest['esenzione_scuola'] ?? false),
             'esenzione_motivo_salute' => normalize_bool($guest['esenzione_motivo_salute'] ?? false),
             'esenzione_accompagnatore_sanitario' => normalize_bool($guest['esenzione_accompagnatore_sanitario'] ?? false),
             'esenzione_disabilita' => normalize_bool($guest['esenzione_disabilita'] ?? false),
             'esenzione_accompagnatore_disabile' => normalize_bool($guest['esenzione_accompagnatore_disabile'] ?? false),
         ];
+    }
+    if ($numeroOspiti > count($normalizedGuests)) {
+        for ($i = count($normalizedGuests); $i < $numeroOspiti; $i++) {
+            $normalizedGuests[] = [
+                'data_nascita' => null,
+                'esenzione_motivo_salute' => false,
+                'esenzione_accompagnatore_sanitario' => false,
+                'esenzione_disabilita' => false,
+                'esenzione_accompagnatore_disabile' => false,
+            ];
+        }
     }
 
     $start = DateTime::createFromFormat('Y-m-d', $checkin);
@@ -448,31 +455,21 @@ function get_camera_pricing_preview(mysqli $db, int $cameraId, ?string $tipologi
     while ($iter < $end) {
         $date = $iter->format('Y-m-d');
         $conditions = [];
-        $params = [];
-        $types = '';
 
         if ($attivaCol) {
             $conditions[] = 'attiva = 1';
         }
         if ($cameraCol && $cameraId > 0) {
-            $conditions[] = 'camera_id = ?';
-            $types .= 'i';
-            $params[] = $cameraId;
+            $conditions[] = 'camera_id = ' . (int)$cameraId;
         }
         if ($tipologiaCol && $tipologia) {
-            $conditions[] = "{$tipologiaCol} = ?";
-            $types .= 's';
-            $params[] = $tipologia;
+            $conditions[] = "{$tipologiaCol} = " . escape_sql_string($db, $tipologia);
         }
         if ($dalCol) {
-            $conditions[] = "{$dalCol} <= ?";
-            $types .= 's';
-            $params[] = $date;
+            $conditions[] = "{$dalCol} <= " . escape_sql_string($db, $date);
         }
         if ($alCol) {
-            $conditions[] = "({$alCol} IS NULL OR {$alCol} >= ?)";
-            $types .= 's';
-            $params[] = $date;
+            $conditions[] = "({$alCol} IS NULL OR {$alCol} >= " . escape_sql_string($db, $date) . ")";
         }
 
         $selectParts = ["{$priceCol} AS prezzo"];
@@ -492,15 +489,13 @@ function get_camera_pricing_preview(mysqli $db, int $cameraId, ?string $tipologi
         }
 
         $price = null;
-        $stmt = $db->prepare($sql);
-        if ($stmt) {
-            if ($types) $stmt->bind_param($types, ...$params);
-            $stmt->execute();
-            $row = $stmt->get_result()->fetch_assoc();
+        $row = null;
+        $res = $db->query($sql);
+        if ($res) {
+            $row = $res->fetch_assoc();
             if ($row && $row['prezzo'] !== null) {
                 $price = (float)$row['prezzo'];
             }
-            $stmt->close();
         }
 
         $nightRoomPrice = 0.0;
@@ -523,8 +518,6 @@ function get_camera_pricing_preview(mysqli $db, int $cameraId, ?string $tipologi
 
                     $isTaxExemptByReason =
                         $schoolGroupExempt ||
-                        ($guest['esenzione_tassa_soggiorno'] ?? false) ||
-                        ($guest['esenzione_scuola'] ?? false) ||
                         ($guest['esenzione_motivo_salute'] ?? false) ||
                         ($guest['esenzione_accompagnatore_sanitario'] ?? false) ||
                         ($guest['esenzione_disabilita'] ?? false) ||
@@ -540,10 +533,7 @@ function get_camera_pricing_preview(mysqli $db, int $cameraId, ?string $tipologi
                     }
                 }
             } else {
-                $nightRoomPrice = $price;
-                if (($taxRules['enabled'] ?? false) && !$schoolGroupExempt) {
-                    $nightCityTax += (float)$taxRules['cost'];
-                }
+                $nightRoomPrice = 0.0;
             }
         }
 
@@ -805,7 +795,6 @@ function insert_guests_for_booking(mysqli $db, int $soggiornoId, array $ospiti):
         'nome' => 's',
         'cognome' => 's',
         'data_nascita' => 's',
-        'eta' => 'i',
         'nazionalita' => 's',
         'indirizzo' => 's',
         'documento_tipo' => 's',
@@ -1156,6 +1145,7 @@ function pricing_preview(mysqli $db, array $payload): void {
     $pasto = $payload['piano_pasto_sigla'] ?? null;
     $servizi = normalize_servizi($payload['servizi'] ?? null);
     $ospiti = normalize_ospiti($payload['ospiti'] ?? null);
+    $numeroOspiti = max(1, (int)($payload['numero_ospiti'] ?? 1));
     $schoolGroupExempt = normalize_bool($payload['city_tax_school_group_exempt'] ?? false);
 
     if (!$checkin || !$checkout) {
@@ -1164,7 +1154,7 @@ function pricing_preview(mysqli $db, array $payload): void {
 
     $cameraPreview = ['breakdown' => [], 'total' => 0.0];
     if ($tipologia) {
-        $cameraPreview = get_camera_pricing_preview($db, $cameraId, $tipologia, $pasto, $checkin, $checkout, $ospiti, $schoolGroupExempt);
+        $cameraPreview = get_camera_pricing_preview($db, $cameraId, $tipologia, $pasto, $checkin, $checkout, $ospiti, $schoolGroupExempt, $numeroOspiti);
     }
     $serviziPreview = get_servizi_pricing_preview($db, $servizi, $checkin);
     $total = (float)($cameraPreview['total'] ?? 0) + (float)($serviziPreview['total'] ?? 0);
@@ -1196,6 +1186,7 @@ switch ($action) {
         $checkin = $_POST['data_checkin'] ?? null;
         $checkout = $_POST['data_checkout'] ?? null;
         $pasto = $_POST['piano_pasto_sigla'] ?? null;
+        $numeroOspiti = max(1, (int)($_POST['numero_ospiti'] ?? 1));
         if (!$checkin || !$checkout) {
             json_response(false, 'Parametri mancanti per il calcolo prezzi tipologie');
         }
@@ -1212,7 +1203,7 @@ switch ($action) {
             }
         } else {
             foreach ($tipologie as $tipologia) {
-                $preview = get_camera_pricing_preview($mysqli, 0, $tipologia['codice'] ?? null, $pasto, $checkin, $checkout);
+                $preview = get_camera_pricing_preview($mysqli, 0, $tipologia['codice'] ?? null, $pasto, $checkin, $checkout, [], false, $numeroOspiti);
                 $prices[$tipologia['id']] = [
                     'total' => $preview['total'] ?? 0.0,
                     'currency' => null,

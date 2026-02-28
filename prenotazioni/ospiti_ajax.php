@@ -55,7 +55,6 @@ function list_guests(mysqli $db, int $soggiornoId): void {
             " . (column_exists($db,'soggiorni_clienti','nazionalita') ? "nazionalita," : "") . "
             " . (column_exists($db,'soggiorni_clienti','documento_tipo') ? "documento_tipo," : "") . "
             " . (column_exists($db,'soggiorni_clienti','documento_numero') ? "documento_numero," : "") . "
-            " . (column_exists($db,'soggiorni_clienti','eta') ? "eta," : "") . "
             " . (column_exists($db,'soggiorni_clienti','esenzione_motivo_salute') ? "esenzione_motivo_salute," : "") . "
             " . (column_exists($db,'soggiorni_clienti','esenzione_accompagnatore_sanitario') ? "esenzione_accompagnatore_sanitario," : "") . "
             " . (column_exists($db,'soggiorni_clienti','esenzione_disabilita') ? "esenzione_disabilita," : "") . "
