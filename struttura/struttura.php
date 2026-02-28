@@ -1,40 +1,18 @@
 <?php
+declare(strict_types=1);
+
 require_once __DIR__ . '/../config/db.php';
 require_once __DIR__ . '/../includes/helpers.php';
 require_once __DIR__ . '/struttura_status.php';
 
-/* fallback se in helpers non esiste require_root */
-if (!function_exists('require_root')) { function require_root(){} }
 require_root();
-
 include __DIR__ . '/../includes/header.php';
 
 $edificio_id = (int)($_GET['edificio_id'] ?? 0);
 $piano_id    = (int)($_GET['piano_id'] ?? 0);
 
-if (!function_exists('table_exists')) {
-  function table_exists(mysqli $db, string $table): bool {
-    $safe = $db->real_escape_string($table);
-    $res = $db->query("SHOW TABLES LIKE '{$safe}'");
-    return $res && $res->num_rows > 0;
-  }
-}
-if (!function_exists('column_exists')) {
-  function column_exists(mysqli $db, string $table, string $column): bool {
-    $safeTable = $db->real_escape_string($table);
-    $safeColumn = $db->real_escape_string($column);
-    $res = $db->query("SHOW COLUMNS FROM `{$safeTable}` LIKE '{$safeColumn}'");
-    return $res && $res->num_rows > 0;
-  }
-}
-
-$has_tipologie_letti = column_exists($mysqli, 'struttura_camere', 'id_tipologia_letti');
-$tipologie_table = null;
-if (table_exists($mysqli, 'soggiorni_tipologie_letti')) {
-  $tipologie_table = 'soggiorni_tipologie_letti';
-} elseif (table_exists($mysqli, 'soggiorni_tariffe')) {
-  $tipologie_table = 'soggiorni_tariffe';
-}
+/* Schema fisso (come da screenshot struttura_camere) */
+$has_tipologie_letti = true; // se vuoi: metti false per nascondere la select in modal camera
 ?>
 
 <style>
@@ -114,15 +92,6 @@ if (table_exists($mysqli, 'soggiorni_tipologie_letti')) {
 
   /* modale */
   .form-hint{ font-size:.8rem; color:#6c757d; }
-  .tipologie-list .tipologia-row{
-    display:flex; align-items:center; justify-content:space-between; gap:12px;
-    padding:10px 12px; border-radius:12px;
-    border:1px solid rgba(0,0,0,.06);
-    background:#fff;
-    margin-bottom:10px;
-  }
-  .tipologie-list .tipologia-row:last-child{ margin-bottom:0; }
-  .tipologia-meta{ font-size:.8rem; color:#6c757d; }
 </style>
 
 <div class="container-fluid">
@@ -177,11 +146,6 @@ if (table_exists($mysqli, 'soggiorni_tipologie_letti')) {
           <div class="subtitle" id="subtitleCamere">Seleziona un piano</div>
         </div>
         <div class="d-flex gap-2">
-          <?php if ($tipologie_table) : ?>
-            <button class="btn btn-outline-secondary btn-plus" id="btnTipologieLetti" title="Gestisci tipologie letti">
-              <i class="bi bi-layers"></i>
-            </button>
-          <?php endif; ?>
           <button class="btn btn-primary btn-plus" id="btnNewCamera" title="Nuova camera" disabled>
             <i class="bi bi-plus-circle"></i>
           </button>
@@ -194,7 +158,7 @@ if (table_exists($mysqli, 'soggiorni_tipologie_letti')) {
   </div>
 </div>
 
-<!-- Modal cascata (toggle attivo/disattivo) -->
+<!-- Modal cascata -->
 <div class="modal fade" id="modalCascade" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
@@ -230,37 +194,24 @@ if (table_exists($mysqli, 'soggiorni_tipologie_letti')) {
         <input type="hidden" name="edificio_id" id="editEdificioId" value="">
         <input type="hidden" name="piano_id" id="editPianoId" value="">
 
-        <!-- comune (solo edificio/piano) -->
         <div class="mb-3" id="groupNome">
           <label class="form-label">Nome</label>
           <input type="text" class="form-control" name="nome" id="editNome" maxlength="120" required>
           <div class="form-hint">Esempio: Depandance, Piano 1…</div>
         </div>
 
-        <!-- CAMERA fields (solo codice) -->
+        <!-- CAMERA fields -->
         <div id="cameraFields" style="display:none">
           <div class="mb-3">
-            <label class="form-label">Numero / Codice camera</label>
+            <label class="form-label">Camera</label>
             <input type="text" class="form-control" name="codice" id="editCodice" maxlength="30">
             <div class="form-hint">Esempio: 401 (oppure A12)</div>
           </div>
 
-          <div class="mb-3">
-            <input type="hidden" name="capienza_base" id="editPosti">
-          </div>
-
           <?php if ($has_tipologie_letti) : ?>
             <div class="mb-3" id="groupTipologiaLetti">
-              <label class="form-label">Capienza massima</label>
-              <div class="d-flex gap-2">
-                <select class="form-select" name="id_tipologia_letti" id="editTipologiaLetti" required></select>
-                <?php if ($tipologie_table) : ?>
-                  <button type="button" class="btn btn-outline-secondary" id="btnTipologieLettiInline" title="Gestisci tipologie letti">
-                    <i class="bi bi-pencil-square"></i>
-                  </button>
-                <?php endif; ?>
-              </div>
-              <div class="form-hint">Seleziona la capienza massima della camera.</div>
+              <label class="form-label">Tipologia letti</label>
+              <select class="form-select" name="id_tipologia_letti" id="editTipologiaLetti" required></select>
             </div>
           <?php endif; ?>
 
@@ -273,12 +224,10 @@ if (table_exists($mysqli, 'soggiorni_tipologie_letti')) {
         <div class="alert alert-danger d-none" id="editErr"></div>
         <div class="alert alert-success d-none" id="editOk"></div>
 
-        <!-- NOTE (per tutti) -->
         <div class="mb-3" id="groupNote">
           <label class="form-label">Note</label>
           <textarea class="form-control" name="note" id="editNote" rows="3" maxlength="2000"
             placeholder="Note interne…"></textarea>
-          <div class="form-hint">Note interne (non visibili all’ospite).</div>
         </div>
 
       </div>
@@ -294,83 +243,6 @@ if (table_exists($mysqli, 'soggiorni_tipologie_letti')) {
   </div>
 </div>
 
-<!-- Modal Tipologie Letti -->
-<?php if ($tipologie_table) : ?>
-  <div class="modal fade" id="modalTipologieLetti" tabindex="-1" aria-hidden="true"
-    data-tipologie-table="<?= h($tipologie_table) ?>">
-    <div class="modal-dialog modal-lg modal-dialog-centered">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title"><i class="bi bi-layers"></i> Tipologie letti</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Chiudi"></button>
-        </div>
-        <div class="modal-body">
-          <div class="tipologie-list mb-4" id="tipologieLettiList">
-            <div class="muted-empty">Caricamento…</div>
-          </div>
-
-          <form id="formTipologiaLetto" autocomplete="off">
-            <input type="hidden" id="tipologiaLettoId" value="">
-            <div class="row g-3">
-              <div class="col-md-4">
-                <label class="form-label">Codice</label>
-                <input type="text" class="form-control" id="tipologiaLettoCodice" maxlength="75" required>
-              </div>
-              <div class="col-md-8">
-                <label class="form-label">Descrizione</label>
-                <input type="text" class="form-control" id="tipologiaLettoDescrizione" maxlength="255">
-              </div>
-
-              <div class="col-md-4 tipologie-tariffe-only">
-                <label class="form-label">Data da</label>
-                <input type="date" class="form-control" id="tipologiaLettoDataDa" required>
-              </div>
-              <div class="col-md-4 tipologie-tariffe-only">
-                <label class="form-label">Data a</label>
-                <input type="date" class="form-control" id="tipologiaLettoDataA">
-              </div>
-              <div class="col-md-4 tipologie-tariffe-only">
-                <label class="form-label">Valuta</label>
-                <input type="text" class="form-control" id="tipologiaLettoValuta" maxlength="3" value="EUR" required>
-              </div>
-
-              <div class="col-md-3 tipologie-tariffe-only">
-                <label class="form-label">Prezzo solo pernott.</label>
-                <input type="number" class="form-control" id="tipologiaLettoPrezzoSp" step="0.01" min="0" required>
-              </div>
-              <div class="col-md-3 tipologie-tariffe-only">
-                <label class="form-label">Prezzo BB</label>
-                <input type="number" class="form-control" id="tipologiaLettoPrezzoBb" step="0.01" min="0" required>
-              </div>
-              <div class="col-md-3 tipologie-tariffe-only">
-                <label class="form-label">Prezzo HB</label>
-                <input type="number" class="form-control" id="tipologiaLettoPrezzoHb" step="0.01" min="0" required>
-              </div>
-              <div class="col-md-3 tipologie-tariffe-only">
-                <label class="form-label">Prezzo FB</label>
-                <input type="number" class="form-control" id="tipologiaLettoPrezzoFb" step="0.01" min="0" required>
-              </div>
-
-              <div class="col-12">
-                <label class="form-label">Note</label>
-                <textarea class="form-control" id="tipologiaLettoNote" rows="2" maxlength="2000"></textarea>
-              </div>
-            </div>
-
-            <div class="alert alert-danger d-none mt-3" id="tipologiaLettoErr"></div>
-            <div class="alert alert-success d-none mt-3" id="tipologiaLettoOk"></div>
-
-            <div class="d-flex justify-content-end gap-2 mt-3">
-              <button type="button" class="btn btn-outline-secondary" id="btnTipologiaLettoReset">Annulla</button>
-              <button type="submit" class="btn btn-primary" id="btnTipologiaLettoSave">Salva tipologia</button>
-            </div>
-          </form>
-        </div>
-      </div>
-    </div>
-  </div>
-<?php endif; ?>
-
 <!-- Modal DELETE -->
 <div class="modal fade" id="modalDelete" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
@@ -382,7 +254,6 @@ if (table_exists($mysqli, 'soggiorni_tipologie_letti')) {
       <div class="modal-body">
         <div id="delMsg">Confermi eliminazione?</div>
         <div class="small text-muted" id="delHint"></div>
-
         <input type="hidden" id="delTipo" value="">
         <input type="hidden" id="delId" value="">
       </div>
@@ -570,8 +441,34 @@ if (table_exists($mysqli, 'soggiorni_tipologie_letti')) {
     };
   }
 
+  // === Bootstrap loader robusto (fallback CDN se manca) ===
+  function ensureBootstrap(){
+    return new Promise((resolve) => {
+      if (window.bootstrap?.Modal) return resolve(window.bootstrap);
+
+      const existing = document.querySelector('script[data-bs-autoload="1"]');
+      if (existing) {
+        existing.addEventListener('load', () => resolve(window.bootstrap || null));
+        existing.addEventListener('error', () => resolve(null));
+        setTimeout(() => resolve(window.bootstrap || null), 2500);
+        return;
+      }
+
+      const s = document.createElement('script');
+      s.src = 'https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js';
+      s.async = true;
+      s.dataset.bsAutoload = '1';
+      s.onload = () => resolve(window.bootstrap || null);
+      s.onerror = () => resolve(null);
+      document.head.appendChild(s);
+
+      setTimeout(() => resolve(window.bootstrap || null), 2500);
+    });
+  }
+
   const CASCADE = 'always';
 
+  // === riferimenti DOM (come li hai già) ===
   const modalEl = document.getElementById('modalCascade');
   const msgEl   = document.getElementById('cascadeMsg');
   const hintEl  = document.getElementById('cascadeHint');
@@ -599,33 +496,10 @@ if (table_exists($mysqli, 'soggiorni_tipologie_letti')) {
 
   const cameraFields = document.getElementById('cameraFields');
   const editCodice   = document.getElementById('editCodice');
-  const editPosti    = document.getElementById('editPosti');
   const editDisabili = document.getElementById('editDisabili');
+
   const editTipologiaLetti = document.getElementById('editTipologiaLetti');
   const groupTipologiaLetti = document.getElementById('groupTipologiaLetti');
-
-  const btnTipologieLetti = document.getElementById('btnTipologieLetti');
-  const btnTipologieLettiInline = document.getElementById('btnTipologieLettiInline');
-
-  const modalTipologieEl = document.getElementById('modalTipologieLetti');
-  const tipologieTable = modalTipologieEl?.dataset.tipologieTable || '';
-  const tipologieListEl = document.getElementById('tipologieLettiList');
-  const formTipologiaLetto = document.getElementById('formTipologiaLetto');
-  const tipologiaLettoId = document.getElementById('tipologiaLettoId');
-  const tipologiaLettoCodice = document.getElementById('tipologiaLettoCodice');
-  const tipologiaLettoDescrizione = document.getElementById('tipologiaLettoDescrizione');
-  const tipologiaLettoDataDa = document.getElementById('tipologiaLettoDataDa');
-  const tipologiaLettoDataA = document.getElementById('tipologiaLettoDataA');
-  const tipologiaLettoPrezzoSp = document.getElementById('tipologiaLettoPrezzoSp');
-  const tipologiaLettoPrezzoBb = document.getElementById('tipologiaLettoPrezzoBb');
-  const tipologiaLettoPrezzoHb = document.getElementById('tipologiaLettoPrezzoHb');
-  const tipologiaLettoPrezzoFb = document.getElementById('tipologiaLettoPrezzoFb');
-  const tipologiaLettoValuta = document.getElementById('tipologiaLettoValuta');
-  const tipologiaLettoNote = document.getElementById('tipologiaLettoNote');
-  const tipologiaLettoErr = document.getElementById('tipologiaLettoErr');
-  const tipologiaLettoOk = document.getElementById('tipologiaLettoOk');
-  const btnTipologiaLettoReset = document.getElementById('btnTipologiaLettoReset');
-  const btnTipologiaLettoSave = document.getElementById('btnTipologiaLettoSave');
 
   const modalDelEl   = document.getElementById('modalDelete');
   const delMsg       = document.getElementById('delMsg');
@@ -638,9 +512,45 @@ if (table_exists($mysqli, 'soggiorni_tipologie_letti')) {
   let modal = null;
   let modalEdit = null;
   let modalDelete = null;
-  let modalTipologie = null;
   let pending = null;
+
+  // === Tipologie letti: solo select (senza modale) ===
   let tipologieCache = [];
+  async function loadTipologieLetti(force=false){
+    if (tipologieCache.length && !force) return tipologieCache;
+
+    const res = await safeFetch('tipologie_letti_ajax.php', {
+      headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    });
+
+    const txt = await res.text();
+    let j;
+    try { j = JSON.parse(txt); } catch(e){ throw new Error('Risposta non JSON: ' + txt.slice(0,300)); }
+    if (!j || !j.ok) throw new Error(j.msg || 'Errore caricamento tipologie letti');
+
+    tipologieCache = Array.isArray(j.rows) ? j.rows : [];
+    return tipologieCache;
+  }
+
+  function renderTipologieSelect(rows, selectedId){
+    if (!editTipologiaLetti) return;
+
+    editTipologiaLetti.innerHTML = '';
+    editTipologiaLetti.disabled = false;
+
+    const opt0 = document.createElement('option');
+    opt0.value = '';
+    opt0.textContent = 'Seleziona tipologia';
+    editTipologiaLetti.appendChild(opt0);
+
+    rows.forEach((row) => {
+      const opt = document.createElement('option');
+      opt.value = String(row.id);
+      opt.textContent = row.descrizione ? `${row.codice} - ${row.descrizione}` : (row.codice || '');
+      if (selectedId && String(selectedId) === String(row.id)) opt.selected = true;
+      editTipologiaLetti.appendChild(opt);
+    });
+  }
 
   function showErr(msg){
     editErr.textContent = msg || 'Errore';
@@ -657,140 +567,10 @@ if (table_exists($mysqli, 'soggiorni_tipologie_letti')) {
     editOk.classList.add('d-none'); editOk.textContent='';
   }
 
-  function clearTipologiaMsgs(){
-    if (!tipologiaLettoErr || !tipologiaLettoOk) return;
-    tipologiaLettoErr.classList.add('d-none');
-    tipologiaLettoErr.textContent = '';
-    tipologiaLettoOk.classList.add('d-none');
-    tipologiaLettoOk.textContent = '';
-  }
-
-  function escapeHtml(text){
-    return String(text ?? '')
-      .replaceAll('&', '&amp;')
-      .replaceAll('<', '&lt;')
-      .replaceAll('>', '&gt;')
-      .replaceAll('"', '&quot;')
-      .replaceAll("'", '&#039;');
-  }
-
-  function showTipologiaErr(msg){
-    if (!tipologiaLettoErr) return;
-    tipologiaLettoErr.textContent = msg || 'Errore';
-    tipologiaLettoErr.classList.remove('d-none');
-    tipologiaLettoOk?.classList.add('d-none');
-  }
-
-  function showTipologiaOk(msg){
-    if (!tipologiaLettoOk) return;
-    tipologiaLettoOk.textContent = msg || 'Salvato';
-    tipologiaLettoOk.classList.remove('d-none');
-    tipologiaLettoErr?.classList.add('d-none');
-  }
-
   const reloadUI = guard(async function reloadUI(){
-    if (typeof window.loadEdifici !== 'function') return;
-    await window.loadEdifici();
-    if (window.edificioSel && typeof window.loadPiani === 'function') await window.loadPiani();
-    else document.getElementById('piani').innerHTML = "<div class='muted-empty'>—</div>";
-    if (window.pianoSel && typeof window.loadCamere === 'function') await window.loadCamere();
-    else document.getElementById('camere').innerHTML = "<div class='muted-empty'>—</div>";
-  });
-
-  const loadTipologieLetti = guard(async function loadTipologieLetti(force = false){
-    if (!tipologieTable || !tipologieListEl) return [];
-    if (tipologieCache.length && !force) return tipologieCache;
-    const res = await safeFetch('tipologie_letti_ajax.php', {
-      headers: { 'X-Requested-With': 'XMLHttpRequest' }
-    });
-    const txt = await res.text();
-    let j;
-    try { j = JSON.parse(txt); } catch(e){ throw new Error('Risposta non JSON: ' + txt.slice(0,400)); }
-    if (!j || !j.ok) throw new Error(j.msg || 'Errore caricamento tipologie letti');
-    tipologieCache = Array.isArray(j.rows) ? j.rows : [];
-    return tipologieCache;
-  });
-
-  function renderTipologieList(rows){
-    if (!tipologieListEl) return;
-    if (!rows.length) {
-      tipologieListEl.innerHTML = '<div class="muted-empty">Nessuna tipologia letti.</div>';
-      return;
-    }
-    tipologieListEl.innerHTML = rows.map((row) => {
-      const descr = row.descrizione ? `<div class="tipologia-meta">${escapeHtml(row.descrizione)}</div>` : '';
-      const meta = row.prezzo_solo_pernottamento !== null && row.prezzo_solo_pernottamento !== undefined
-        ? `<div class="tipologia-meta">SP: ${escapeHtml(row.prezzo_solo_pernottamento)} ${escapeHtml(row.valuta || '')}</div>`
-        : '';
-      return `<div class="tipologia-row" data-id="${row.id}">
-          <div>
-            <div><b>${escapeHtml(row.codice || '')}</b></div>
-            ${descr}
-            ${meta}
-          </div>
-          <div class="d-flex gap-2">
-            <button type="button" class="btn btn-outline-primary btn-mini js-tipologia-edit" data-id="${row.id}">
-              <i class="bi bi-pencil"></i>
-            </button>
-            <button type="button" class="btn btn-outline-danger btn-mini js-tipologia-delete" data-id="${row.id}">
-              <i class="bi bi-trash"></i>
-            </button>
-          </div>
-        </div>`;
-    }).join('');
-  }
-
-  function renderTipologieSelect(rows, selectedId){
-    if (!editTipologiaLetti) return;
-    editTipologiaLetti.innerHTML = '';
-    if (!rows.length) {
-      editTipologiaLetti.disabled = true;
-      editTipologiaLetti.innerHTML = '<option value="">Nessuna tipologia disponibile</option>';
-      return;
-    }
-    editTipologiaLetti.disabled = false;
-    editTipologiaLetti.innerHTML = '<option value="">Seleziona tipologia</option>';
-    rows.forEach((row) => {
-      const label = row.descrizione ? `${row.codice} - ${row.descrizione}` : row.codice;
-      const opt = document.createElement('option');
-      opt.value = String(row.id);
-      opt.textContent = label;
-      if (selectedId && String(selectedId) === String(row.id)) opt.selected = true;
-      editTipologiaLetti.appendChild(opt);
-    });
-  }
-
-  function resetTipologiaForm(){
-    if (!formTipologiaLetto) return;
-    tipologiaLettoId.value = '';
-    tipologiaLettoCodice.value = '';
-    tipologiaLettoDescrizione.value = '';
-    if (tipologiaLettoDataDa) tipologiaLettoDataDa.value = '';
-    if (tipologiaLettoDataA) tipologiaLettoDataA.value = '';
-    if (tipologiaLettoPrezzoSp) tipologiaLettoPrezzoSp.value = '';
-    if (tipologiaLettoPrezzoBb) tipologiaLettoPrezzoBb.value = '';
-    if (tipologiaLettoPrezzoHb) tipologiaLettoPrezzoHb.value = '';
-    if (tipologiaLettoPrezzoFb) tipologiaLettoPrezzoFb.value = '';
-    if (tipologiaLettoValuta) tipologiaLettoValuta.value = 'EUR';
-    if (tipologiaLettoNote) tipologiaLettoNote.value = '';
-    clearTipologiaMsgs();
-  }
-
-  function applyTipologieFormVisibility(){
-    if (!modalTipologieEl) return;
-    const isTariffe = tipologieTable === 'soggiorni_tariffe';
-    modalTipologieEl.querySelectorAll('.tipologie-tariffe-only').forEach((el) => {
-      el.style.display = isTariffe ? '' : 'none';
-    });
-  }
-
-  const openTipologieModal = guard(async function openTipologieModal(){
-    if (!modalTipologieEl || !modalTipologie) return;
-    applyTipologieFormVisibility();
-    resetTipologiaForm();
-    const rows = await loadTipologieLetti(true);
-    renderTipologieList(rows);
-    modalTipologie.show();
+    await window.loadEdifici?.();
+    if (window.edificioSel) await window.loadPiani?.();
+    if (window.pianoSel) await window.loadCamere?.();
   });
 
   async function previewCascade(tipo, id, val){
@@ -808,7 +588,7 @@ if (table_exists($mysqli, 'soggiorni_tipologie_letti')) {
 
     const txt = await res.text();
     let j;
-    try { j = JSON.parse(txt); } catch(e){ throw new Error('Risposta non JSON: ' + txt.slice(0,400)); }
+    try { j = JSON.parse(txt); } catch(e){ throw new Error('Risposta non JSON: ' + txt.slice(0,300)); }
     if(!j || !j.ok) throw new Error(j.msg || 'Errore preview');
     return j;
   }
@@ -828,17 +608,14 @@ if (table_exists($mysqli, 'soggiorni_tipologie_letti')) {
 
     const txt = await res.text();
     let j;
-    try { j = JSON.parse(txt); } catch(e){ throw new Error('Risposta non JSON: ' + txt.slice(0,400)); }
+    try { j = JSON.parse(txt); } catch(e){ throw new Error('Risposta non JSON: ' + txt.slice(0,300)); }
     if(!j || !j.ok) throw new Error(j.msg || 'Errore salvataggio');
     return j;
   }
 
   async function doUpdate(payload){
     const fd = new FormData();
-    Object.entries(payload).forEach(([k,v]) => {
-      if (v === null || v === undefined) return;
-      fd.append(k, String(v));
-    });
+    Object.entries(payload).forEach(([k,v]) => { if (v !== null && v !== undefined) fd.append(k, String(v)); });
 
     const res = await safeFetch('struttura_edit_ajax.php', {
       method: 'POST',
@@ -848,17 +625,14 @@ if (table_exists($mysqli, 'soggiorni_tipologie_letti')) {
 
     const txt = await res.text();
     let j;
-    try { j = JSON.parse(txt); } catch(e){ throw new Error('Risposta non JSON: ' + txt.slice(0,400)); }
+    try { j = JSON.parse(txt); } catch(e){ throw new Error('Risposta non JSON: ' + txt.slice(0,300)); }
     if(!j || !j.ok) throw new Error(j.msg || 'Errore salvataggio');
     return j;
   }
 
   async function doCreate(payload){
     const fd = new FormData();
-    Object.entries(payload).forEach(([k,v]) => {
-      if (v === null || v === undefined) return;
-      fd.append(k, String(v));
-    });
+    Object.entries(payload).forEach(([k,v]) => { if (v !== null && v !== undefined) fd.append(k, String(v)); });
 
     const res = await safeFetch('struttura_create_ajax.php', {
       method: 'POST',
@@ -868,7 +642,7 @@ if (table_exists($mysqli, 'soggiorni_tipologie_letti')) {
 
     const txt = await res.text();
     let j;
-    try { j = JSON.parse(txt); } catch(e){ throw new Error('Risposta non JSON: ' + txt.slice(0,400)); }
+    try { j = JSON.parse(txt); } catch(e){ throw new Error('Risposta non JSON: ' + txt.slice(0,300)); }
     if(!j || !j.ok) throw new Error(j.msg || 'Errore creazione');
     return j;
   }
@@ -886,7 +660,7 @@ if (table_exists($mysqli, 'soggiorni_tipologie_letti')) {
 
     const txt = await res.text();
     let j;
-    try { j = JSON.parse(txt); } catch(e){ throw new Error('Risposta non JSON: ' + txt.slice(0,400)); }
+    try { j = JSON.parse(txt); } catch(e){ throw new Error('Risposta non JSON: ' + txt.slice(0,300)); }
     if(!j || !j.ok) throw new Error(j.msg || 'Errore eliminazione');
     return j;
   }
@@ -900,12 +674,7 @@ if (table_exists($mysqli, 'soggiorni_tipologie_letti')) {
     const turningOff = (pre.val === 0);
     const counts = pre.counts || {piani:0, camere:0};
 
-    if (!pre.doCascade) {
-      return {
-        title: turningOff ? 'Stai disattivando un elemento.' : 'Stai attivando un elemento.',
-        hint: 'L’operazione non coinvolge elementi collegati.'
-      };
-    }
+    if (!pre.doCascade) return { title: turningOff ? 'Stai disattivando un elemento.' : 'Stai attivando un elemento.', hint: 'Operazione senza cascade.' };
 
     if (pre.tipo === 'edificio') {
       return {
@@ -915,7 +684,6 @@ if (table_exists($mysqli, 'soggiorni_tipologie_letti')) {
         hint: 'Confermi di procedere?'
       };
     }
-
     if (pre.tipo === 'piano') {
       return {
         title: turningOff
@@ -924,32 +692,7 @@ if (table_exists($mysqli, 'soggiorni_tipologie_letti')) {
         hint: 'Confermi di procedere?'
       };
     }
-
     return { title:'Confermi l’operazione?', hint:'' };
-  }
-
-  function ensureBootstrap(){
-    return new Promise((resolve) => {
-      if (window.bootstrap) return resolve(window.bootstrap);
-
-      const done = (bs) => resolve(bs || null);
-      const existing = document.querySelector('script[data-bs-autoload]');
-      if (existing) {
-        existing.addEventListener('load', () => done(window.bootstrap));
-        existing.addEventListener('error', () => done(null));
-        setTimeout(() => done(window.bootstrap || null), 2500);
-        return;
-      }
-
-      const s = document.createElement('script');
-      s.src = 'https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js';
-      s.async = true;
-      s.dataset.bsAutoload = '1';
-      s.onload = () => done(window.bootstrap);
-      s.onerror = () => done(null);
-      document.head.appendChild(s);
-      setTimeout(() => done(window.bootstrap || null), 2500);
-    });
   }
 
   function configureEditModal(tipo){
@@ -958,35 +701,32 @@ if (table_exists($mysqli, 'soggiorni_tipologie_letti')) {
 
     editNome.value = '';
     editCodice.value = '';
-    editPosti.value = '';
     editDisabili.checked = false;
     editNote.value = '';
-    if (editTipologiaLetti) {
-      editTipologiaLetti.innerHTML = '<option value="">Caricamento…</option>';
-      editTipologiaLetti.disabled = true;
-      if (!tipologieTable) {
-        renderTipologieSelect([], null);
-      }
-    }
 
     const isCamera = (tipo === 'camera');
-
     cameraFields.style.display = isCamera ? '' : 'none';
-    groupNome.style.display = isCamera ? 'none' : '';   // camera NO nome
-    groupNote.style.display = ''; // note SEMPRE visibile
+    groupNome.style.display = isCamera ? 'none' : '';
+    groupNote.style.display = '';
     if (groupTipologiaLetti) groupTipologiaLetti.style.display = isCamera ? '' : 'none';
 
     editNome.required = !isCamera;
 
-    if (tipo === 'piano') {
-      editEdificio.value = String(window.edificioSel || '');
-    } else if (tipo === 'camera') {
-      editPiano.value = String(window.pianoSel || '');
+    editEdificio.value = '';
+    editPiano.value = '';
+    if (tipo === 'piano') editEdificio.value = String(window.edificioSel || '');
+    if (tipo === 'camera') editPiano.value = String(window.pianoSel || '');
+
+    // select tipologia: placeholder
+    if (editTipologiaLetti) {
+      editTipologiaLetti.disabled = true;
+      editTipologiaLetti.innerHTML = '<option value="">Caricamento…</option>';
     }
   }
 
   window.openCreateModal = function(tipo){
     configureEditModal(tipo);
+
     editMode.value = 'create';
     editId.value = '';
     editTitle.innerHTML = '<i class="bi bi-plus-circle"></i> Nuovo ' + (tipo === 'edificio' ? 'edificio' : (tipo === 'piano' ? 'piano' : 'camera'));
@@ -994,8 +734,8 @@ if (table_exists($mysqli, 'soggiorni_tipologie_letti')) {
     if (tipo === 'piano' && !window.edificioSel) return;
     if (tipo === 'camera' && !window.pianoSel) return;
 
-    if (tipo === 'camera' && editTipologiaLetti) {
-      loadTipologieLetti(true).then((rows) => renderTipologieSelect(rows, null));
+    if (tipo === 'camera') {
+      loadTipologieLetti(false).then((rows) => renderTipologieSelect(rows, null));
     }
 
     modalEdit?.show();
@@ -1004,8 +744,6 @@ if (table_exists($mysqli, 'soggiorni_tipologie_letti')) {
   function openEditFromButton(btn){
     const tipo = btn.dataset.tipo || '';
     const id   = parseInt(btn.dataset.id || '0', 10);
-
-    // prendiamo NOTE (e anche NOME) dal container .item: più robusto
     const item = btn.closest('.item');
 
     configureEditModal(tipo);
@@ -1014,22 +752,18 @@ if (table_exists($mysqli, 'soggiorni_tipologie_letti')) {
 
     editTitle.innerHTML = '<i class="bi bi-pencil-square"></i> Modifica ' + (tipo === 'edificio' ? 'edificio' : (tipo === 'piano' ? 'piano' : 'camera'));
 
-    // note sempre
     editNote.value = (item?.dataset.note || btn.dataset.note || '').trim();
 
-    // nome solo edificio/piano
     if (tipo !== 'camera') {
       editNome.value = (item?.dataset.nome || btn.dataset.nome || btn.dataset.label || '').trim();
     }
 
     if (tipo === 'camera') {
       editCodice.value = (item?.dataset.codice || btn.dataset.codice || '').trim();
-      editPosti.value  = (item?.dataset.capienza || btn.dataset.capienza || btn.dataset.posti || '').trim();
       editDisabili.checked = (String(item?.dataset.disabili || btn.dataset.disabili || '0') === '1');
+
       const tipologiaId = (item?.dataset.tipologiaId || btn.dataset.tipologiaId || '').trim();
-      if (editTipologiaLetti) {
-        loadTipologieLetti(true).then((rows) => renderTipologieSelect(rows, tipologiaId));
-      }
+      loadTipologieLetti(false).then((rows) => renderTipologieSelect(rows, tipologiaId));
     }
 
     modalEdit?.show();
@@ -1051,7 +785,16 @@ if (table_exists($mysqli, 'soggiorni_tipologie_letti')) {
     modalDelete?.show();
   }
 
+  // === eventi ===
   function initInteractions(){
+    root.addEventListener('click', guard(async (e) => {
+      const editBtn = e.target.closest('.js-edit');
+      if (editBtn) { e.stopPropagation(); openEditFromButton(editBtn); return; }
+
+      const delBtn = e.target.closest('.js-delete');
+      if (delBtn) { e.stopPropagation(); openDeleteFromButton(delBtn); return; }
+    }));
+
     root.addEventListener('change', async (e) => {
       const sw = e.target.closest('.js-toggle-attivo');
       if (!sw) return;
@@ -1060,14 +803,10 @@ if (table_exists($mysqli, 'soggiorni_tipologie_letti')) {
       const id   = parseInt(sw.dataset.id, 10);
       const val  = sw.checked ? 1 : 0;
 
-      const hasModal = !!modal;
-
       let mustAsk = false;
-      if (tipo === 'edificio' || tipo === 'piano') {
-        mustAsk = (CASCADE === 'always') || (CASCADE === 'off_only' && val === 0);
-      }
+      if (tipo === 'edificio' || tipo === 'piano') mustAsk = (CASCADE === 'always') || (CASCADE === 'off_only' && val === 0);
 
-      if (mustAsk && hasModal) {
+      if (mustAsk && modal) {
         setSaving(sw, true);
         try {
           const pre = await previewCascade(tipo, id, val);
@@ -1102,70 +841,6 @@ if (table_exists($mysqli, 'soggiorni_tipologie_letti')) {
       }
     });
 
-    root.addEventListener('click', guard(async (e) => {
-      const editBtn = e.target.closest('.js-edit');
-      if (editBtn) {
-        e.stopPropagation();
-        openEditFromButton(editBtn);
-        return;
-      }
-
-      const delBtn = e.target.closest('.js-delete');
-      if (delBtn) {
-        e.stopPropagation();
-        openDeleteFromButton(delBtn);
-        return;
-      }
-
-      const tipologiaEditBtn = e.target.closest('.js-tipologia-edit');
-      if (tipologiaEditBtn) {
-        e.stopPropagation();
-        const id = parseInt(tipologiaEditBtn.dataset.id || '0', 10);
-        const row = tipologieCache.find((r) => String(r.id) === String(id));
-        if (!row) return;
-        tipologiaLettoId.value = String(row.id || '');
-        tipologiaLettoCodice.value = row.codice || '';
-        tipologiaLettoDescrizione.value = row.descrizione || '';
-        if (tipologiaLettoDataDa) tipologiaLettoDataDa.value = row.data_da || '';
-        if (tipologiaLettoDataA) tipologiaLettoDataA.value = row.data_a || '';
-        if (tipologiaLettoPrezzoSp) tipologiaLettoPrezzoSp.value = row.prezzo_solo_pernottamento ?? '';
-        if (tipologiaLettoPrezzoBb) tipologiaLettoPrezzoBb.value = row.prezzo_BB ?? '';
-        if (tipologiaLettoPrezzoHb) tipologiaLettoPrezzoHb.value = row.prezzo_HB ?? '';
-        if (tipologiaLettoPrezzoFb) tipologiaLettoPrezzoFb.value = row.prezzo_FB ?? '';
-        if (tipologiaLettoValuta) tipologiaLettoValuta.value = row.valuta || 'EUR';
-        if (tipologiaLettoNote) tipologiaLettoNote.value = row.note || '';
-        clearTipologiaMsgs();
-        return;
-      }
-
-      const tipologiaDeleteBtn = e.target.closest('.js-tipologia-delete');
-      if (tipologiaDeleteBtn) {
-        e.stopPropagation();
-        const id = parseInt(tipologiaDeleteBtn.dataset.id || '0', 10);
-        if (!id) return;
-        if (!confirm('Confermi eliminazione della tipologia letti?')) return;
-        try {
-          const fd = new FormData();
-          fd.append('id', String(id));
-          const res = await safeFetch('tipologie_letti_delete_ajax.php', {
-            method: 'POST',
-            body: fd,
-            headers: { 'X-Requested-With': 'XMLHttpRequest' }
-          });
-          const txt = await res.text();
-          let j;
-          try { j = JSON.parse(txt); } catch(e){ throw new Error('Risposta non JSON: ' + txt.slice(0,400)); }
-          if (!j || !j.ok) throw new Error(j.msg || 'Errore eliminazione tipologia');
-          const rows = await loadTipologieLetti(true);
-          renderTipologieList(rows);
-          renderTipologieSelect(rows, editTipologiaLetti?.value || '');
-        } catch (err) {
-          alert(err.message || 'Errore eliminazione tipologia');
-        }
-        return;
-      }
-    }));
-
     formEdit.addEventListener('submit', guard(async (e) => {
       e.preventDefault();
       clearMsgs();
@@ -1181,33 +856,18 @@ if (table_exists($mysqli, 'soggiorni_tipologie_letti')) {
         note: editNote.value.trim()
       };
 
-      if (tipo !== 'camera') {
-        payload.nome = editNome.value.trim();
-      }
+      if (tipo !== 'camera') payload.nome = editNome.value.trim();
 
       if (tipo === 'camera') {
         payload.codice = editCodice.value.trim();
-        payload.capienza_base = editPosti.value ? parseInt(editPosti.value,10) : '';
-        const disVal = editDisabili.checked ? 1 : 0;
-        payload.accessibile_disabili = disVal;
-        payload.disabili = disVal;
-        if (editTipologiaLetti) {
-          payload.id_tipologia_letti = editTipologiaLetti.value || '';
-        }
+        payload.accessibile_disabili = editDisabili.checked ? 1 : 0;
+
+        payload.id_tipologia_letti = editTipologiaLetti?.value || '';
+        if (!payload.id_tipologia_letti) { showErr('Seleziona la tipologia di letto.'); return; }
       }
 
-      if ((tipo === 'edificio' || tipo === 'piano') && !payload.nome) {
-        showErr('Il nome è obbligatorio.');
-        return;
-      }
-      if (tipo === 'camera' && !payload.codice) {
-        showErr('Inserisci il numero/codice della camera.');
-        return;
-      }
-      if (tipo === 'camera' && editTipologiaLetti && !payload.id_tipologia_letti) {
-        showErr('Seleziona la capienza massima.');
-        return;
-      }
+      if ((tipo === 'edificio' || tipo === 'piano') && !payload.nome) { showErr('Il nome è obbligatorio.'); return; }
+      if (tipo === 'camera' && !payload.codice) { showErr('Inserisci il numero/codice della camera.'); return; }
 
       if (mode === 'create') {
         if (tipo === 'piano' && !payload.edificio_id) { showErr('Seleziona un edificio.'); return; }
@@ -1218,14 +878,10 @@ if (table_exists($mysqli, 'soggiorni_tipologie_letti')) {
       btnEditSave.disabled = true;
 
       try {
-        if (mode === 'create') {
-          const j = await doCreate(payload);
-          showOk(j.msg || 'Creato');
-        } else {
-          const j = await doUpdate(payload);
-          showOk(j.msg || 'Salvato');
-        }
+        if (mode === 'create') await doCreate(payload);
+        else await doUpdate(payload);
 
+        showOk('Salvato');
         await reloadUI();
         setTimeout(() => modalEdit?.hide(), 250);
       } catch(err){
@@ -1235,52 +891,6 @@ if (table_exists($mysqli, 'soggiorni_tipologie_letti')) {
         btnEditSave.disabled = false;
       }
     }));
-
-    if (formTipologiaLetto) {
-      formTipologiaLetto.addEventListener('submit', guard(async (e) => {
-        e.preventDefault();
-        clearTipologiaMsgs();
-        const payload = new FormData();
-        if (tipologiaLettoId.value) payload.append('id', tipologiaLettoId.value);
-        payload.append('codice', tipologiaLettoCodice.value.trim());
-        payload.append('descrizione', tipologiaLettoDescrizione.value.trim());
-        if (tipologiaLettoDataDa) payload.append('data_da', tipologiaLettoDataDa.value);
-        if (tipologiaLettoDataA) payload.append('data_a', tipologiaLettoDataA.value);
-        if (tipologiaLettoPrezzoSp) payload.append('prezzo_solo_pernottamento', tipologiaLettoPrezzoSp.value);
-        if (tipologiaLettoPrezzoBb) payload.append('prezzo_BB', tipologiaLettoPrezzoBb.value);
-        if (tipologiaLettoPrezzoHb) payload.append('prezzo_HB', tipologiaLettoPrezzoHb.value);
-        if (tipologiaLettoPrezzoFb) payload.append('prezzo_FB', tipologiaLettoPrezzoFb.value);
-        if (tipologiaLettoValuta) payload.append('valuta', tipologiaLettoValuta.value.trim());
-        if (tipologiaLettoNote) payload.append('note', tipologiaLettoNote.value.trim());
-
-        btnTipologiaLettoSave.disabled = true;
-        try {
-          const res = await safeFetch('tipologie_letti_save_ajax.php', {
-            method: 'POST',
-            body: payload,
-            headers: { 'X-Requested-With': 'XMLHttpRequest' }
-          });
-          const txt = await res.text();
-          let j;
-          try { j = JSON.parse(txt); } catch(e){ throw new Error('Risposta non JSON: ' + txt.slice(0,400)); }
-          if (!j || !j.ok) throw new Error(j.msg || 'Errore salvataggio tipologia');
-          showTipologiaOk(j.msg || 'Salvato');
-          const rows = await loadTipologieLetti(true);
-          renderTipologieList(rows);
-          renderTipologieSelect(rows, j.id || editTipologiaLetti?.value || '');
-          if (!tipologiaLettoId.value && j.id) tipologiaLettoId.value = j.id;
-        } catch(err){
-          showTipologiaErr(err.message || 'Errore salvataggio tipologia');
-        } finally {
-          btnTipologiaLettoSave.disabled = false;
-        }
-      }));
-    }
-
-    btnTipologiaLettoReset?.addEventListener('click', () => resetTipologiaForm());
-
-    btnTipologieLetti?.addEventListener('click', openTipologieModal);
-    btnTipologieLettiInline?.addEventListener('click', openTipologieModal);
 
     btnDel.addEventListener('click', guard(async () => {
       const tipo = delTipo.value;
@@ -1331,17 +941,19 @@ if (table_exists($mysqli, 'soggiorni_tipologie_letti')) {
     });
   }
 
+  // ✅ init dopo bootstrap
   initInteractions();
 
   ensureBootstrap().then((bs) => {
-    const B = bs || window.bootstrap;
-    if (!B) return;
-
-    modal = modalEl ? new B.Modal(modalEl) : null;
-    modalEdit = modalEditEl ? new B.Modal(modalEditEl) : null;
-    modalDelete = modalDelEl ? new B.Modal(modalDelEl) : null;
-    modalTipologie = modalTipologieEl ? new B.Modal(modalTipologieEl) : null;
+    if (!bs?.Modal) {
+      console.error('[HotelManager] Bootstrap JS non disponibile: modali disabilitati');
+      return;
+    }
+    modal = modalEl ? new bs.Modal(modalEl) : null;
+    modalEdit = modalEditEl ? new bs.Modal(modalEditEl) : null;
+    modalDelete = modalDelEl ? new bs.Modal(modalDelEl) : null;
   });
+
 })();
 </script>
 
