@@ -55,6 +55,11 @@ function list_guests(mysqli $db, int $soggiornoId): void {
             " . (column_exists($db,'soggiorni_clienti','nazionalita') ? "nazionalita," : "") . "
             " . (column_exists($db,'soggiorni_clienti','documento_tipo') ? "documento_tipo," : "") . "
             " . (column_exists($db,'soggiorni_clienti','documento_numero') ? "documento_numero," : "") . "
+            " . (column_exists($db,'soggiorni_clienti','eta') ? "eta," : "") . "
+            " . (column_exists($db,'soggiorni_clienti','esenzione_motivo_salute') ? "esenzione_motivo_salute," : "") . "
+            " . (column_exists($db,'soggiorni_clienti','esenzione_accompagnatore_sanitario') ? "esenzione_accompagnatore_sanitario," : "") . "
+            " . (column_exists($db,'soggiorni_clienti','esenzione_disabilita') ? "esenzione_disabilita," : "") . "
+            " . (column_exists($db,'soggiorni_clienti','esenzione_accompagnatore_disabile') ? "esenzione_accompagnatore_disabile," : "") . "
             " . (column_exists($db,'soggiorni_clienti','documento_scadenza') ? "documento_scadenza," : "") . "
             " . (column_exists($db,'soggiorni_clienti','documento_rilasciato_da') ? "documento_rilasciato_da," : "") . "
             " . (column_exists($db,'soggiorni_clienti','documento_note') ? "documento_note," : "") . "
@@ -140,6 +145,7 @@ function save_guest(mysqli $db, int $soggiornoId, ?int $guestId, array $payload)
         'nome' => 's',
         'cognome' => 's',
         'data_nascita' => 's',
+        'eta' => 'i',
         'nazionalita' => 's',
         'indirizzo' => 's',
         'documento_tipo' => 's',
@@ -147,6 +153,10 @@ function save_guest(mysqli $db, int $soggiornoId, ?int $guestId, array $payload)
         'email' => 's',
         'telefono' => 's',
         'note' => 's',
+        'esenzione_motivo_salute' => 'i',
+        'esenzione_accompagnatore_sanitario' => 'i',
+        'esenzione_disabilita' => 'i',
+        'esenzione_accompagnatore_disabile' => 'i',
     ];
 
     $fields = [];
@@ -155,9 +165,11 @@ function save_guest(mysqli $db, int $soggiornoId, ?int $guestId, array $payload)
 
     foreach ($map as $field => $type) {
         if (array_key_exists($field, $payload) && column_exists($db, 'soggiorni_clienti', $field)) {
-            $fields[$field] = (string)$payload[$field];
+            $fields[$field] = in_array($type, ['i', 'd'], true)
+                ? (int)$payload[$field]
+                : (string)$payload[$field];
             $types .= $type;
-            $values[] = (string)$payload[$field];
+            $values[] = $fields[$field];
         }
     }
 
