@@ -170,6 +170,16 @@ function get_housekeeping_column(mysqli $db): ?string {
     return null;
 }
 
+function get_payment_status_column(mysqli $db): ?string {
+    $candidates = ['stato_pagamento', 'payment_status', 'pagamento_stato', 'pagato'];
+    foreach ($candidates as $candidate) {
+        if (column_exists($db, 'soggiorni', $candidate)) {
+            return $candidate;
+        }
+    }
+    return null;
+}
+
 function get_hb_dettagli_column(mysqli $db): ?string {
     if (column_exists($db, 'soggiorni', 'hb_dettagli')) return 'hb_dettagli';
     if (column_exists($db, 'soggiorni', 'hb_dettagli_json')) return 'hb_dettagli_json';
@@ -764,6 +774,8 @@ function list_bookings(mysqli $db): void {
     $selectHb = column_exists($db, 'soggiorni', 'hb_servizio') ? ', s.hb_servizio' : '';
     $tipoCameraCol = get_tipologia_camera_column($db);
     $selectTipoCamera = $tipoCameraCol ? ", s.{$tipoCameraCol}" : '';
+    $paymentStatusCol = get_payment_status_column($db);
+    $selectPaymentStatus = $paymentStatusCol ? ", s.{$paymentStatusCol} AS stato_pagamento" : ", NULL AS stato_pagamento";
 
     $sql = "
         SELECT
@@ -778,6 +790,7 @@ function list_bookings(mysqli $db): void {
             $selectPasto
             $selectHb
             $selectTipoCamera
+            $selectPaymentStatus
         FROM soggiorni s
         ORDER BY s.data_checkin DESC
         LIMIT 200
@@ -821,6 +834,17 @@ function list_bookings(mysqli $db): void {
             $camera = $cameraRes ? $cameraRes->fetch_assoc() : null;
         }
 
+        $paymentRaw = $row['stato_pagamento'] ?? null;
+        $paymentStatus = 'non_pagato';
+        if ($paymentRaw !== null && $paymentRaw !== '') {
+            if ($paymentStatusCol === 'pagato') {
+                $paymentStatus = ((int)$paymentRaw === 1) ? 'pagato' : 'non_pagato';
+            } else {
+                $normalizedPayment = strtolower(trim((string)$paymentRaw));
+                $paymentStatus = in_array($normalizedPayment, ['pagato', 'paid', '1'], true) ? 'pagato' : 'non_pagato';
+            }
+        }
+
         $bookings[] = [
             'id' => $bookingId,
             'camera_id' => (int)$row['camera_id'],
@@ -835,6 +859,7 @@ function list_bookings(mysqli $db): void {
             'hb' => $row['hb_servizio'] ?? '',
             'tipologia_camera' => $tipoCameraCol ? ($row[$tipoCameraCol] ?? '') : '',
             'ospiti' => $guestsCount,
+            'stato_pagamento' => $paymentStatus,
         ];
     }
 
@@ -915,6 +940,7 @@ function save_booking(mysqli $db, array $payload): void {
     $hb = $payload['hb_servizio'] ?? null;
     $tipologiaCamera = $payload['tipologia_camera'] ?? null;
     $housekeeping = $payload['housekeeping'] ?? null;
+    $paymentStatus = $payload['stato_pagamento'] ?? null;
     $hbMode = $payload['hb_modalita'] ?? null;
     $hbDettagliRaw = $payload['hb_dettagli'] ?? null;
     $serviziProvided = array_key_exists('servizi', $payload);
@@ -1022,6 +1048,15 @@ function save_booking(mysqli $db, array $payload): void {
         $housekeepingCol = get_housekeeping_column($db);
         if ($housekeepingCol) { $fields[] = "{$housekeepingCol} = ?"; $values[] = $housekeepingVal; $types .= 'i'; }
     }
+    if ($paymentStatus !== null) {
+        $paymentStatusCol = get_payment_status_column($db);
+        if ($paymentStatusCol) {
+            $paymentValue = $paymentStatusCol === 'pagato' ? (normalize_bool($paymentStatus) ? 1 : 0) : (string)$paymentStatus;
+            $fields[] = "{$paymentStatusCol} = ?";
+            $values[] = $paymentValue;
+            $types .= $paymentStatusCol === 'pagato' ? 'i' : 's';
+        }
+    }
     if ($hbDettagliProvided) {
         $hbDettagliCol = get_hb_dettagli_column($db);
         if ($hbDettagliCol) { $fields[] = "{$hbDettagliCol} = ?"; $values[] = $hbDettagliJson; $types .= 's'; }
@@ -1092,6 +1127,16 @@ function save_booking(mysqli $db, array $payload): void {
         $housekeepingCol = get_housekeeping_column($db);
         if ($housekeepingCol) {
             $columns[] = $housekeepingCol; $placeholders[] = '?'; $insertTypes .= 'i'; $insertValues[] = $housekeepingVal;
+        }
+    }
+    if ($paymentStatus !== null) {
+        $paymentStatusCol = get_payment_status_column($db);
+        if ($paymentStatusCol) {
+            $paymentValue = $paymentStatusCol === 'pagato' ? (normalize_bool($paymentStatus) ? 1 : 0) : (string)$paymentStatus;
+            $columns[] = $paymentStatusCol;
+            $placeholders[] = '?';
+            $insertTypes .= $paymentStatusCol === 'pagato' ? 'i' : 's';
+            $insertValues[] = $paymentValue;
         }
     }
     if ($hbDettagliProvided) {

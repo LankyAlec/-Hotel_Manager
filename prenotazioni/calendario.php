@@ -330,6 +330,24 @@ if ($pianoSel === 0 && $edificioSel > 0) {
   .price-preview-card table th{
     vertical-align:middle;
   }
+  .price-preview-card .preview-section-title{
+    font-size:1rem;
+    font-weight:700;
+    margin-bottom:.35rem;
+  }
+  .price-preview-card .preview-meta{
+    display:flex;
+    flex-wrap:wrap;
+    gap:.5rem;
+    margin-bottom:.75rem;
+  }
+  .price-preview-card .preview-meta .badge{
+    font-size:.78rem;
+    padding:.45rem .6rem;
+    border:1px solid rgba(0,0,0,.08);
+    background:#f8f9fa;
+    color:#495057;
+  }
 </style>
 
 <div class="container-fluid">
@@ -453,6 +471,14 @@ if ($pianoSel === 0 && $edificioSel > 0) {
               <div class="col-6 col-md-4">
                 <label class="form-label small">Housekeeping</label>
                 <input type="number" class="form-control" name="housekeeping" id="bookingHousekeeping" min="0" value="1">
+              </div>
+              <div class="col-6 col-md-4">
+                <label class="form-label small">Pagamento</label>
+                <select class="form-select" name="stato_pagamento" id="bookingPaymentStatus">
+                  <option value="">—</option>
+                  <option value="non_pagato">Non pagato</option>
+                  <option value="pagato">Pagato</option>
+                </select>
               </div>
               <div class="col-12" id="bookingNotesBox">
                 <label class="form-label small">Note soggiorno</label>
@@ -600,6 +626,7 @@ if ($pianoSel === 0 && $edificioSel > 0) {
     const bookingTipologia = document.getElementById('bookingTipologia');
     const bookingGuestCount = document.getElementById('bookingGuestCount');
     const bookingHousekeeping = document.getElementById('bookingHousekeeping');
+    const bookingPaymentStatus = document.getElementById('bookingPaymentStatus');
     const hbBox = document.getElementById('hbBox');
     const hbCustomBox = document.getElementById('hbCustomBox');
     const hbCustomList = document.getElementById('hbCustomList');
@@ -1065,6 +1092,9 @@ if ($pianoSel === 0 && $edificioSel > 0) {
       } else {
         bookingHousekeeping.value = 1;
       }
+      if (bookingPaymentStatus) {
+        bookingPaymentStatus.value = booking?.stato_pagamento || 'non_pagato';
+      }
       if (bookingGuestCount) {
         const baseCount = booking?.ospiti ?? (currentBookingId ? bookingGuestCount.value : 1);
         bookingGuestCount.value = Math.max(1, parseInt(baseCount, 10) || 1);
@@ -1340,6 +1370,7 @@ if ($pianoSel === 0 && $edificioSel > 0) {
       const data = new FormData(bookingForm);
       const payload = Object.fromEntries(data.entries());
       payload.action = 'save_booking';
+      if (!payload.stato_pagamento) payload.stato_pagamento = 'non_pagato';
 
       if (currentBookingId) payload.id = currentBookingId;
 
@@ -1856,7 +1887,11 @@ if ($pianoSel === 0 && $edificioSel > 0) {
       const cameraTotal = res.camera?.total ?? 0;
       const roomTotal = res.camera?.room_total ?? 0;
       const cityTaxTotal = res.camera?.city_tax_total ?? 0;
-      const serviziTotal = res.servizi?.total ?? 0;
+      const serviziItems = res.servizi?.items || [];
+      const serviziIncludedRows = serviziItems.filter(item => (item.mode || '').toUpperCase() !== 'EXTRA');
+      const extraRowsData = serviziItems.filter(item => (item.mode || '').toUpperCase() === 'EXTRA');
+      const serviziTotal = serviziIncludedRows.reduce((sum, item) => sum + Number(item.price || 0), 0);
+      const extraTotal = extraRowsData.reduce((sum, item) => sum + Number(item.price || 0), 0);
       const tipologiaMissing = !bookingTipologia.value;
       const defaultNightlyRate = nights > 0 ? (roomTotal / nights) : 0;
       const cameraBreakdown = res.camera?.breakdown || [];
@@ -1878,7 +1913,12 @@ if ($pianoSel === 0 && $edificioSel > 0) {
         merge('unknown_age', 'Ospiti senza data nascita');
         return acc;
       }, {});
-      const guestRows = Object.values(guestTotals).map(item => `
+      const guestEntries = Object.values(guestTotals);
+      const adultsCount = guestEntries.filter(item => item.label === 'Adulti').reduce((sum, item) => sum + item.count, 0);
+      const childrenCount = guestEntries
+        .filter(item => item.label.toLowerCase().includes('bambini'))
+        .reduce((sum, item) => sum + item.count, 0);
+      const guestRows = guestEntries.map(item => `
         <tr>
           <td>${escapeHtml(item.label)} ${item.discount !== null ? `<span class="text-muted small">(sconto ${Number(item.discount).toFixed(0)}%)</span>` : ''}</td>
           <td class="text-end">${item.count}</td>
@@ -1887,18 +1927,36 @@ if ($pianoSel === 0 && $edificioSel > 0) {
       `).join('') || `
         <tr><td colspan="3" class="text-muted small">Nessun ospite valorizzato.</td></tr>
       `;
-      const serviziRows = (res.servizi?.items || []).map(r => `
+      const serviziRows = serviziIncludedRows.map(r => `
         <tr>
-          <td>${escapeHtml(r.nome || '')} <span class="text-muted small">(${r.mode})</span></td>
+          <td>${escapeHtml(r.nome || '')}</td>
           <td class="text-end">${formatCurrency(r.price)}</td>
         </tr>
       `).join('') || `
-        <tr><td colspan="2" class="text-muted small">Nessun servizio selezionato.</td></tr>
+        <tr><td colspan="2" class="text-muted small">Nessun servizio incluso selezionato.</td></tr>
       `;
-      const renderPreview = (nightlyRate) => {
+      const extraRows = extraRowsData.map(r => `
+        <tr>
+          <td>${escapeHtml(r.nome || '')}</td>
+          <td class="text-end">${formatCurrency(r.price)}</td>
+        </tr>
+      `).join('') || `
+        <tr><td colspan="2" class="text-muted small">Nessun extra selezionato (es. aperitivo).</td></tr>
+      `;
+      const pastoLabel = bookingPasto.options[bookingPasto.selectedIndex]?.text || '—';
+      const paymentLabel = bookingPaymentStatus?.value === 'pagato' ? 'Pagato' : 'Non pagato';
+
+      const renderPreview = (nightlyRate, discounts = { camera: 0, servizi: 0, extra: 0 }) => {
         const roomTotalComputed = nightlyRate * nights;
-        const cameraTotalComputed = roomTotalComputed + cityTaxTotal;
-        const totalComputed = cameraTotalComputed + serviziTotal;
+        const cameraSubtotal = roomTotalComputed + cityTaxTotal;
+        const sectionDiscount = (amount, percent) => amount * (Math.max(0, Math.min(100, percent || 0)) / 100);
+        const cameraDiscountAmount = sectionDiscount(cameraSubtotal, discounts.camera);
+        const serviziDiscountAmount = sectionDiscount(serviziTotal, discounts.servizi);
+        const extraDiscountAmount = sectionDiscount(extraTotal, discounts.extra);
+        const cameraTotalComputed = cameraSubtotal - cameraDiscountAmount;
+        const serviziTotalComputed = serviziTotal - serviziDiscountAmount;
+        const extraTotalComputed = extraTotal - extraDiscountAmount;
+        const totalComputed = cameraTotalComputed + serviziTotalComputed + extraTotalComputed;
         const cameraRows = tipologiaMissing ? `
           <tr><td colspan="2" class="text-muted small">Seleziona la tipologia di camera per calcolare la tariffa.</td></tr>
         ` : (cameraDates.length ? cameraDates.map(date => `
@@ -1910,10 +1968,16 @@ if ($pianoSel === 0 && $edificioSel > 0) {
           <tr><td colspan="2" class="text-muted small">Nessuna tariffa trovata.</td></tr>
         `);
         pricePreviewBody.innerHTML = `
+          <div class="preview-meta">
+            <span class="badge">Notti: <strong>${nights}</strong></span>
+            <span class="badge">Piano: <strong>${escapeHtml(pastoLabel)}</strong></span>
+            <span class="badge">Ospiti: <strong>${adultsCount + childrenCount}</strong> (Adulti ${adultsCount} / Bambini ${childrenCount})</span>
+            <span class="badge">Pagamento: <strong>${paymentLabel}</strong></span>
+          </div>
           <div class="row g-3">
             <div class="col-12 col-lg-6">
+              <div class="preview-section-title">Camera</div>
               <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
-                <div class="fw-semibold">Camera</div>
                 ${tipologiaMissing ? '<div class="text-muted small">Seleziona tipologia e piano pasto.</div>' : `
                   <div class="d-flex align-items-center gap-2">
                     <label class="small text-muted" for="pricePerNightInput">Costo per notte</label>
@@ -1923,6 +1987,13 @@ if ($pianoSel === 0 && $edificioSel > 0) {
                     </div>
                   </div>
                 `}
+                <div class="d-flex align-items-center gap-2">
+                  <label class="small text-muted" for="discountCameraInput">Sconto camera</label>
+                  <div class="input-group input-group-sm" style="max-width: 130px;">
+                    <input type="number" class="form-control" id="discountCameraInput" min="0" max="100" step="1" value="${discounts.camera || 0}">
+                    <span class="input-group-text">%</span>
+                  </div>
+                </div>
               </div>
               <table class="table table-sm">
                 <tbody>
@@ -1936,6 +2007,10 @@ if ($pianoSel === 0 && $edificioSel > 0) {
                   <tr>
                     <th>Tassa di soggiorno</th>
                     <th class="text-end">${formatCurrency(cityTaxTotal)}</th>
+                  </tr>
+                  <tr>
+                    <th>Sconto camera</th>
+                    <th class="text-end">- ${formatCurrency(cameraDiscountAmount)}</th>
                   </tr>
                   <tr>
                     <th>Totale camera</th>
@@ -1958,32 +2033,82 @@ if ($pianoSel === 0 && $edificioSel > 0) {
               </table>
             </div>
             <div class="col-12 col-lg-6">
-              <div class="fw-semibold mb-2">Servizi</div>
-              <table class="table table-sm">
+              <div class="preview-section-title">Servizi</div>
+              <div class="d-flex align-items-center gap-2 justify-content-end mb-2">
+                <label class="small text-muted" for="discountServicesInput">Sconto servizi</label>
+                <div class="input-group input-group-sm" style="max-width: 130px;">
+                  <input type="number" class="form-control" id="discountServicesInput" min="0" max="100" step="1" value="${discounts.servizi || 0}">
+                  <span class="input-group-text">%</span>
+                </div>
+              </div>
+              <table class="table table-sm mb-4">
                 <tbody>
                   ${serviziRows}
                 </tbody>
                 <tfoot>
                   <tr>
+                    <th>Sconto servizi</th>
+                    <th class="text-end">- ${formatCurrency(serviziDiscountAmount)}</th>
+                  </tr>
+                  <tr>
                     <th>Totale servizi</th>
-                    <th class="text-end">${formatCurrency(serviziTotal)}</th>
+                    <th class="text-end">${formatCurrency(serviziTotalComputed)}</th>
+                  </tr>
+                </tfoot>
+              </table>
+              <div class="preview-section-title">Extra (es. aperitivo)</div>
+              <div class="d-flex align-items-center gap-2 justify-content-end mb-2">
+                <label class="small text-muted" for="discountExtraInput">Sconto extra</label>
+                <div class="input-group input-group-sm" style="max-width: 130px;">
+                  <input type="number" class="form-control" id="discountExtraInput" min="0" max="100" step="1" value="${discounts.extra || 0}">
+                  <span class="input-group-text">%</span>
+                </div>
+              </div>
+              <table class="table table-sm">
+                <tbody>
+                  ${extraRows}
+                </tbody>
+                <tfoot>
+                  <tr>
+                    <th>Sconto extra</th>
+                    <th class="text-end">- ${formatCurrency(extraDiscountAmount)}</th>
+                  </tr>
+                  <tr>
+                    <th>Totale extra</th>
+                    <th class="text-end">${formatCurrency(extraTotalComputed)}</th>
                   </tr>
                 </tfoot>
               </table>
             </div>
           </div>
           <div class="border-top pt-2 mt-2 d-flex justify-content-between">
-            <strong>Totale</strong>
+            <strong>Totale complessivo</strong>
             <strong>${formatCurrency(totalComputed)}</strong>
           </div>
         `;
-        const priceInput = tipologiaMissing ? null : document.getElementById('pricePerNightInput');
-        if (priceInput) {
-          priceInput.addEventListener('input', () => {
-            const nextRate = parseFloat(priceInput.value);
-            renderPreview(Number.isFinite(nextRate) ? nextRate : 0);
+
+        const readDiscounts = () => ({
+          camera: parseFloat(document.getElementById('discountCameraInput')?.value || '0') || 0,
+          servizi: parseFloat(document.getElementById('discountServicesInput')?.value || '0') || 0,
+          extra: parseFloat(document.getElementById('discountExtraInput')?.value || '0') || 0,
+        });
+
+        const bindRerender = (id, includeRate = false) => {
+          const el = document.getElementById(id);
+          if (!el) return;
+          el.addEventListener('input', () => {
+            const nextDiscounts = readDiscounts();
+            const nextRate = includeRate
+              ? (Number.isFinite(parseFloat(el.value)) ? parseFloat(el.value) : 0)
+              : (Number.isFinite(parseFloat(document.getElementById('pricePerNightInput')?.value)) ? parseFloat(document.getElementById('pricePerNightInput').value) : nightlyRate);
+            renderPreview(nextRate, nextDiscounts);
           }, { once: true });
-        }
+        };
+
+        if (!tipologiaMissing) bindRerender('pricePerNightInput', true);
+        bindRerender('discountCameraInput');
+        bindRerender('discountServicesInput');
+        bindRerender('discountExtraInput');
       };
       renderPreview(defaultNightlyRate);
     }
@@ -2126,6 +2251,7 @@ if ($pianoSel === 0 && $edificioSel > 0) {
     bookingTipologia?.addEventListener('change', updatePricePreview);
     servicesContainer?.addEventListener('change', updatePricePreview);
     bookingSchoolGroupExempt?.addEventListener('change', updatePricePreview);
+    bookingPaymentStatus?.addEventListener('change', updatePricePreview);
     bookingGuestCount?.addEventListener('change', () => {
       syncGuestCards();
       updatePricePreview();
