@@ -454,15 +454,6 @@ if ($pianoSel === 0 && $edificioSel > 0) {
                 <label class="form-label small">Housekeeping</label>
                 <input type="number" class="form-control" name="housekeeping" id="bookingHousekeeping" min="0" value="1">
               </div>
-              <div class="col-12 col-md-4">
-                <label class="form-label small d-block">Tassa di soggiorno</label>
-                <div class="form-check mt-2">
-                  <input class="form-check-input" type="checkbox" id="bookingSchoolGroupExempt">
-                  <label class="form-check-label small" for="bookingSchoolGroupExempt">
-                    Gruppo scolastico (fino al primo grado) esente
-                  </label>
-                </div>
-              </div>
               <div class="col-12" id="bookingNotesBox">
                 <label class="form-label small">Note soggiorno</label>
                 <textarea class="form-control" name="note" id="bookingNote" rows="2" placeholder="Note generali sul soggiorno"></textarea>
@@ -511,6 +502,16 @@ if ($pianoSel === 0 && $edificioSel > 0) {
 
           <div class="tab-pane fade booking-tab-pane" id="pane-ospiti" role="tabpanel" aria-labelledby="tab-ospiti" tabindex="0">
             <div class="border-top pt-3 mt-3">
+              <div class="mb-3">
+                <label class="form-label small d-block">Esenzione tassa di soggiorno</label>
+                <div class="form-check mt-1">
+                  <input class="form-check-input" type="checkbox" id="bookingSchoolGroupExempt">
+                  <label class="form-check-label small" for="bookingSchoolGroupExempt">
+                    Gruppo scolastico (fino al primo grado) esente
+                  </label>
+                </div>
+              </div>
+
               <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
                 <div>
                   <h6 class="mb-1">Ospiti</h6>
@@ -824,17 +825,33 @@ if ($pianoSel === 0 && $edificioSel > 0) {
     function populateTipologiaSelect(prices = {}) {
       if (!bookingTipologia) return;
       const currentValue = bookingTipologia.value;
+      const selectedCamera = (meta.camere || []).find(camera => String(camera.id) === String(bookingCamera.value || ''));
+      const selectedCapacity = parseInt(selectedCamera?.capienza ?? selectedCamera?.capienza_base ?? 0, 10);
       bookingTipologia.innerHTML = '<option value="">—</option>';
       (meta.tipologie_letti || []).forEach(tipologia => {
+        const tipologiaCode = String(tipologia.codice || '').trim().toUpperCase();
+        if (selectedCapacity > 0 && tipologiaCode) {
+          const tipologiaCapacity = Array.from(tipologiaCode).reduce((sum, symbol) => {
+            if (symbol === 'M') return sum + 2;
+            if (symbol === 'X' || symbol === 'D') return sum + 1;
+            return sum;
+          }, 0);
+          if (tipologiaCapacity > selectedCapacity) {
+            return;
+          }
+        }
         const option = document.createElement('option');
         option.value = tipologia.codice || '';
         option.dataset.tipologiaId = tipologia.id;
-        const baseLabel = tipologia.descrizione || tipologia.codice || `Tipologia ${tipologia.id}`;
+        const baseLabel = tipologia.codice || tipologia.descrizione || `Tipologia ${tipologia.id}`;
         option.dataset.baseLabel = baseLabel;
         option.textContent = baseLabel;
         bookingTipologia.appendChild(option);
       });
       bookingTipologia.value = currentValue || '';
+      if (bookingTipologia.value !== (currentValue || '')) {
+        bookingTipologia.value = '';
+      }
     }
 
     function getRoomStatusLabels(camera, checkin, checkout) {
@@ -875,6 +892,8 @@ if ($pianoSel === 0 && $edificioSel > 0) {
         bookingCameraSelect.value = '';
       }
       populateChangeRoomSelect();
+      populateTipologiaSelect();
+      updatePricePreview();
     }
 
     function applyCheckoutMinFromCheckin(checkinStr) {
