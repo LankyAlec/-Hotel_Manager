@@ -583,6 +583,7 @@ CREATE TABLE `soggiorni_tariffe` (
   `prezzo_BB` double(10,2) NOT NULL,
   `prezzo_HB` double(10,2) NOT NULL,
   `prezzo_FB` double(10,2) NOT NULL,
+  `prezzo_calcolo` enum('persona','camera') NOT NULL DEFAULT 'persona',
   `0-3` int(11) DEFAULT NULL,
   `4-8` int(11) DEFAULT NULL,
   `valuta` char(3) NOT NULL DEFAULT 'EUR',
@@ -593,19 +594,19 @@ CREATE TABLE `soggiorni_tariffe` (
 -- Dump dei dati per la tabella `soggiorni_tariffe`
 --
 
-INSERT INTO `soggiorni_tariffe` (`id`, `codice`, `descrizione`, `data_da`, `data_a`, `prezzo_solo_pernottamento`, `prezzo_BB`, `prezzo_HB`, `prezzo_FB`, `0-3`, `4-8`, `valuta`, `note`) VALUES
-(1, 'Singola', 'X', '2026-01-01', NULL, 45.00, 50.00, 75.00, 100.00, 100, 50, 'EUR', NULL),
-(2, 'Matrimoniale', 'M', '2026-01-01', NULL, 40.00, 45.00, 70.00, 95.00, 100, 50, 'EUR', NULL),
-(3, 'Dus', 'M', '2026-01-01', NULL, 55.00, 60.00, 85.00, 110.00, 100, 50, 'EUR', NULL),
-(4, 'Twin', 'XX', '2026-01-01', NULL, 40.00, 45.00, 70.00, 95.00, 100, 50, 'EUR', NULL),
-(5, 'Tripla', 'XXX', '2026-01-01', NULL, 35.00, 40.00, 65.00, 90.00, 100, 50, 'EUR', NULL),
-(6, 'Suite', 'MXX', '2026-01-01', NULL, 245.00, 250.00, 275.00, 300.00, 100, 50, 'EUR', NULL),
-(7, 'Matrimoniale + Lettino', 'MX', '2026-01-01', NULL, 35.00, 40.00, 65.00, 90.00, 100, 50, 'EUR', NULL),
-(8, 'Quadrupla', 'MXX', '2026-01-01', NULL, 30.00, 35.00, 60.00, 85.00, 100, 50, 'EUR', NULL),
-(9, 'Matrimoniale + Divano letto', 'MD', '2026-01-01', NULL, 35.00, 40.00, 65.00, 90.00, 100, 50, 'EUR', NULL),
-(10, 'Matrimoniale + Lettino + Divano letto', 'MXD', '2026-01-01', NULL, 30.00, 35.00, 60.00, 85.00, 100, 50, 'EUR', NULL),
-(11, 'Family 5', 'MXXX', '2026-01-01', NULL, 25.00, 30.00, 55.00, 80.00, 100, 50, 'EUR', NULL),
-(12, 'Family 6', 'MXXXX', '2026-01-01', NULL, 25.00, 30.00, 55.00, 80.00, 100, 50, 'EUR', NULL);
+INSERT INTO `soggiorni_tariffe` (`id`, `codice`, `descrizione`, `data_da`, `data_a`, `prezzo_solo_pernottamento`, `prezzo_BB`, `prezzo_HB`, `prezzo_FB`, `prezzo_calcolo`, `0-3`, `4-8`, `valuta`, `note`) VALUES
+(1, 'Singola', 'X', '2026-01-01', NULL, 45.00, 50.00, 75.00, 100.00, 'persona', 100, 50, 'EUR', NULL),
+(2, 'Matrimoniale', 'M', '2026-01-01', NULL, 40.00, 45.00, 70.00, 95.00, 'persona', 100, 50, 'EUR', NULL),
+(3, 'Dus', 'M', '2026-01-01', NULL, 55.00, 60.00, 85.00, 110.00, 'persona', 100, 50, 'EUR', NULL),
+(4, 'Twin', 'XX', '2026-01-01', NULL, 40.00, 45.00, 70.00, 95.00, 'persona', 100, 50, 'EUR', NULL),
+(5, 'Tripla', 'XXX', '2026-01-01', NULL, 35.00, 40.00, 65.00, 90.00, 'persona', 100, 50, 'EUR', NULL),
+(6, 'Suite', 'MXX', '2026-01-01', NULL, 245.00, 250.00, 275.00, 300.00, 'camera', 100, 50, 'EUR', NULL),
+(7, 'Matrimoniale + Lettino', 'MX', '2026-01-01', NULL, 35.00, 40.00, 65.00, 90.00, 'persona', 100, 50, 'EUR', NULL),
+(8, 'Quadrupla', 'MXX', '2026-01-01', NULL, 30.00, 35.00, 60.00, 85.00, 'persona', 100, 50, 'EUR', NULL),
+(9, 'Matrimoniale + Divano letto', 'MD', '2026-01-01', NULL, 35.00, 40.00, 65.00, 90.00, 'persona', 100, 50, 'EUR', NULL),
+(10, 'Matrimoniale + Lettino + Divano letto', 'MXD', '2026-01-01', NULL, 30.00, 35.00, 60.00, 85.00, 'persona', 100, 50, 'EUR', NULL),
+(11, 'Family 5', 'MXXX', '2026-01-01', NULL, 25.00, 30.00, 55.00, 80.00, 'persona', 100, 50, 'EUR', NULL),
+(12, 'Family 6', 'MXXXX', '2026-01-01', NULL, 25.00, 30.00, 55.00, 80.00, 'persona', 100, 50, 'EUR', NULL);
 
 -- --------------------------------------------------------
 

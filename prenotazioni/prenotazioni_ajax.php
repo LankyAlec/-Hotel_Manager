@@ -112,6 +112,17 @@ function get_tariffe_age_discount_columns(mysqli $db): array {
     return ['age_0_3' => $age03, 'age_4_8' => $age48];
 }
 
+
+function get_tariffe_pricing_mode_column(mysqli $db): ?string {
+    $candidates = ['prezzo_calcolo', 'calcolo_prezzo', 'tariffa_tipo'];
+    foreach ($candidates as $candidate) {
+        if (column_exists($db, 'soggiorni_tariffe', $candidate)) {
+            return $candidate;
+        }
+    }
+    return null;
+}
+
 function get_city_tax_rules(mysqli $db): array {
     if (!table_exists($db, 'city_tax')) {
         return ['enabled' => false, 'cost' => 0.0, 'age_exemption_until' => null];
@@ -417,6 +428,7 @@ function get_camera_pricing_preview(mysqli $db, int $cameraId, ?string $tipologi
     $cameraCol = column_exists($db, 'soggiorni_tariffe', 'camera_id');
     $tipologiaCol = get_tariffe_tipologia_column($db);
     $ageDiscountCols = get_tariffe_age_discount_columns($db);
+    $pricingModeCol = get_tariffe_pricing_mode_column($db);
     $taxRules = get_city_tax_rules($db);
     $normalizedGuests = [];
     foreach ($ospiti as $guest) {
@@ -473,6 +485,9 @@ function get_camera_pricing_preview(mysqli $db, int $cameraId, ?string $tipologi
         }
 
         $selectParts = ["{$priceCol} AS prezzo"];
+        if ($pricingModeCol) {
+            $selectParts[] = "{$pricingModeCol} AS prezzo_calcolo";
+        }
         if ($ageDiscountCols['age_0_3']) {
             $selectParts[] = "`{$ageDiscountCols['age_0_3']}` AS sconto_0_3";
         }
@@ -502,19 +517,46 @@ function get_camera_pricing_preview(mysqli $db, int $cameraId, ?string $tipologi
         $nightCityTax = 0.0;
         $sconto03 = is_numeric($row['sconto_0_3'] ?? null) ? (float)$row['sconto_0_3'] : 0.0;
         $sconto48 = is_numeric($row['sconto_4_8'] ?? null) ? (float)$row['sconto_4_8'] : 0.0;
+        $nightBreakdown = [
+            'adults' => ['count' => 0, 'total' => 0.0],
+            'children_0_3' => ['count' => 0, 'total' => 0.0, 'discount_percent' => $sconto03],
+            'children_4_8' => ['count' => 0, 'total' => 0.0, 'discount_percent' => $sconto48],
+            'unknown_age' => ['count' => 0, 'total' => 0.0],
+        ];
+        $pricingMode = strtolower(trim((string)($row['prezzo_calcolo'] ?? 'persona')));
+        $isRoomPrice = in_array($pricingMode, ['camera', 'room', 'per_camera'], true);
 
         if ($price !== null) {
             if ($normalizedGuests) {
                 foreach ($normalizedGuests as $guest) {
                     $age = normalize_guest_age($guest, $iter);
                     $discountPercent = 0.0;
-                    if ($age !== null && $age >= 0 && $age <= 3) {
-                        $discountPercent = $sconto03;
-                    } elseif ($age !== null && $age >= 4 && $age <= 8) {
-                        $discountPercent = $sconto48;
+                    $guestPrice = $price;
+                    if (!$isRoomPrice) {
+                        if ($age !== null && $age >= 0 && $age <= 3) {
+                            $discountPercent = $sconto03;
+                            $nightBreakdown['children_0_3']['count']++;
+                        } elseif ($age !== null && $age >= 4 && $age <= 8) {
+                            $discountPercent = $sconto48;
+                            $nightBreakdown['children_4_8']['count']++;
+                        } elseif ($age === null) {
+                            $nightBreakdown['unknown_age']['count']++;
+                        } else {
+                            $nightBreakdown['adults']['count']++;
+                        }
+                        $discountMultiplier = max(0, min(100, $discountPercent));
+                        $guestPrice = $price * (1 - ($discountMultiplier / 100));
+                        $nightRoomPrice += $guestPrice;
+                        if ($age !== null && $age >= 0 && $age <= 3) {
+                            $nightBreakdown['children_0_3']['total'] += $guestPrice;
+                        } elseif ($age !== null && $age >= 4 && $age <= 8) {
+                            $nightBreakdown['children_4_8']['total'] += $guestPrice;
+                        } elseif ($age === null) {
+                            $nightBreakdown['unknown_age']['total'] += $guestPrice;
+                        } else {
+                            $nightBreakdown['adults']['total'] += $guestPrice;
+                        }
                     }
-                    $discountMultiplier = max(0, min(100, $discountPercent));
-                    $nightRoomPrice += $price * (1 - ($discountMultiplier / 100));
 
                     $isTaxExemptByReason =
                         $schoolGroupExempt ||
@@ -532,8 +574,12 @@ function get_camera_pricing_preview(mysqli $db, int $cameraId, ?string $tipologi
                         $nightCityTax += (float)$taxRules['cost'];
                     }
                 }
-            } else {
-                $nightRoomPrice = 0.0;
+            }
+
+            if ($isRoomPrice) {
+                $nightRoomPrice = $price;
+                $nightBreakdown['adults']['count'] = count($normalizedGuests);
+                $nightBreakdown['adults']['total'] = $price;
             }
         }
 
@@ -543,6 +589,9 @@ function get_camera_pricing_preview(mysqli $db, int $cameraId, ?string $tipologi
             'price' => $nightTotal,
             'room_price' => $nightRoomPrice,
             'city_tax' => $nightCityTax,
+            'pricing_mode' => $isRoomPrice ? 'camera' : 'persona',
+            'base_price' => $price,
+            'guest_breakdown' => $nightBreakdown,
         ];
         $roomTotal += $nightRoomPrice;
         $cityTaxTotal += $nightCityTax;

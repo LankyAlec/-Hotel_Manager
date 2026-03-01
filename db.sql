@@ -454,6 +454,7 @@ CREATE TABLE `soggiorni_tariffe` (
   `prezzo_BB` double(10,2) NOT NULL,
   `prezzo_HB` double(10,2) NOT NULL,
   `prezzo_FB` double(10,2) NOT NULL,
+  `prezzo_calcolo` enum('persona','camera') NOT NULL DEFAULT 'persona',
   `valuta` char(3) NOT NULL DEFAULT 'EUR',
   `note` text DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -462,13 +463,13 @@ CREATE TABLE `soggiorni_tariffe` (
 -- Dump dei dati per la tabella `soggiorni_tariffe`
 --
 
-INSERT INTO `soggiorni_tariffe` (`id`, `codice`, `descrizione`, `data_da`, `data_a`, `prezzo_solo_pernottamento`, `prezzo_BB`, `prezzo_HB`, `prezzo_FB`, `valuta`, `note`) VALUES
-(1, 'singola', 'Letto singolo', '2026-01-01', NULL, 10.00, 70.00, 130.00, 190.00, 'EUR', NULL),
-(2, 'matrimoniale', 'Letto matrimoniale', '2026-01-01', NULL, 20.00, 80.00, 140.00, 200.00, 'EUR', NULL),
-(3, 'matrimoniale_uso_singola', 'Matrimoniale uso singola', '2026-01-01', NULL, 30.00, 90.00, 150.00, 210.00, 'EUR', NULL),
-(4, 'twin', 'singoli', '2026-01-01', NULL, 40.00, 100.00, 160.00, 220.00, 'EUR', NULL),
-(5, 'doux', 'Letto francese', '2026-01-01', NULL, 50.00, 110.00, 170.00, 230.00, 'EUR', NULL),
-(6, 'siute', 'suite', '2026-01-01', NULL, 60.00, 120.00, 180.00, 240.00, 'EUR', NULL);
+INSERT INTO `soggiorni_tariffe` (`id`, `codice`, `descrizione`, `data_da`, `data_a`, `prezzo_solo_pernottamento`, `prezzo_BB`, `prezzo_HB`, `prezzo_FB`, `prezzo_calcolo`, `valuta`, `note`) VALUES
+(1, 'singola', 'Letto singolo', '2026-01-01', NULL, 10.00, 70.00, 130.00, 190.00, 'persona', 'EUR', NULL),
+(2, 'matrimoniale', 'Letto matrimoniale', '2026-01-01', NULL, 20.00, 80.00, 140.00, 200.00, 'persona', 'EUR', NULL),
+(3, 'matrimoniale_uso_singola', 'Matrimoniale uso singola', '2026-01-01', NULL, 30.00, 90.00, 150.00, 210.00, 'persona', 'EUR', NULL),
+(4, 'twin', 'singoli', '2026-01-01', NULL, 40.00, 100.00, 160.00, 220.00, 'persona', 'EUR', NULL),
+(5, 'doux', 'Letto francese', '2026-01-01', NULL, 50.00, 110.00, 170.00, 230.00, 'persona', 'EUR', NULL),
+(6, 'siute', 'suite', '2026-01-01', NULL, 60.00, 120.00, 180.00, 240.00, 'camera', 'EUR', NULL);
 
 -- --------------------------------------------------------
 

@@ -1167,31 +1167,6 @@ if ($pianoSel === 0 && $edificioSel > 0) {
             </div>
           </div>
           <div class="col-6 col-md-3">
-            <label class="form-label small">Età (anni)</label>
-            <input type="number" min="0" class="form-control form-control-sm" name="eta" value="${escapeHtml(guest.eta ?? '')}">
-          </div>
-          <div class="col-12 col-md-9">
-            <label class="form-label small d-block">Esenzione tassa di soggiorno</label>
-            <div class="d-flex flex-wrap gap-3 mt-1">
-              <div class="form-check">
-                <input class="form-check-input" type="checkbox" name="esenzione_motivo_salute" ${guest.esenzione_motivo_salute ? 'checked' : ''}>
-                <label class="form-check-label small">Motivi di salute</label>
-              </div>
-              <div class="form-check">
-                <input class="form-check-input" type="checkbox" name="esenzione_accompagnatore_sanitario" ${guest.esenzione_accompagnatore_sanitario ? 'checked' : ''}>
-                <label class="form-check-label small">Accompagnatore sanitario</label>
-              </div>
-              <div class="form-check">
-                <input class="form-check-input" type="checkbox" name="esenzione_disabilita" ${guest.esenzione_disabilita ? 'checked' : ''}>
-                <label class="form-check-label small">Disabilità non autosufficiente</label>
-              </div>
-              <div class="form-check">
-                <input class="form-check-input" type="checkbox" name="esenzione_accompagnatore_disabile" ${guest.esenzione_accompagnatore_disabile ? 'checked' : ''}>
-                <label class="form-check-label small">Accompagnatore disabile</label>
-              </div>
-            </div>
-          </div>
-          <div class="col-6 col-md-3">
             <label class="form-label small">Email</label>
             <input class="form-control form-control-sm" name="email" value="${escapeHtml(guest.email ?? '')}">
           </div>
@@ -1865,7 +1840,34 @@ if ($pianoSel === 0 && $edificioSel > 0) {
       const serviziTotal = res.servizi?.total ?? 0;
       const tipologiaMissing = !bookingTipologia.value;
       const defaultNightlyRate = nights > 0 ? (roomTotal / nights) : 0;
-      const cameraDates = (res.camera?.breakdown || []).map(r => r.date);
+      const cameraBreakdown = res.camera?.breakdown || [];
+      const cameraDates = cameraBreakdown.map(r => r.date);
+      const guestTotals = cameraBreakdown.reduce((acc, night) => {
+        const breakdown = night.guest_breakdown || {};
+        const merge = (key, label) => {
+          const item = breakdown[key] || {};
+          const count = Number(item.count || 0);
+          const total = Number(item.total || 0);
+          if (!count && !total) return;
+          if (!acc[key]) acc[key] = { label, count: 0, total: 0, discount: item.discount_percent ?? null };
+          acc[key].count += count;
+          acc[key].total += total;
+        };
+        merge('adults', 'Adulti');
+        merge('children_0_3', 'Bambini 0-3 anni');
+        merge('children_4_8', 'Bambini 4-8 anni');
+        merge('unknown_age', 'Ospiti senza data nascita');
+        return acc;
+      }, {});
+      const guestRows = Object.values(guestTotals).map(item => `
+        <tr>
+          <td>${escapeHtml(item.label)} ${item.discount !== null ? `<span class="text-muted small">(sconto ${Number(item.discount).toFixed(0)}%)</span>` : ''}</td>
+          <td class="text-end">${item.count}</td>
+          <td class="text-end">${formatCurrency(item.total)}</td>
+        </tr>
+      `).join('') || `
+        <tr><td colspan="3" class="text-muted small">Nessun ospite valorizzato.</td></tr>
+      `;
       const serviziRows = (res.servizi?.items || []).map(r => `
         <tr>
           <td>${escapeHtml(r.nome || '')} <span class="text-muted small">(${r.mode})</span></td>
@@ -1921,6 +1923,19 @@ if ($pianoSel === 0 && $edificioSel > 0) {
                     <th class="text-end">${formatCurrency(cameraTotalComputed)}</th>
                   </tr>
                 </tfoot>
+              </table>
+              <div class="fw-semibold mb-2 mt-3">Dettaglio ospiti</div>
+              <table class="table table-sm">
+                <thead>
+                  <tr>
+                    <th>Categoria</th>
+                    <th class="text-end">Presenze</th>
+                    <th class="text-end">Totale</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${guestRows}
+                </tbody>
               </table>
             </div>
             <div class="col-12 col-lg-6">
