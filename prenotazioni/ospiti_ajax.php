@@ -104,7 +104,6 @@ function save_documents(mysqli $db, int $soggiornoId, int $guestId, array $paylo
     $fields = [];
     $types = '';
     $values = [];
-
     $map = [
         'documento_tipo' => 's',
         'documento_numero' => 's',
@@ -161,6 +160,14 @@ function save_guest(mysqli $db, int $soggiornoId, ?int $guestId, array $payload)
     $fields = [];
     $types = '';
     $values = [];
+
+    if (column_exists($db, 'soggiorni_clienti', 'eta') && !empty($payload['data_nascita'])) {
+        $birthDate = DateTime::createFromFormat('Y-m-d', (string)$payload['data_nascita']);
+        if ($birthDate instanceof DateTime) {
+            $today = new DateTime('today');
+            $payload['eta'] = max(0, (int)$birthDate->diff($today)->y);
+        }
+    }
 
     foreach ($map as $field => $type) {
         if (array_key_exists($field, $payload) && column_exists($db, 'soggiorni_clienti', $field)) {
