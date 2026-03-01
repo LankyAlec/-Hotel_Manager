@@ -715,10 +715,12 @@ function get_camere(mysqli $db): array {
     if (table_exists($db, 'struttura_camere')) {
         $hasNome = column_exists($db, 'struttura_camere', 'nome');
         $hasAttiva = column_exists($db, 'struttura_camere', 'attiva');
+        $hasCapienzaBase = column_exists($db, 'struttura_camere', 'capienza_base');
         $selectNome = $hasNome ? ', nome' : ', NULL AS nome';
         $selectAttiva = $hasAttiva ? ', attiva' : ', 1 AS attiva';
+        $selectCapienzaBase = $hasCapienzaBase ? ', capienza_base' : ', 0 AS capienza_base';
 
-        $res = $db->query("SELECT id, codice{$selectNome}{$selectAttiva} FROM struttura_camere ORDER BY codice ASC");
+        $res = $db->query("SELECT id, codice{$selectNome}{$selectAttiva}{$selectCapienzaBase} FROM struttura_camere ORDER BY codice ASC");
         if (!$res) return [];
 
         $rows = [];
@@ -728,6 +730,7 @@ function get_camere(mysqli $db): array {
                 'codice' => (string)$r['codice'],
                 'nome' => (string)($r['nome'] ?? ''),
                 'attiva' => (int)($r['attiva'] ?? 1),
+                'capienza' => (int)($r['capienza_base'] ?? 0),
             ];
         }
         return $rows;
