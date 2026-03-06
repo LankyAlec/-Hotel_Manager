@@ -221,11 +221,18 @@ $filenameSafe = preg_replace('/[^a-z0-9\-_]/', '', $filenameBase) ?: 'scheda-gru
 $filename     = $filenameSafe . '.pdf';
 
 /* =========================
-   ASSETS (chroot + logo rel)
+   ASSETS (chroot + logo)
    ========================= */
 $rootPath = realpath(__DIR__ . '/..') ?: (__DIR__ . '/..');
-$logoAbs  = $rootPath . DIRECTORY_SEPARATOR . str_replace(['/', '\\'], DIRECTORY_SEPARATOR, HOTEL_LOGO_REL);
-$logoRelOk = (is_file($logoAbs) ? HOTEL_LOGO_REL : '');
+
+$logoAbs = realpath(
+    $rootPath . DIRECTORY_SEPARATOR . str_replace(['/', '\\'], DIRECTORY_SEPARATOR, HOTEL_LOGO_REL)
+);
+
+$logoUri = '';
+if ($logoAbs && is_file($logoAbs)) {
+    $logoUri = 'file://' . $logoAbs;   // <-- super affidabile con Dompdf
+}
 
 /* =========================
    HTML COMPONENTS
@@ -430,7 +437,7 @@ $html = '
     .header-title{ font-size:16px; font-weight:900; letter-spacing:.3px; margin:0; line-height:1.15; }
     .header-sub{ margin-top:6px; font-size:11px; opacity:.92; line-height:1.2; }
 
-    .logo-img{ height:36px; }
+    .logo-img{ height:62px; }
 
     .header-bottom{ padding:10px 16px; }
     .hotel-meta{ font-size:10px; color:#475569; line-height:1.35; }
@@ -540,7 +547,7 @@ $html = '
             <div class="header-meta">'.h($headerInfoLine).'</div>
           </td>
           <td class="header-top" style="text-align:right;">
-            '.($logoRelOk !== '' ? '<img class="logo-img" src="'.h($logoRelOk).'">' : '').'
+            '.($logoUri !== '' ? '<img class="logo-img" src="'.h($logoUri).'">' : '').'
           </td>
         </tr>
       </table>

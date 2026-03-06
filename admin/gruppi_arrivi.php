@@ -10,6 +10,13 @@ if (empty($_SESSION['utente_id']) || ($_SESSION['privilegi'] ?? '') !== 'root') 
 
 require_once __DIR__ . '/../includes/header.php';
 
+if (!function_exists('h')) {
+    function h($value): string
+    {
+        return htmlspecialchars((string)$value, ENT_QUOTES, 'UTF-8');
+    }
+}
+
 function table_exists(mysqli $db, string $table): bool
 {
     $escaped = $db->real_escape_string($table);
@@ -28,7 +35,9 @@ function column_exists(mysqli $db, string $table, string $column): bool
 function add_column_if_missing(mysqli $db, string $table, string $column, string $definition): void
 {
     if (!column_exists($db, $table, $column)) {
-        $db->query("ALTER TABLE `{$table}` ADD COLUMN {$column} {$definition}");
+        $escapedTable = $db->real_escape_string($table);
+        $escapedColumn = $db->real_escape_string($column);
+        $db->query("ALTER TABLE `{$escapedTable}` ADD COLUMN `{$escapedColumn}` {$definition}");
     }
 }
 
@@ -37,7 +46,7 @@ function get_tipologie_camere(mysqli $db): array
     $tipologie = [];
 
     if (empty($tipologie) && table_exists($db, 'soggiorni_tariffe')) {
-        $res = $db->query("SELECT codice, descrizione FROM soggiorni_tariffe GROUP BY codice, descrizione ORDER BY  prezzo_solo_pernottamento ASC");
+        $res = $db->query("SELECT codice, descrizione FROM soggiorni_tariffe GROUP BY codice, descrizione ORDER BY prezzo_solo_pernottamento ASC");
         $tipologie = $res instanceof mysqli_result ? $res->fetch_all(MYSQLI_ASSOC) : [];
     }
 
@@ -64,6 +73,13 @@ function get_sale_ristoranti(mysqli $db): array
     return $res instanceof mysqli_result ? $res->fetch_all(MYSQLI_ASSOC) : [];
 }
 
+function time_hhmm($t): string
+{
+    $t = trim((string)$t);
+    if ($t === '') return '';
+    return substr($t, 0, 5);
+}
+
 function ensure_gruppi_arrivi_table(mysqli $mysqli): void
 {
     $mysqli->query("CREATE TABLE IF NOT EXISTS gruppi_arrivi (
@@ -81,7 +97,7 @@ function ensure_gruppi_arrivi_table(mysqli $mysqli): void
         numero_bambini INT UNSIGNED NULL,
         camere_json LONGTEXT NULL,
         aree_riservate_json LONGTEXT NULL,
-        trattamento VARCHAR(10) NULL,
+        trattamento VARCHAR(50) NULL,
         note_operativa TEXT NULL,
         note_ricevimento TEXT NULL,
         note_cucina TEXT NULL,
@@ -102,7 +118,7 @@ function ensure_gruppi_arrivi_table(mysqli $mysqli): void
     add_column_if_missing($mysqli, 'gruppi_arrivi', 'camere_json', 'LONGTEXT NULL');
     add_column_if_missing($mysqli, 'gruppi_arrivi', 'checkin_orario', 'TIME NULL');
     add_column_if_missing($mysqli, 'gruppi_arrivi', 'aree_riservate_json', 'LONGTEXT NULL');
-    add_column_if_missing($mysqli, 'gruppi_arrivi', 'trattamento', 'VARCHAR(10) NULL');
+    add_column_if_missing($mysqli, 'gruppi_arrivi', 'trattamento', 'VARCHAR(50) NULL');
     add_column_if_missing($mysqli, 'gruppi_arrivi', 'note_operativa', 'TEXT NULL');
     add_column_if_missing($mysqli, 'gruppi_arrivi', 'note_ricevimento', 'TEXT NULL');
     add_column_if_missing($mysqli, 'gruppi_arrivi', 'note_cucina', 'TEXT NULL');
@@ -151,6 +167,61 @@ function normalize_pasti_rows($rows): array
     return $normalized;
 }
 
+function sql_string(mysqli $db, $value, bool $nullIfEmpty = false): string
+{
+    if ($value === null) {
+        return "NULL";
+    }
+
+    $value = trim((string)$value);
+
+    if ($nullIfEmpty && $value === '') {
+        return "NULL";
+    }
+
+    return "'" . $db->real_escape_string($value) . "'";
+}
+
+function sql_int($value, bool $nullable = false): string
+{
+    if ($nullable && ($value === null || $value === '')) {
+        return "NULL";
+    }
+    return (string)((int)$value);
+}
+
+function sql_date($value): string
+{
+    $value = trim((string)$value);
+    if ($value === '') {
+        return "NULL";
+    }
+
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $value)) {
+        return "NULL";
+    }
+
+    return "'" . $value . "'";
+}
+
+function sql_time($value): string
+{
+    $value = trim((string)$value);
+    if ($value === '') {
+        return "NULL";
+    }
+
+    if (!preg_match('/^\d{2}:\d{2}(:\d{2})?$/', $value)) {
+        return "NULL";
+    }
+
+    if (strlen($value) === 5) {
+        $value .= ':00';
+    }
+
+    return "'" . $value . "'";
+}
+
 ensure_gruppi_arrivi_table($mysqli);
 
 $alert = null;
@@ -196,16 +267,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $agenzia = trim($_POST['agenzia'] ?? '');
         $telefono = trim($_POST['telefono'] ?? '');
         $email = trim($_POST['email'] ?? '');
-        $dataArrivo = $_POST['data_arrivo'] ?: null;
-        $dataPartenza = $_POST['data_partenza'] ?: null;
+        $dataArrivo = $_POST['data_arrivo'] ?? '';
+        $dataPartenza = $_POST['data_partenza'] ?? '';
         $checkinOrario = trim($_POST['checkin_orario'] ?? '');
-        $checkinOrario = $checkinOrario !== '' ? $checkinOrario : null;
+
         $numeroAdultiRaw = trim($_POST['numero_adulti'] ?? '');
         $numeroBambiniRaw = trim($_POST['numero_bambini'] ?? '');
+
         $numeroAdulti = $numeroAdultiRaw === '' ? null : (int)$numeroAdultiRaw;
         $numeroBambini = $numeroBambiniRaw === '' ? null : (int)$numeroBambiniRaw;
         $numeroPersone = max(0, (int)($numeroAdulti ?? 0) + (int)($numeroBambini ?? 0));
+
         $trattamento = trim($_POST['trattamento'] ?? '');
+
         $camereInput = $_POST['camere'] ?? [];
         $camereSanitized = [];
         if (is_array($camereInput)) {
@@ -217,6 +291,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
         $camereJson = json_encode($camereSanitized, JSON_UNESCAPED_UNICODE);
+
         $areeRiservateInput = $_POST['aree_riservate'] ?? [];
         $areeRiservate = [];
         if (is_array($areeRiservateInput)) {
@@ -227,6 +302,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
         }
+
         $areeRiservateText = trim($_POST['aree_riservate_testo'] ?? '');
         if ($areeRiservateText !== '') {
             $extraAree = preg_split('/[\n,]+/', $areeRiservateText);
@@ -237,8 +313,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
         }
+
         $areeRiservate = array_values(array_unique($areeRiservate, SORT_REGULAR));
         $areeRiservateJson = json_encode($areeRiservate, JSON_UNESCAPED_UNICODE);
+
         $noteOperativa = trim($_POST['note_operativa'] ?? '');
         $noteRicevimento = trim($_POST['note_ricevimento'] ?? '');
         $noteCucina = trim($_POST['note_cucina'] ?? '');
@@ -246,104 +324,139 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $noteAllergie = trim($_POST['note_allergie'] ?? '');
         $noteHousekeeping = trim($_POST['note_housekeeping'] ?? '');
         $noteManutenzione = trim($_POST['note_manutenzione'] ?? '');
+
         $pasti = normalize_pasti_rows($_POST['pasti'] ?? []);
         $extra = $_POST['extra'] ?? [];
+
         $pastiJson = json_encode($pasti, JSON_UNESCAPED_UNICODE);
         $extraJson = json_encode(array_values($extra), JSON_UNESCAPED_UNICODE);
+
         if ($nomeGruppo === '' || $referente === '' || $agenzia === '' || $telefono === '' || $email === '') {
             $alertType = 'danger';
             $alert = 'Compila tutti i campi obbligatori prima di salvare la scheda.';
         } else {
+            $sqlNomeGruppo = sql_string($mysqli, $nomeGruppo);
+            $sqlReferente = sql_string($mysqli, $referente);
+            $sqlAgenzia = sql_string($mysqli, $agenzia);
+            $sqlTelefono = sql_string($mysqli, $telefono);
+            $sqlEmail = sql_string($mysqli, $email);
+            $sqlDataArrivo = sql_date($dataArrivo);
+            $sqlDataPartenza = sql_date($dataPartenza);
+            $sqlCheckinOrario = sql_time($checkinOrario);
+            $sqlNumeroPersone = sql_int($numeroPersone);
+            $sqlNumeroAdulti = sql_int($numeroAdulti, true);
+            $sqlNumeroBambini = sql_int($numeroBambini, true);
+            $sqlCamereJson = sql_string($mysqli, $camereJson, true);
+            $sqlAreeRiservateJson = sql_string($mysqli, $areeRiservateJson, true);
+            $sqlTrattamento = sql_string($mysqli, $trattamento, true);
+            $sqlNoteOperativa = sql_string($mysqli, $noteOperativa, true);
+            $sqlNoteRicevimento = sql_string($mysqli, $noteRicevimento, true);
+            $sqlNoteCucina = sql_string($mysqli, $noteCucina, true);
+            $sqlNoteDisposizioneTavoli = sql_string($mysqli, $noteDisposizioneTavoli, true);
+            $sqlNoteAllergie = sql_string($mysqli, $noteAllergie, true);
+            $sqlNoteHousekeeping = sql_string($mysqli, $noteHousekeeping, true);
+            $sqlNoteManutenzione = sql_string($mysqli, $noteManutenzione, true);
+            $sqlPastiJson = sql_string($mysqli, $pastiJson, true);
+            $sqlExtraJson = sql_string($mysqli, $extraJson, true);
+
             if ($currentId > 0) {
-                $stmt = $mysqli->prepare("UPDATE gruppi_arrivi
-                SET nome_gruppo=?, referente=?, agenzia=?, telefono=?, email=?, data_arrivo=?, data_partenza=?, checkin_orario=?,
-                    numero_persone=?, numero_adulti=?, numero_bambini=?, camere_json=?, aree_riservate_json=?,
-                    trattamento=?, note_operativa=?, note_ricevimento=?, note_cucina=?, note_disposizione_tavoli=?, note_allergie=?,
-                    note_housekeeping=?, note_manutenzione=?, pasti_json=?, extra_json=?
-                WHERE id=?");
+                $sqlUpdate = "
+                    UPDATE gruppi_arrivi SET
+                        nome_gruppo = {$sqlNomeGruppo},
+                        referente = {$sqlReferente},
+                        agenzia = {$sqlAgenzia},
+                        telefono = {$sqlTelefono},
+                        email = {$sqlEmail},
+                        data_arrivo = {$sqlDataArrivo},
+                        data_partenza = {$sqlDataPartenza},
+                        checkin_orario = {$sqlCheckinOrario},
+                        numero_persone = {$sqlNumeroPersone},
+                        numero_adulti = {$sqlNumeroAdulti},
+                        numero_bambini = {$sqlNumeroBambini},
+                        camere_json = {$sqlCamereJson},
+                        aree_riservate_json = {$sqlAreeRiservateJson},
+                        trattamento = {$sqlTrattamento},
+                        note_operativa = {$sqlNoteOperativa},
+                        note_ricevimento = {$sqlNoteRicevimento},
+                        note_cucina = {$sqlNoteCucina},
+                        note_disposizione_tavoli = {$sqlNoteDisposizioneTavoli},
+                        note_allergie = {$sqlNoteAllergie},
+                        note_housekeeping = {$sqlNoteHousekeeping},
+                        note_manutenzione = {$sqlNoteManutenzione},
+                        pasti_json = {$sqlPastiJson},
+                        extra_json = {$sqlExtraJson}
+                    WHERE id = " . (int)$currentId;
 
-                $stmt->bind_param(
-                    "sssssssiiisssssssssssssi",
-                    $nomeGruppo,
-                    $referente,
-                    $agenzia,
-                    $telefono,
-                    $email,
-                    $dataArrivo,
-                    $dataPartenza,
-                    $checkinOrario,
-                    $numeroPersone,
-                    $numeroAdulti,
-                    $numeroBambini,
-                    $camereJson,
-                    $areeRiservateJson,
-                    $trattamento,
-                    $noteOperativa,
-                    $noteRicevimento,
-                    $noteCucina,
-                    $noteDisposizioneTavoli,
-                    $noteAllergie,
-                    $noteHousekeeping,
-                    $noteManutenzione,
-                    $pastiJson,
-                    $extraJson,
-                    $currentId
-                );
+                $ok = $mysqli->query($sqlUpdate);
 
-                $ok = $stmt->execute();
-                $stmt->close();
                 if ($ok) {
                     $alertType = 'success';
                     $alert = 'Scheda aggiornata con successo.';
                 } else {
                     $alertType = 'danger';
-                    $alert = 'Errore durante l\'aggiornamento della scheda.';
+                    $alert = 'Errore durante l\'aggiornamento della scheda. ' . $mysqli->error;
                 }
             } else {
-                $stmt = $mysqli->prepare("INSERT INTO gruppi_arrivi
-                    (nome_gruppo, referente, agenzia, telefono, email, data_arrivo, data_partenza, checkin_orario,
-                     numero_persone, numero_adulti, numero_bambini, camere_json, aree_riservate_json, trattamento,
-                     note_operativa, note_ricevimento, note_cucina, note_disposizione_tavoli, note_allergie,
-                     note_housekeeping, note_manutenzione, pasti_json, extra_json)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                $sqlInsert = "
+                    INSERT INTO gruppi_arrivi (
+                        nome_gruppo,
+                        referente,
+                        agenzia,
+                        telefono,
+                        email,
+                        data_arrivo,
+                        data_partenza,
+                        checkin_orario,
+                        numero_persone,
+                        numero_adulti,
+                        numero_bambini,
+                        camere_json,
+                        aree_riservate_json,
+                        trattamento,
+                        note_operativa,
+                        note_ricevimento,
+                        note_cucina,
+                        note_disposizione_tavoli,
+                        note_allergie,
+                        note_housekeeping,
+                        note_manutenzione,
+                        pasti_json,
+                        extra_json
+                    ) VALUES (
+                        {$sqlNomeGruppo},
+                        {$sqlReferente},
+                        {$sqlAgenzia},
+                        {$sqlTelefono},
+                        {$sqlEmail},
+                        {$sqlDataArrivo},
+                        {$sqlDataPartenza},
+                        {$sqlCheckinOrario},
+                        {$sqlNumeroPersone},
+                        {$sqlNumeroAdulti},
+                        {$sqlNumeroBambini},
+                        {$sqlCamereJson},
+                        {$sqlAreeRiservateJson},
+                        {$sqlTrattamento},
+                        {$sqlNoteOperativa},
+                        {$sqlNoteRicevimento},
+                        {$sqlNoteCucina},
+                        {$sqlNoteDisposizioneTavoli},
+                        {$sqlNoteAllergie},
+                        {$sqlNoteHousekeeping},
+                        {$sqlNoteManutenzione},
+                        {$sqlPastiJson},
+                        {$sqlExtraJson}
+                    )";
 
-                $stmt->bind_param(
-                    "ssssssssiiissssssssssssss",
-                    $nomeGruppo,
-                    $referente,
-                    $agenzia,
-                    $telefono,
-                    $email,
-                    $dataArrivo,
-                    $dataPartenza,
-                    $checkinOrario,
-                    $numeroPersone,
-                    $numeroAdulti,
-                    $numeroBambini,
-                    $camereJson,
-                    $areeRiservateJson,
-                    $trattamento,
-                    $noteOperativa,
-                    $noteRicevimento,
-                    $noteCucina,
-                    $noteDisposizioneTavoli,
-                    $noteAllergie,
-                    $noteHousekeeping,
-                    $noteManutenzione,
-                    $pastiJson,
-                    $extraJson
-                );
+                $ok = $mysqli->query($sqlInsert);
+                $currentId = $ok ? (int)$mysqli->insert_id : 0;
 
-
-                $ok = $stmt->execute();
-                $currentId = $ok ? (int)$stmt->insert_id : 0;
-                $stmt->close();
                 if ($ok) {
                     $alertType = 'success';
                     $alert = 'Scheda salvata con successo.';
                 } else {
                     $alertType = 'danger';
-                    $alert = 'Errore durante il salvataggio della scheda.';
+                    $alert = 'Errore durante il salvataggio della scheda. ' . $mysqli->error;
                 }
             }
         }
@@ -352,10 +465,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'delete') {
         $deleteId = (int)($_POST['delete_id'] ?? 0);
         if ($deleteId > 0) {
-            $stmt = $mysqli->prepare("DELETE FROM gruppi_arrivi WHERE id=?");
-            $stmt->bind_param("i", $deleteId);
-            $ok = $stmt->execute();
-            $stmt->close();
+            $ok = $mysqli->query("DELETE FROM gruppi_arrivi WHERE id = {$deleteId}");
             if ($ok) {
                 $alertType = 'success';
                 $alert = 'Scheda eliminata.';
@@ -364,19 +474,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             } else {
                 $alertType = 'danger';
-                $alert = 'Errore durante l\'eliminazione della scheda.';
+                $alert = 'Errore durante l\'eliminazione della scheda. ' . $mysqli->error;
             }
         }
     }
 }
 
 if ($currentId > 0) {
-    $stmt = $mysqli->prepare("SELECT * FROM gruppi_arrivi WHERE id=?");
-    $stmt->bind_param("i", $currentId);
-    $stmt->execute();
-    $res = $stmt->get_result();
-    $row = $res ? $res->fetch_assoc() : null;
-    $stmt->close();
+    $sqlCurrent = "
+        SELECT
+            gruppi_arrivi.*,
+            TIME_FORMAT(checkin_orario, '%H:%i') AS checkin_orario
+        FROM gruppi_arrivi
+        WHERE id = " . (int)$currentId;
+
+    $res = $mysqli->query($sqlCurrent);
+    $row = $res instanceof mysqli_result ? $res->fetch_assoc() : null;
+
     if ($row) {
         $currentData = array_merge($emptyData, $row);
     } else {
@@ -387,11 +501,7 @@ if ($currentId > 0) {
 }
 
 if (!empty($currentData['checkin_orario'])) {
-    $currentData['checkin_orario'] = substr((string)$currentData['checkin_orario'], 0, 5);
-}
-
-if (($currentData['trattamento'] ?? '') === 'Solo pernottamento') {
-    $currentData['trattamento'] = 'Solo';
+    $currentData['checkin_orario'] = time_hhmm($currentData['checkin_orario'] ?? '');
 }
 
 $tipologieCamere = get_tipologie_camere($mysqli);
@@ -399,6 +509,7 @@ $camereData = json_decode($currentData['camere_json'] ?? '{}', true) ?: [];
 $areeRiservateData = json_decode($currentData['aree_riservate_json'] ?? '[]', true) ?: [];
 $areeRiservateIds = [];
 $areeRiservateTextParts = [];
+
 foreach ((array)$areeRiservateData as $value) {
     if (is_numeric($value)) {
         $areeRiservateIds[] = (int)$value;
@@ -406,18 +517,27 @@ foreach ((array)$areeRiservateData as $value) {
         $areeRiservateTextParts[] = trim($value);
     }
 }
+
 $currentData['aree_riservate'] = array_values(array_unique($areeRiservateIds));
 $currentData['aree_riservate_testo'] = implode(', ', $areeRiservateTextParts);
+
 $saleCongressi = get_sale_congressi($mysqli);
 $saleRistoranti = get_sale_ristoranti($mysqli);
 
 $gruppiArchivio = [];
-$archivioRes = $mysqli->query("SELECT * FROM gruppi_arrivi ORDER BY nome_gruppo ASC");
+$archivioRes = $mysqli->query("
+    SELECT
+        gruppi_arrivi.*,
+        TIME_FORMAT(checkin_orario, '%H:%i') AS checkin_orario
+    FROM gruppi_arrivi
+    ORDER BY nome_gruppo ASC
+");
 if ($archivioRes instanceof mysqli_result) {
     while ($row = $archivioRes->fetch_assoc()) {
         $row['pasti'] = normalize_pasti_rows(json_decode($row['pasti_json'] ?? '[]', true) ?: []);
         $row['extra'] = json_decode($row['extra_json'] ?? '[]', true) ?: [];
         $row['camere'] = json_decode($row['camere_json'] ?? '{}', true) ?: [];
+
         $areeRiservate = json_decode($row['aree_riservate_json'] ?? '[]', true) ?: [];
         $areeIds = [];
         $areeText = [];
@@ -428,8 +548,10 @@ if ($archivioRes instanceof mysqli_result) {
                 $areeText[] = trim($value);
             }
         }
+
         $row['aree_riservate'] = array_values(array_unique($areeIds));
         $row['aree_riservate_testo'] = implode(', ', $areeText);
+        $row['checkin_orario'] = time_hhmm($row['checkin_orario'] ?? '');
         $gruppiArchivio[] = $row;
     }
     $archivioRes->free();
@@ -439,27 +561,44 @@ $search = trim($_GET['search'] ?? '');
 $page = max(1, (int)($_GET['page'] ?? 1));
 $perPage = 10;
 $records = [];
+
 if ($search !== '') {
-    $like = '%' . $search . '%';
-    $countStmt = $mysqli->prepare("SELECT COUNT(*) AS total
+    $searchEsc = $mysqli->real_escape_string($search);
+    $like = "'%" . $searchEsc . "%'";
+
+    $countSql = "
+        SELECT COUNT(*) AS total
         FROM gruppi_arrivi
-        WHERE nome_gruppo LIKE ? OR referente LIKE ? OR agenzia LIKE ?");
-    $countStmt->bind_param("sss", $like, $like, $like);
-    $countStmt->execute();
-    $countRes = $countStmt->get_result();
+        WHERE nome_gruppo LIKE {$like}
+           OR referente LIKE {$like}
+           OR agenzia LIKE {$like}
+    ";
+    $countRes = $mysqli->query($countSql);
     $totalRecords = $countRes ? (int)($countRes->fetch_assoc()['total'] ?? 0) : 0;
-    $countStmt->close();
 
     $totalPages = max(1, (int)ceil($totalRecords / $perPage));
     $page = min($page, $totalPages);
     $offset = ($page - 1) * $perPage;
 
-    $stmt = $mysqli->prepare("SELECT id, nome_gruppo, referente, data_arrivo, data_partenza, numero_persone, numero_adulti, numero_bambini, aree_riservate_json, pasti_json
+    $sqlRecords = "
+        SELECT
+            id,
+            nome_gruppo,
+            referente,
+            data_arrivo,
+            data_partenza,
+            TIME_FORMAT(checkin_orario, '%H:%i') AS checkin_orario,
+            numero_persone,
+            numero_adulti,
+            numero_bambini,
+            aree_riservate_json,
+            pasti_json
         FROM gruppi_arrivi
-        WHERE nome_gruppo LIKE ? OR referente LIKE ? OR agenzia LIKE ?
+        WHERE nome_gruppo LIKE {$like}
+           OR referente LIKE {$like}
+           OR agenzia LIKE {$like}
         ORDER BY data_arrivo DESC, id DESC
-        LIMIT ? OFFSET ?");
-    $stmt->bind_param("sssii", $like, $like, $like, $perPage, $offset);
+        LIMIT " . (int)$perPage . " OFFSET " . (int)$offset;
 } else {
     $countRes = $mysqli->query("SELECT COUNT(*) AS total FROM gruppi_arrivi");
     $totalRecords = $countRes ? (int)($countRes->fetch_assoc()['total'] ?? 0) : 0;
@@ -468,16 +607,26 @@ if ($search !== '') {
     $page = min($page, $totalPages);
     $offset = ($page - 1) * $perPage;
 
-    $stmt = $mysqli->prepare("SELECT id, nome_gruppo, referente, data_arrivo, data_partenza, numero_persone, numero_adulti, numero_bambini, aree_riservate_json, pasti_json
+    $sqlRecords = "
+        SELECT
+            id,
+            nome_gruppo,
+            referente,
+            data_arrivo,
+            data_partenza,
+            TIME_FORMAT(checkin_orario, '%H:%i') AS checkin_orario,
+            numero_persone,
+            numero_adulti,
+            numero_bambini,
+            aree_riservate_json,
+            pasti_json
         FROM gruppi_arrivi
         ORDER BY data_arrivo DESC, id DESC
-        LIMIT ? OFFSET ?");
-    $stmt->bind_param("ii", $perPage, $offset);
+        LIMIT " . (int)$perPage . " OFFSET " . (int)$offset;
 }
-$stmt->execute();
-$res = $stmt->get_result();
-$records = $res ? $res->fetch_all(MYSQLI_ASSOC) : [];
-$stmt->close();
+
+$res = $mysqli->query($sqlRecords);
+$records = $res instanceof mysqli_result ? $res->fetch_all(MYSQLI_ASSOC) : [];
 
 $pastiData = normalize_pasti_rows(json_decode($currentData['pasti_json'] ?? '[]', true) ?: []);
 $extraData = json_decode($currentData['extra_json'] ?? '[]', true) ?: [];
@@ -912,19 +1061,20 @@ $shouldShowModal = $shouldShowForm;
                             <label class="form-label">Trattamento</label>
                             <select class="form-select" id="trattamento" name="trattamento">
                                 <option value="">Seleziona</option>
-                                <option value="Solo" <?= $currentData['trattamento'] === 'Solo' ? 'selected' : '' ?>>Solo pernottamento</option>
-                                <option value="BB" <?= $currentData['trattamento'] === 'BB' ? 'selected' : '' ?>>BB</option>
-                                <option value="HB" <?= $currentData['trattamento'] === 'HB' ? 'selected' : '' ?>>HB</option>
-                                <option value="FB" <?= $currentData['trattamento'] === 'FB' ? 'selected' : '' ?>>FB</option>
+                                <option value="Solo pernottamento" <?= ($currentData['trattamento'] ?? '') === 'Solo pernottamento' ? 'selected' : '' ?>>Solo pernottamento</option>
+                                <option value="Solo ristorante" <?= ($currentData['trattamento'] ?? '') === 'Solo ristorante' ? 'selected' : '' ?>>Solo ristorante</option>
+                                <option value="BB" <?= ($currentData['trattamento'] ?? '') === 'BB' ? 'selected' : '' ?>>BB</option>
+                                <option value="HB" <?= ($currentData['trattamento'] ?? '') === 'HB' ? 'selected' : '' ?>>HB</option>
+                                <option value="FB" <?= ($currentData['trattamento'] ?? '') === 'FB' ? 'selected' : '' ?>>FB</option>
                             </select>
                         </div>
                         <div class="col-md-4">
                             <label class="form-label">Numero adulti</label>
-                            <input type="number" class="form-control" id="numeroAdulti" name="numero_adulti" min="0" value="<?= (int)$currentData['numero_adulti'] ?>" placeholder="0">
+                            <input type="number" class="form-control" id="numeroAdulti" name="numero_adulti" min="0" value="<?= $currentData['numero_adulti'] !== null ? (int)$currentData['numero_adulti'] : '' ?>" placeholder="0">
                         </div>
                         <div class="col-md-4">
                             <label class="form-label">Numero bambini</label>
-                            <input type="number" class="form-control" id="numeroBambini" name="numero_bambini" min="0" value="<?= (int)$currentData['numero_bambini'] ?>" placeholder="0">
+                            <input type="number" class="form-control" id="numeroBambini" name="numero_bambini" min="0" value="<?= $currentData['numero_bambini'] !== null ? (int)$currentData['numero_bambini'] : '' ?>" placeholder="0">
                         </div>
                         <div class="col-md-4">
                             <label class="form-label">Totale partecipanti</label>
@@ -1286,8 +1436,8 @@ $shouldShowModal = $shouldShowForm;
                                 <td><?= h($record['referente']) ?></td>
                                 <td><?= h($periodo) ?></td>
                                 <td><?= h($dettaglioPartecipanti) ?></td>
-                                <td class="text-muted"><?php if(strlen($record['aree_riservate_json'])>2){echo "Si";}else{echo "No";} ?></td>
-                                <td class="text-muted"><?php if(strlen($record['pasti_json'])>2){echo "Si";}else{echo "No";} ?></td>
+                                <td class="text-muted"><?php if (strlen((string)$record['aree_riservate_json']) > 2) { echo "Si"; } else { echo "No"; } ?></td>
+                                <td class="text-muted"><?php if (strlen((string)$record['pasti_json']) > 2) { echo "Si"; } else { echo "No"; } ?></td>
                                 <td class="text-end">
                                     <div class="d-inline-flex flex-wrap gap-2 justify-content-end">
                                         <a class="btn btn-sm btn-outline-primary js-edit-scheda" href="<?= BASE_URL ?>/admin/gruppi_arrivi.php?id=<?= (int)$record['id'] ?>&open=1" data-id="<?= (int)$record['id'] ?>" title="Modifica" aria-label="Modifica">
@@ -1412,14 +1562,14 @@ $shouldShowModal = $shouldShowForm;
         `;
         const tipoSelect = mainRow.querySelector('select[data-field="tipo"]');
         if (tipoSelect) {
-          const tipoValue = (data.tipo || data.voce || '').toString().trim();
-          tipoSelect.value = tipoValue;
+            const tipoValue = (data.tipo || data.voce || '').toString().trim();
+            tipoSelect.value = tipoValue;
         }
 
         const salaSelect = mainRow.querySelector('select[data-field="sala_ristorante"]');
         if (salaSelect) {
-          const salaValue = data.sala_ristorante ?? data.sala ?? '';
-          salaSelect.value = salaValue !== null && salaValue !== undefined ? String(salaValue) : '';
+            const salaValue = data.sala_ristorante ?? data.sala ?? '';
+            salaSelect.value = salaValue !== null && salaValue !== undefined ? String(salaValue) : '';
         }
 
         const noteRow = document.createElement('tr');
@@ -1493,22 +1643,13 @@ $shouldShowModal = $shouldShowForm;
             const oraInput = row.querySelector('[data-field="ora"]');
             const salaSelect = row.querySelector('[data-field="sala_ristorante"]');
             const noteTextarea = noteRow?.querySelector('[data-field="note"]');
-            if (dataInput) {
-                dataInput.name = `pasti[${index}][data]`;
-            }
-            if (tipoSelect) {
-                tipoSelect.name = `pasti[${index}][tipo]`;
-            }
-            if (oraInput) {
-                oraInput.name = `pasti[${index}][ora]`;
-            }
-            if (salaSelect) {
-                salaSelect.name = `pasti[${index}][sala_ristorante]`;
-            }
-            if (noteTextarea) {
-                noteTextarea.name = `pasti[${index}][note]`;
-            }
+            if (dataInput) dataInput.name = `pasti[${index}][data]`;
+            if (tipoSelect) tipoSelect.name = `pasti[${index}][tipo]`;
+            if (oraInput) oraInput.name = `pasti[${index}][ora]`;
+            if (salaSelect) salaSelect.name = `pasti[${index}][sala_ristorante]`;
+            if (noteTextarea) noteTextarea.name = `pasti[${index}][note]`;
         });
+
         const extraMainRows = Array.from(extraTable.querySelectorAll('tr[data-type="extra-main"]'));
         extraMainRows.forEach((row, index) => {
             const groupId = row.dataset.group;
@@ -1517,18 +1658,10 @@ $shouldShowModal = $shouldShowForm;
             const descrizioneInput = row.querySelector('[data-field="descrizione"]');
             const oraInput = row.querySelector('[data-field="ora"]');
             const noteTextarea = noteRow?.querySelector('[data-field="note"]');
-            if (dataInput) {
-                dataInput.name = `extra[${index}][data]`;
-            }
-            if (descrizioneInput) {
-                descrizioneInput.name = `extra[${index}][descrizione]`;
-            }
-            if (oraInput) {
-                oraInput.name = `extra[${index}][ora]`;
-            }
-            if (noteTextarea) {
-                noteTextarea.name = `extra[${index}][note]`;
-            }
+            if (dataInput) dataInput.name = `extra[${index}][data]`;
+            if (descrizioneInput) descrizioneInput.name = `extra[${index}][descrizione]`;
+            if (oraInput) oraInput.name = `extra[${index}][ora]`;
+            if (noteTextarea) noteTextarea.name = `extra[${index}][note]`;
         });
     };
 
@@ -1629,24 +1762,30 @@ $shouldShowModal = $shouldShowForm;
     const aggiornaPreview = () => {
         preview.nome.textContent = document.getElementById('nomeGruppo').value || 'Nome gruppo';
         preview.codiceGruppo.textContent = document.getElementById('agenzia').value || 'Agenzia / Ente';
+
         const arrivo = document.getElementById('dataArrivo').value;
         const partenza = document.getElementById('dataPartenza').value;
+
         preview.checkIn.textContent = formatDate(arrivo);
         preview.checkOut.textContent = formatDate(partenza);
         preview.notti.textContent = calcNotti(arrivo, partenza).toString();
+
         const checkinOrarioInput = document.getElementById('checkinOrario');
         const checkinOrarioValue = checkinOrarioInput?.value || '';
         if (preview.checkInOrario) {
             preview.checkInOrario.textContent = checkinOrarioValue || '--:--';
         }
+
         const adulti = parseInt(document.getElementById('numeroAdulti').value, 10) || 0;
         const bambini = parseInt(document.getElementById('numeroBambini').value, 10) || 0;
         const totale = adulti + bambini;
+
         document.getElementById('numeroTotale').value = totale;
         preview.adulti.textContent = adulti.toString();
         preview.bambini.textContent = bambini.toString();
         preview.totale.textContent = totale.toString();
         preview.referente.textContent = document.getElementById('referente').value || 'Nome referente';
+
         const trattamentoSelect = document.getElementById('trattamento');
         if (trattamentoSelect instanceof HTMLSelectElement) {
             const selectedOption = trattamentoSelect.selectedOptions[0];
@@ -1654,9 +1793,11 @@ $shouldShowModal = $shouldShowForm;
         } else {
             preview.trattamento.textContent = 'Trattamento';
         }
+
         const areaSelect = document.getElementById('areaRiservateTesto');
         let areaValue = 'Area riservata';
         const areaCheckboxes = Array.from(document.querySelectorAll('.area-riservata'));
+
         if (areaCheckboxes.length) {
             const selected = areaCheckboxes
                 .filter((checkbox) => checkbox.checked)
@@ -1666,6 +1807,7 @@ $shouldShowModal = $shouldShowForm;
         } else if (areaSelect) {
             areaValue = areaSelect.value || 'Area riservata';
         }
+
         preview.area.textContent = areaValue;
         buildAlloggiList();
 
@@ -1676,18 +1818,21 @@ $shouldShowModal = $shouldShowForm;
         const noteAllergieRaw = document.getElementById('noteAllergie')?.value || '';
         const noteHousekeeping = document.getElementById('noteHousekeeping').value || 'Nessuna nota per housekeeping.';
         const noteManutenzione = document.getElementById('noteManutenzione').value || 'Nessuna nota per manutenzione.';
+
         preview.noteRicevimento.textContent = noteRicevimento;
         preview.noteCucina.textContent = noteCucina;
         preview.noteHousekeeping.textContent = noteHousekeeping;
         preview.noteManutenzione.textContent = noteManutenzione;
         preview.noteManutenzioneSintesi.textContent = noteManutenzione;
         preview.allergie.textContent = noteAllergieRaw || 'Nessuna allergia segnalata.';
+
         buildDistribuzione(noteDisposizioneRaw);
 
         const pastiRows = Array.from(pastiTable.querySelectorAll('tr[data-type="pasto-main"]')).map((row) => {
             const inputs = row.querySelectorAll('input, select');
             const noteRow = pastiTable.querySelector(`tr[data-type="pasto-note"][data-group="${row.dataset.group}"]`);
             const noteTextarea = noteRow?.querySelector('textarea');
+
             return {
                 data: inputs[0].value,
                 tipo: inputs[1].value,
@@ -1701,6 +1846,7 @@ $shouldShowModal = $shouldShowForm;
             const inputs = row.querySelectorAll('input');
             const noteRow = extraTable.querySelector(`tr[data-type="extra-note"][data-group="${row.dataset.group}"]`);
             const noteTextarea = noteRow?.querySelector('textarea');
+
             return {
                 data: inputs[0].value,
                 descrizione: inputs[1].value,
@@ -1710,15 +1856,14 @@ $shouldShowModal = $shouldShowForm;
         }).filter((row) => row.data || row.descrizione || row.ora || row.note);
 
         const salaRistoranteLines = pastiRows.map((row) => {
-            if (!row.sala) {
-                return null;
-            }
+            if (!row.sala) return null;
             const salaLabel = saleRistorantiMap.get(String(row.sala)) || row.sala;
             const dateLabel = row.data ? formatDate(row.data) : '';
             const oraLabel = row.ora ? ` ${row.ora}` : '';
             const tipoLabel = row.tipo || 'Pasto';
             return `${tipoLabel} ${dateLabel}${oraLabel} - ${salaLabel}`.trim();
         }).filter(Boolean);
+
         preview.salaRistorante.textContent = salaRistoranteLines.length
             ? salaRistoranteLines.join('\n')
             : 'Nessuna sala ristorante indicata.';
@@ -1766,21 +1911,28 @@ $shouldShowModal = $shouldShowForm;
         setAnagraficaFields(data);
         document.getElementById('dataArrivo').value = data.data_arrivo ?? '';
         document.getElementById('dataPartenza').value = data.data_partenza ?? '';
-        document.getElementById('checkinOrario').value = data.checkin_orario ?? '';
+
+        const rawTime = (data.checkin_orario ?? '').toString().trim();
+        document.getElementById('checkinOrario').value = rawTime ? rawTime.slice(0, 5) : '';
+
         let adulti = data.numero_adulti ?? 0;
         let bambini = data.numero_bambini ?? 0;
         if (!adulti && !bambini && (data.numero_persone ?? 0) > 0) {
             adulti = data.numero_persone ?? 0;
         }
+
         document.getElementById('numeroAdulti').value = adulti;
         document.getElementById('numeroBambini').value = bambini;
         document.getElementById('numeroTotale').value = data.numero_persone ?? 0;
+
         const trattamento = document.getElementById('trattamento');
         if (trattamento) {
-            trattamento.value = data.trattamento === 'Solo pernottamento' ? 'Solo' : (data.trattamento ?? '');
+            trattamento.value = data.trattamento ?? '';
         }
+
         const areaSelect = document.getElementById('areaRiservateTesto');
         const areaCheckboxes = Array.from(document.querySelectorAll('.area-riservata'));
+
         if (areaCheckboxes.length) {
             let selected = (data.aree_riservate || data.aree_riservate_json || []) ?? [];
             if (typeof selected === 'string') {
@@ -1797,26 +1949,33 @@ $shouldShowModal = $shouldShowForm;
         } else if (areaSelect) {
             areaSelect.value = data.aree_riservate_testo ?? '';
         }
+
         const noteOperativa = document.getElementById('noteOperativa');
         if (noteOperativa) {
             noteOperativa.value = data.note_operativa ?? '';
         }
+
         document.getElementById('noteRicevimento').value = data.note_ricevimento ?? '';
         document.getElementById('noteCucina').value = data.note_cucina ?? '';
+
         const noteDisposizioneInput = document.getElementById('noteDisposizioneTavoli');
         if (noteDisposizioneInput) {
             noteDisposizioneInput.value = data.note_disposizione_tavoli ?? '';
         }
+
         const noteAllergieInput = document.getElementById('noteAllergie');
         if (noteAllergieInput) {
             noteAllergieInput.value = data.note_allergie ?? '';
         }
+
         document.getElementById('noteHousekeeping').value = data.note_housekeeping ?? '';
         document.getElementById('noteManutenzione').value = data.note_manutenzione ?? '';
+
         document.querySelectorAll('.camera-qty').forEach((input) => {
             const code = input.dataset.code || '';
             input.value = camereRows[code] ?? 0;
         });
+
         renderPasti(pastiRows);
         renderExtra(extraRows);
         rinumeraRighe();
@@ -1876,15 +2035,19 @@ $shouldShowModal = $shouldShowForm;
     const openGruppoModal = (gruppo) => {
         if (!window.bootstrap) return;
         if (!gruppo) return;
+
         resetFormData(
             gruppo,
             Array.isArray(gruppo.pasti) ? gruppo.pasti : [],
             Array.isArray(gruppo.extra) ? gruppo.extra : [],
             gruppo.camere && typeof gruppo.camere === 'object' ? gruppo.camere : {}
         );
+
         aggiornaPreview();
+
         const modalEl = document.getElementById('gruppoModal');
         if (!modalEl) return;
+
         const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
         modal.show();
     };
@@ -1896,13 +2059,11 @@ $shouldShowModal = $shouldShowForm;
     document.querySelectorAll('.js-edit-scheda').forEach((button) => {
         button.addEventListener('click', (event) => {
             const id = Number(button.dataset.id || 0);
-            if (!id) {
-                return;
-            }
+            if (!id) return;
+
             const gruppo = (gruppiArchivio || []).find((item) => Number(item.id) === id);
-            if (!gruppo) {
-                return;
-            }
+            if (!gruppo) return;
+
             event.preventDefault();
             openGruppoModal(gruppo);
         });
@@ -1921,17 +2082,20 @@ $shouldShowModal = $shouldShowForm;
     const renderGroupResults = (matches) => {
         if (!groupSearchResults) return;
         groupSearchResults.innerHTML = '';
+
         if (!matches.length) {
             groupSearchResults.innerHTML = '<div class="p-2 text-muted small">Nessun gruppo trovato.</div>';
             groupSearchResults.classList.remove('d-none');
             return;
         }
+
         matches.slice(0, 8).forEach((gruppo) => {
             const row = document.createElement('div');
             row.className = 'd-flex justify-content-between align-items-center px-2 py-2 border-bottom result-row';
             row.dataset.gruppo = String(gruppo.id);
 
             const info = document.createElement('div');
+
             const nome = document.createElement('div');
             nome.className = 'fw-semibold';
             nome.textContent = gruppo.nome_gruppo || '';
@@ -1963,32 +2127,38 @@ $shouldShowModal = $shouldShowForm;
             row.appendChild(button);
             groupSearchResults.appendChild(row);
         });
+
         groupSearchResults.classList.remove('d-none');
     };
 
     const searchGroups = () => {
         if (!groupSearchInput) return;
+
         const keyword = groupSearchInput.value.trim().toLowerCase();
         if (!keyword) {
             clearGroupResults();
             return;
         }
+
         const matches = (gruppiArchivio || []).filter((gruppo) => {
             const nome = (gruppo.nome_gruppo || '').toLowerCase();
             const referente = (gruppo.referente || '').toLowerCase();
             const agenzia = (gruppo.agenzia || '').toLowerCase();
             return nome.includes(keyword) || referente.includes(keyword) || agenzia.includes(keyword);
         });
+
         renderGroupResults(matches);
     };
 
     groupSearchBtn?.addEventListener('click', searchGroups);
+
     groupSearchInput?.addEventListener('keydown', (event) => {
         if (event.key === 'Enter') {
             event.preventDefault();
             searchGroups();
         }
     });
+
     groupSearchInput?.addEventListener('input', () => {
         if (!groupSearchInput.value.trim()) {
             clearGroupResults();
