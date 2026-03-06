@@ -13,8 +13,8 @@ $_baseUrl = rtrim((string)(getenv('BASE_URL') ?: '/hotel'), '/');
 define('BASE_URL', $_baseUrl === '' ? '/' : $_baseUrl);
 
 $db_host = 'localhost';
-$db_user = 'LankyAlec';
-$db_pass = '-Alessio89-';
+$db_user = '';
+$db_pass = '';
 $db_name = 'Hotel';
 $db_port = 3306;
 
