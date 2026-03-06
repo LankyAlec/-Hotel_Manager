@@ -137,6 +137,26 @@ $showNote = in_array($pasto, ['HB', 'FB'], true);
         alertBox.textContent = '';
     }
 
+    function setBusyState(form, isBusy) {
+        if (!form) return;
+        const submitButton = form.querySelector('button[type="submit"]');
+        const refreshButton = panelContainer.querySelector('.js-refresh-panel');
+
+        if (submitButton) {
+            submitButton.disabled = isBusy;
+            submitButton.dataset.originalLabel = submitButton.dataset.originalLabel || submitButton.innerHTML;
+            if (isBusy) {
+                submitButton.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Salvataggio...';
+            } else {
+                submitButton.innerHTML = submitButton.dataset.originalLabel;
+            }
+        }
+
+        if (refreshButton) {
+            refreshButton.disabled = isBusy;
+        }
+    }
+
     function bindEvents() {
         const form = panelContainer.querySelector('#js-payment-form');
         const refresh = panelContainer.querySelector('.js-refresh-panel');
@@ -145,6 +165,7 @@ $showNote = in_array($pasto, ['HB', 'FB'], true);
             form.addEventListener('submit', async (ev) => {
                 ev.preventDefault();
                 clearAlert();
+                setBusyState(form, true);
                 const fd = new FormData(form);
                 fd.append('action', 'add');
                 try {
@@ -157,6 +178,7 @@ $showNote = in_array($pasto, ['HB', 'FB'], true);
                     bindEvents();
                     showAlert('success', 'Pagamento registrato correttamente.');
                 } catch (err) {
+                    setBusyState(form, false);
                     showAlert('danger', err.message);
                 }
             });

@@ -267,7 +267,9 @@ function makeCard(array $r, bool $annullatoList=false): string {
   // Riga: assegnato SOLO se definito
   $badgeAssegnato = '';
   if ($asNome !== '') {
-    $badgeAssegnato = '<span class="badge badge-soft"><i class="bi bi-person"></i> <b>'.h($asNome).'</b></span>';
+    $badgeAssegnato = '<div class="meta-row mt-2">
+        <span class="badge badge-soft"><i class="bi bi-person"></i> <b>'.h($asNome).'</b></span>
+      </div>';
   }
 
   $descHtml = trim($desc) !== '' ? '<div class="desc">'.h($desc).'</div>' : '';

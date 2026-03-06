@@ -2018,19 +2018,6 @@ if ($pianoSel === 0 && $edificioSel > 0) {
                   </tr>
                 </tfoot>
               </table>
-              <div class="fw-semibold mb-2 mt-3">Dettaglio ospiti</div>
-              <table class="table table-sm">
-                <thead>
-                  <tr>
-                    <th>Categoria</th>
-                    <th class="text-end">Presenze</th>
-                    <th class="text-end">Totale</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  ${guestRows}
-                </tbody>
-              </table>
             </div>
             <div class="col-12 col-lg-6">
               <div class="preview-section-title">Servizi</div>

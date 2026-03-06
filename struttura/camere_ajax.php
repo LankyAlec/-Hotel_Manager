@@ -13,7 +13,7 @@ function table_exists(mysqli $db, string $table): bool {
 }
 
 function column_exists(mysqli $db, string $table, string $column): bool {
-  $safeTable = $db->real_escape_string($table);
+  $safeTable  = $db->real_escape_string($table);
   $safeColumn = $db->real_escape_string($column);
   $res = $db->query("SHOW COLUMNS FROM `{$safeTable}` LIKE '{$safeColumn}'");
   return $res && $res->num_rows > 0;
@@ -25,64 +25,86 @@ if ($piano_id <= 0) {
   exit;
 }
 
+/* ====== colonne presenti? (evitiamo warning) ====== */
+$hasCapienzaBase = column_exists($mysqli, 'struttura_camere', 'capienza_base');
+$hasDisabili     = column_exists($mysqli, 'struttura_camere', 'accessibile_disabili');
 $hasTipologiaLetti = column_exists($mysqli, 'struttura_camere', 'id_tipologia_letti');
+
+/* ====== tipologie letti (se esiste la colonna) ====== */
 $tipologieMap = [];
 if ($hasTipologiaLetti) {
   if (table_exists($mysqli, 'soggiorni_tipologie_letti')) {
-    $resTipologie = $mysqli->query("SELECT id, codice, descrizione FROM soggiorni_tipologie_letti ORDER BY id ASC");
+    $q = "SELECT id, codice, descrizione FROM soggiorni_tipologie_letti ORDER BY id ASC";
+    $resTipologie = $mysqli->query($q);
   } elseif (table_exists($mysqli, 'soggiorni_tariffe')) {
-    $resTipologie = $mysqli->query("SELECT id, codice, descrizione FROM soggiorni_tariffe ORDER BY id ASC");
+    $q = "SELECT id, codice, descrizione FROM soggiorni_tariffe ORDER BY id ASC";
+    $resTipologie = $mysqli->query($q);
   } else {
     $resTipologie = null;
   }
+
   if ($resTipologie) {
-    while ($row = $resTipologie->fetch_assoc()) {
-      $tipologieMap[(int)$row['id']] = [
-        'codice' => (string)$row['codice'],
-        'descrizione' => (string)($row['descrizione'] ?? ''),
+    while ($r = $resTipologie->fetch_assoc()) {
+      $tipologieMap[(int)$r['id']] = [
+        'codice' => (string)$r['codice'],
+        'descrizione' => (string)($r['descrizione'] ?? ''),
       ];
     }
   }
 }
 
-$sql = "SELECT *
-        FROM struttura_camere
-        WHERE piano_id = ?
-        ORDER BY (codice REGEXP '^[0-9]+$') DESC,
-                 CAST(codice AS UNSIGNED),
-                 codice ASC";
+/* ====== query “semplice” ====== */
+$piano_id_sql = (int)$piano_id; // già int
+$sql = "
+  SELECT *
+  FROM struttura_camere
+  WHERE piano_id = {$piano_id_sql}
+  ORDER BY
+    (codice REGEXP '^[0-9]+$') DESC,
+    CAST(codice AS UNSIGNED),
+    codice ASC
+";
 
-$stmt = $mysqli->prepare($sql);
-if (!$stmt) {
-  echo '<div class="alert alert-danger rounded-4 p-4"><b>Errore DB</b> (prepare camere)</div>';
+$res = $mysqli->query($sql);
+if (!$res) {
+  echo '<div class="alert alert-danger rounded-4 p-4"><b>Errore DB</b> (camere)</div>';
   exit;
 }
-$stmt->bind_param("i", $piano_id);
-$stmt->execute();
-$res = $stmt->get_result();
 
-if (!$res || $res->num_rows === 0) {
+if ($res->num_rows === 0) {
   echo '<div class="muted-empty">Nessuna camera trovata.</div>';
-  $stmt->close();
   exit;
 }
 
 while ($row = $res->fetch_assoc()) {
-  $id     = (int)$row['id'];
-  $codice = trim((string)$row['codice']);
-  $cap    = (int)$row['capienza_base'];
+
+  $id     = (int)($row['id'] ?? 0);
+  $codice = trim((string)($row['codice'] ?? ''));
+
+  // FIX: se capienza_base non esiste -> niente warning
+  $cap = 0;
+  if ($hasCapienzaBase) {
+    $cap = (int)($row['capienza_base'] ?? 0);
+  } else {
+    // fallback: se hai un altro campo (es. capienza / posti_letto), mettilo qui
+    // $cap = (int)($row['capienza'] ?? 0);
+    $cap = 0;
+  }
+
   $note   = (string)($row['note'] ?? '');
-  $attiva = ((int)$row['attiva'] === 1);
-  $tipologiaId = $hasTipologiaLetti ? (int)($row['id_tipologia_letti'] ?? 0) : 0;
+  $attiva = ((int)($row['attiva'] ?? 0) === 1);
+
+  $dis = false;
+  if ($hasDisabili) {
+    $dis = ((int)($row['accessibile_disabili'] ?? 0) > 0);
+  }
+
+  $tipologiaId = ($hasTipologiaLetti) ? (int)($row['id_tipologia_letti'] ?? 0) : 0;
   $tipologiaLabel = '';
   if ($tipologiaId > 0 && isset($tipologieMap[$tipologiaId])) {
     $t = $tipologieMap[$tipologiaId];
     $tipologiaLabel = $t['descrizione'] ? $t['codice'].' - '.$t['descrizione'] : $t['codice'];
   }
-
-  // colonna accessibile_disabili: se non esiste, questo potrebbe dare notice.
-  // Se vuoi renderlo "robusto", dimmelo e lo facciamo con controllo colonna.
-  $dis = isset($row['accessibile_disabili']) ? ((int)$row['accessibile_disabili'] > 0) : false;
 
   $badge = $attiva
     ? '<span class="badge bg-success badge-stato">Attivo</span>'
@@ -93,7 +115,8 @@ while ($row = $res->fetch_assoc()) {
   $noteBadge = (trim($note) !== '')
     ? '<span class="badge bg-light text-dark border"><i class="bi bi-journal-text"></i> Note</span>'
     : '';
-  $tipologiaBadge = $tipologiaLabel !== ''
+
+  $tipologiaBadge = ($tipologiaLabel !== '')
     ? '<span class="badge bg-light text-dark border"><i class="bi bi-layers"></i> '.h($tipologiaLabel).'</span>'
     : '';
 
@@ -108,20 +131,16 @@ while ($row = $res->fetch_assoc()) {
           <div class="main">
             <div class="name">'.h($codice).'</div>
 
-              <div class="meta d-flex flex-wrap gap-2 align-items-center">
-              '.$badge.' '.$noteBadge.'
-              <span class="badge bg-light text-dark border">
-                <i class="bi bi-people"></i> '.$cap.' pax
-              </span>';
+            <div class="meta d-flex flex-wrap gap-2 align-items-center">
+              '.$badge.' '.$noteBadge;
 
+  if ($dis) {
+    echo '<span class="badge bg-primary-subtle text-primary border">
+            <i class="bi bi-person-wheelchair"></i> Accessibile
+          </span>';
+  }
 
-              if ($dis) {
-                echo '<span class="badge bg-primary-subtle text-primary border">
-                        <i class="bi bi-person-wheelchair"></i> Accessibile
-                      </span>';
-              }
-
-  echo $tipologiaBadge ? $tipologiaBadge : '';
+  if ($tipologiaBadge) echo $tipologiaBadge;
 
   echo '    </div>
           </div>
@@ -155,5 +174,3 @@ while ($row = $res->fetch_assoc()) {
           </div>
         </div>';
 }
-
-$stmt->close();

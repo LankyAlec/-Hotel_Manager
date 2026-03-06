@@ -61,17 +61,28 @@ for ($i = 0; $i < $days; $i++) {
 $hasAccessibile = column_exists($mysqli, 'struttura_camere', 'accessibile_disabili');
 $hasAttiva      = column_exists($mysqli, 'struttura_camere', 'attiva');
 $hasNote        = column_exists($mysqli, 'struttura_camere', 'note');
+$hasIdTipologiaLetti = column_exists($mysqli, 'struttura_camere', 'id_tipologia_letti');
+$hasTariffe = table_exists($mysqli, 'soggiorni_tariffe');
+$hasTariffeDescrizione = $hasTariffe && column_exists($mysqli, 'soggiorni_tariffe', 'descrizione');
 
 $selectAccessibile = $hasAccessibile ? ', c.accessibile_disabili' : ', 0 AS accessibile_disabili';
 $selectAttiva      = $hasAttiva      ? ', c.attiva AS attiva'      : ', 1 AS attiva';
 $selectNote        = $hasNote        ? ', c.note'                  : ', NULL AS note';
+$selectTipologiaLettiId = $hasIdTipologiaLetti ? ', c.id_tipologia_letti' : ', NULL AS id_tipologia_letti';
+$selectTipologiaLetti = ($hasIdTipologiaLetti && $hasTariffeDescrizione)
+    ? ', st.descrizione AS tipologia_letti'
+    : ', NULL AS tipologia_letti';
+$joinTipologiaLetti = ($hasIdTipologiaLetti && $hasTariffe)
+    ? 'LEFT JOIN soggiorni_tariffe st ON st.id = c.id_tipologia_letti'
+    : '';
 
 $sqlRooms = "
     SELECT
-        c.id, c.codice{$selectAttiva}{$selectAccessibile}{$selectNote},
+        c.id, c.codice{$selectAttiva}{$selectAccessibile}{$selectNote}{$selectTipologiaLettiId}{$selectTipologiaLetti},
         p.id AS piano_id, p.nome AS piano_nome, p.livello,
         e.id AS edificio_id, e.nome AS edificio_nome
     FROM struttura_camere c
+    {$joinTipologiaLetti}
     JOIN struttura_piani p ON p.id = c.piano_id AND p.attivo = 1
     JOIN struttura_edifici e ON e.id = p.edificio_id AND e.attivo = 1
     WHERE 1=1
