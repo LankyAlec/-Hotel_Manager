@@ -2015,12 +2015,19 @@ if ($pianoSel === 0 && $edificioSel > 0) {
       };
 
       const cameraGuestTotals = getTotalsByGuests();
+      const cameraGuestBaseRates = {
+        adult: cameraGuestTotals.adultNightRate,
+        child: cameraGuestTotals.childNightRate,
+      };
       const pastoLabel = bookingPasto.options[bookingPasto.selectedIndex]?.text || '—';
 
       const renderPreview = (nightlyRate, discounts) => {
         const sectionDiscount = (amount, percent) => amount * (Math.max(0, Math.min(100, Number(percent || 0))) / 100);
         const roomTotalComputed = nightlyRate * nights;
         const cameraSubtotal = roomTotalComputed + cityTaxTotal;
+        const roomScaleFactor = roomTotal > 0 ? (roomTotalComputed / roomTotal) : 1;
+        const adultNightRateComputed = cameraGuestBaseRates.adult * roomScaleFactor;
+        const childNightRateComputed = cameraGuestBaseRates.child * roomScaleFactor;
 
         const serviziSubtotal = serviziRowsData.reduce((sum, item) => sum + Number(item.price || 0), 0);
         const extraSubtotal = extraRowsData.reduce((sum, item) => sum + Number(item.price || 0), 0);
@@ -2095,8 +2102,8 @@ if ($pianoSel === 0 && $edificioSel > 0) {
                 </div>
               </div>
               <table class="table table-sm"><tbody>${cameraRows}</tbody><tfoot>
-                <tr><th>Prezzo notte adulto</th><th class="text-end">${formatCurrency(cameraGuestTotals.adultNightRate)}</th></tr>
-                <tr><th>Prezzo notte bambino</th><th class="text-end">${cameraGuestTotals.childPresence ? formatCurrency(cameraGuestTotals.childNightRate) : '—'}</th></tr>
+                <tr><th>Prezzo notte adulto</th><th class="text-end">${formatCurrency(adultNightRateComputed)}</th></tr>
+                <tr><th>Prezzo notte bambino</th><th class="text-end">${cameraGuestTotals.childPresence ? formatCurrency(childNightRateComputed) : '—'}</th></tr>
                 <tr><th>Tassa soggiorno adulto</th><th class="text-end">${formatCurrency(cameraGuestTotals.taxAdult)}</th></tr>
                 <tr><th>Tassa soggiorno bambino</th><th class="text-end">${cameraGuestTotals.taxChild ? formatCurrency(cameraGuestTotals.taxChild) : '—'}</th></tr>
                 <tr><th>Totale camera (solo soggiorno)</th><th class="text-end">${formatCurrency(roomTotalComputed)}</th></tr>
