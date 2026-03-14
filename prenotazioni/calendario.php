@@ -2145,10 +2145,10 @@ if ($pianoSel === 0 && $edificioSel > 0) {
                 </div>
               </div>
               <table class="table table-sm"><tbody>${cameraRows}</tbody><tfoot>
-                <tr><th>Prezzo notte adulto <span class="text-muted small">${adultLabel || ''}</span></th><th class="text-end">${cameraGuestTotals.adultPresence ? `${formatCurrency(adultNightRateComputed)} → ${formatCurrency(adultTotalRow)}` : '—'}</th></tr>
-                <tr><th>Prezzo notte bambino <span class="text-muted small">${childLabel || ''}</span></th><th class="text-end">${cameraGuestTotals.childPresence ? `${formatCurrency(childNightRateComputed)} → ${formatCurrency(childTotalRow)}` : '—'}</th></tr>
-                <tr><th>Tassa soggiorno adulto <span class="text-muted small">${taxAdultLabel || ''}</span></th><th class="text-end">${cameraGuestTotals.taxAdult ? `${formatCurrency(cityTaxUnit)} → ${formatCurrency(taxAdultTotalRow)}` : '—'}</th></tr>
-                <tr><th>Tassa soggiorno bambino <span class="text-muted small">${taxChildLabel || ''}</span></th><th class="text-end">${cameraGuestTotals.taxChild ? `${formatCurrency(cityTaxUnit)} → ${formatCurrency(taxChildTotalRow)}` : '—'}</th></tr>
+                <tr><th>Prezzo notte adulto <span class="text-muted small">${adultLabel || ''}</span></th><th class="text-end">${cameraGuestTotals.adultPresence ? `${formatCurrency(adultTotalRow)}` : '—'}</th></tr>
+                <tr><th>Prezzo notte bambino <span class="text-muted small">${childLabel || ''}</span></th><th class="text-end">${cameraGuestTotals.childPresence ? `${formatCurrency(childTotalRow)}` : '—'}</th></tr>
+                <tr><th>Tassa soggiorno adulto <span class="text-muted small">${taxAdultLabel || ''}</span></th><th class="text-end">${cameraGuestTotals.taxAdult ? `${formatCurrency(taxAdultTotalRow)}` : '—'}</th></tr>
+                <tr><th>Tassa soggiorno bambino <span class="text-muted small">${taxChildLabel || ''}</span></th><th class="text-end">${cameraGuestTotals.taxChild ? `${formatCurrency(taxChildTotalRow)}` : '—'}</th></tr>
                 <tr><th>Sconto camera</th><th class="text-end">- ${formatCurrency(cameraDiscountAmount)}</th></tr>
                 <tr><th>Totale camera</th><th class="text-end">${formatCurrency(cameraTotalComputed)}</th></tr>
               </tfoot></table>
