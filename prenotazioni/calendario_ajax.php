@@ -291,6 +291,15 @@ if ($roomIds) {
         } else {
             $selectServizi = ', NULL AS servizi_json';
         }
+        if (column_exists($mysqli, $bookingTable, 'costi_json')) {
+            $selectCosti = ', b.costi_json';
+        } elseif (column_exists($mysqli, $bookingTable, 'costi_dettaglio_json')) {
+            $selectCosti = ', b.costi_dettaglio_json AS costi_json';
+        } elseif (column_exists($mysqli, $bookingTable, 'pricing_json')) {
+            $selectCosti = ', b.pricing_json AS costi_json';
+        } else {
+            $selectCosti = ', NULL AS costi_json';
+        }
 
         $sqlBook = "
             SELECT
@@ -308,6 +317,7 @@ if ($roomIds) {
                 {$selectPastoNote}
                 {$selectTipoCamera}
                 {$selectServizi}
+                {$selectCosti}
             FROM {$bookingTable} b
             WHERE b.camera_id IN ({$ph})
               AND NOT (? >= b.data_checkout OR ? <= b.data_checkin)
@@ -327,9 +337,15 @@ if ($roomIds) {
             while ($row = $resBook->fetch_assoc()) {
                 $serviziRaw = $row['servizi_json'] ?? $row['servizi'] ?? null;
                 $serviziParsed = [];
+                $costiParsed = [];
                 if (is_string($serviziRaw) && $serviziRaw !== '') {
                     $decoded = json_decode($serviziRaw, true);
                     if (is_array($decoded)) $serviziParsed = $decoded;
+                }
+                $costiRaw = $row['costi_json'] ?? null;
+                if (is_string($costiRaw) && $costiRaw !== '') {
+                    $decoded = json_decode($costiRaw, true);
+                    if (is_array($decoded)) $costiParsed = $decoded;
                 }
                 $bookings[] = [
                     'id'       => (int)$row['id'],
@@ -349,6 +365,7 @@ if ($roomIds) {
                     'note_pasti' => (string)($row['note_pasti'] ?? ''),
                     'tipologia_camera' => (string)($row['tipologia_camera'] ?? ''),
                     'servizi' => $serviziParsed,
+                    'costi' => $costiParsed,
                 ];
             }
             $stmtBook->close();
