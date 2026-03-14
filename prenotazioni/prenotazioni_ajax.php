@@ -156,6 +156,16 @@ function get_servizi_column(mysqli $db): ?string {
     return null;
 }
 
+function get_costi_column(mysqli $db): ?string {
+    $candidates = ['costi_json', 'costi_dettaglio_json', 'pricing_json'];
+    foreach ($candidates as $candidate) {
+        if (column_exists($db, 'soggiorni', $candidate)) {
+            return $candidate;
+        }
+    }
+    return null;
+}
+
 function get_tipologia_camera_column(mysqli $db): ?string {
     if (column_exists($db, 'soggiorni', 'tipologia_camera')) return 'tipologia_camera';
     if (column_exists($db, 'soggiorni', 'tipo_camera')) return 'tipo_camera';
@@ -525,6 +535,8 @@ function get_camera_pricing_preview(mysqli $db, int $cameraId, ?string $tipologi
 
         $nightRoomPrice = 0.0;
         $nightCityTax = 0.0;
+        $nightCityTaxAdults = 0.0;
+        $nightCityTaxChildren = 0.0;
         $sconto03 = is_numeric($row['sconto_0_3'] ?? null) ? (float)$row['sconto_0_3'] : 0.0;
         $sconto48 = is_numeric($row['sconto_4_8'] ?? null) ? (float)$row['sconto_4_8'] : 0.0;
         $nightBreakdown = [
@@ -581,7 +593,13 @@ function get_camera_pricing_preview(mysqli $db, int $cameraId, ?string $tipologi
                     }
 
                     if (($taxRules['enabled'] ?? false) && !$isTaxExemptByReason && !$isTaxExemptByAge) {
-                        $nightCityTax += (float)$taxRules['cost'];
+                        $taxValue = (float)$taxRules['cost'];
+                        $nightCityTax += $taxValue;
+                        if ($age !== null && $age < 18) {
+                            $nightCityTaxChildren += $taxValue;
+                        } else {
+                            $nightCityTaxAdults += $taxValue;
+                        }
                     }
                 }
             }
@@ -602,6 +620,10 @@ function get_camera_pricing_preview(mysqli $db, int $cameraId, ?string $tipologi
             'pricing_mode' => $isRoomPrice ? 'camera' : 'persona',
             'base_price' => $price,
             'guest_breakdown' => $nightBreakdown,
+            'city_tax_breakdown' => [
+                'adults' => $nightCityTaxAdults,
+                'children' => $nightCityTaxChildren,
+            ],
         ];
         $roomTotal += $nightRoomPrice;
         $cityTaxTotal += $nightCityTax;
@@ -624,12 +646,20 @@ function get_servizi_pricing_preview(mysqli $db, array $servizi, string $checkin
     }
     $serviceIds = [];
     $serviceModes = [];
+    $serviceCustomPrices = [];
+    $servicePaid = [];
+    $servicePaymentType = [];
     foreach ($servizi as $item) {
         $id = (int)($item['id'] ?? 0);
         $mode = (string)($item['mode'] ?? '');
         if ($id > 0) {
             $serviceIds[] = $id;
             $serviceModes[$id] = $mode ?: 'EXTRA';
+            $serviceCustomPrices[$id] = isset($item['custom_price']) && $item['custom_price'] !== ''
+                ? max(0, (float)$item['custom_price'])
+                : null;
+            $servicePaid[$id] = normalize_bool($item['is_paid'] ?? false);
+            $servicePaymentType[$id] = trim((string)($item['payment_type'] ?? ''));
         }
     }
     if (!$serviceIds) return ['items' => [], 'total' => 0.0];
@@ -684,13 +714,20 @@ function get_servizi_pricing_preview(mysqli $db, array $servizi, string $checkin
             }
         }
 
+        $finalPrice = $serviceCustomPrices[$serviceId] !== null ? (float)$serviceCustomPrices[$serviceId] : $price;
         $items[] = [
             'id' => $serviceId,
             'nome' => $names[$serviceId] ?? "Servizio {$serviceId}",
             'mode' => $mode,
-            'price' => $mode === 'EXTRA' ? $price : 0.0,
+            'price' => $finalPrice,
+            'default_price' => $price,
+            'custom_price' => $serviceCustomPrices[$serviceId],
+            'is_paid' => $servicePaid[$serviceId] ?? false,
+            'payment_type' => $servicePaymentType[$serviceId] ?? '',
         ];
-        if ($mode === 'EXTRA') $total += $price;
+        if ($mode === 'EXTRA') {
+            $total += $finalPrice;
+        }
     }
 
     return ['items' => $items, 'total' => $total];
@@ -947,6 +984,19 @@ function save_booking(mysqli $db, array $payload): void {
     $servizi = normalize_servizi($payload['servizi'] ?? null);
     $serviziCol = get_servizi_column($db);
     $serviziJson = ($serviziCol && $serviziProvided) ? json_encode($servizi, JSON_UNESCAPED_UNICODE) : null;
+    $costiCol = get_costi_column($db);
+    $costiProvided = array_key_exists('costi', $payload);
+    $costiRaw = $payload['costi'] ?? null;
+    $costi = null;
+    if (is_array($costiRaw)) {
+        $costi = $costiRaw;
+    } elseif (is_string($costiRaw) && trim($costiRaw) !== '') {
+        $decodedCosti = json_decode($costiRaw, true);
+        if (is_array($decodedCosti)) {
+            $costi = $decodedCosti;
+        }
+    }
+    $costiJson = ($costiCol && $costiProvided) ? json_encode($costi ?? [], JSON_UNESCAPED_UNICODE) : null;
 
     // opzionali se esistono nel DB
     $hb_da = $payload['hb_da'] ?? null;
@@ -1065,6 +1115,7 @@ function save_booking(mysqli $db, array $payload): void {
     if ($hb_da !== null && column_exists($db, 'soggiorni', 'hb_da')) { $fields[] = 'hb_da = ?'; $values[] = $hb_da; $types .= 's'; }
     if ($hb_a !== null && column_exists($db, 'soggiorni', 'hb_a')) { $fields[] = 'hb_a = ?'; $values[] = $hb_a; $types .= 's'; }
     if ($serviziCol && $serviziJson !== null) { $fields[] = "{$serviziCol} = ?"; $values[] = $serviziJson; $types .= 's'; }
+    if ($costiCol && $costiJson !== null) { $fields[] = "{$costiCol} = ?"; $values[] = $costiJson; $types .= 's'; }
 
     if ($id > 0) {
         if (empty($fields)) json_response(false, 'Nessun campo da aggiornare');
@@ -1153,6 +1204,9 @@ function save_booking(mysqli $db, array $payload): void {
     }
     if ($serviziCol && $serviziJson !== null) {
         $columns[] = $serviziCol; $placeholders[] = '?'; $insertTypes .= 's'; $insertValues[] = $serviziJson;
+    }
+    if ($costiCol && $costiJson !== null) {
+        $columns[] = $costiCol; $placeholders[] = '?'; $insertTypes .= 's'; $insertValues[] = $costiJson;
     }
 
     // transazione: creo soggiorno + creo ospiti
