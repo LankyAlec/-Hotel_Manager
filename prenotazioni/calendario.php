@@ -2081,12 +2081,18 @@ if ($pianoSel === 0 && $edificioSel > 0) {
         const adultLabel = getGuestLabel(adultNightRateComputed, cameraGuestTotals.adultPresence);
         const child03Label = getGuestLabel(child03NightRateComputed, cameraGuestTotals.child03Presence);
         const child46Label = getGuestLabel(child46NightRateComputed, cameraGuestTotals.child46Presence);
-        const taxAdultLabel = cameraGuestTotals.taxAdult
-          ? `(${formatCurrency(cityTaxUnit)} x ${taxAdultUnits}${nights > 1 ? ` incl. ${nights} notti` : ''})`
-          : '';
-        const taxChildLabel = cameraGuestTotals.taxChild
-          ? `(${formatCurrency(cityTaxUnit)} x ${taxChildUnits}${nights > 1 ? ` incl. ${nights} notti` : ''})`
-          : '';
+        const getTaxLabel = (unitRate, totalUnits) => {
+          if (!totalUnits) return '';
+          if (nights > 1) {
+            const perNightUnits = totalUnits / nights;
+            if (Number.isInteger(perNightUnits)) {
+              return `(${formatCurrency(unitRate)} x ${perNightUnits} persone x ${nights} notti)`;
+            }
+          }
+          return `(${formatCurrency(unitRate)} x ${totalUnits} presenze)`;
+        };
+        const taxAdultLabel = getTaxLabel(cityTaxUnit, taxAdultUnits);
+        const taxChildLabel = getTaxLabel(cityTaxUnit, taxChildUnits);
 
         const serviziSubtotal = serviziRowsData.reduce((sum, item) => sum + Number(item.price || 0), 0);
         const extraSubtotal = extraRowsData.reduce((sum, item) => sum + Number(item.price || 0), 0);
