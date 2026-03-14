@@ -2006,8 +2006,10 @@ if ($pianoSel === 0 && $edificioSel > 0) {
       const getTotalsByGuests = () => {
         let adultPresence = 0;
         let adultTotal = 0;
-        let childPresence = 0;
-        let childTotal = 0;
+        let child03Presence = 0;
+        let child03Total = 0;
+        let child46Presence = 0;
+        let child46Total = 0;
         let taxAdult = 0;
         let taxChild = 0;
         cameraBreakdown.forEach(night => {
@@ -2017,17 +2019,24 @@ if ($pianoSel === 0 && $edificioSel > 0) {
           const c48 = b.children_4_8 || {};
           adultPresence += Number(adults.count || 0);
           adultTotal += Number(adults.total || 0);
-          childPresence += Number(c03.count || 0) + Number(c48.count || 0);
-          childTotal += Number(c03.total || 0) + Number(c48.total || 0);
+          child03Presence += Number(c03.count || 0);
+          child03Total += Number(c03.total || 0);
+          child46Presence += Number(c48.count || 0);
+          child46Total += Number(c48.total || 0);
           taxAdult += Number(night.city_tax_breakdown?.adults || 0);
           taxChild += Number(night.city_tax_breakdown?.children || 0);
         });
+        const childPresence = child03Presence + child46Presence;
+        const childTotal = child03Total + child46Total;
         return {
           adultNightRate: adultPresence ? adultTotal / adultPresence : 0,
-          childNightRate: childPresence ? childTotal / childPresence : 0,
+          child03NightRate: child03Presence ? child03Total / child03Presence : 0,
+          child46NightRate: child46Presence ? child46Total / child46Presence : 0,
           taxAdult,
           taxChild,
           adultPresence,
+          child03Presence,
+          child46Presence,
           childPresence,
         };
       };
@@ -2035,7 +2044,8 @@ if ($pianoSel === 0 && $edificioSel > 0) {
       const cameraGuestTotals = getTotalsByGuests();
       const cameraGuestBaseRates = {
         adult: cameraGuestTotals.adultNightRate,
-        child: cameraGuestTotals.childNightRate,
+        child03: cameraGuestTotals.child03NightRate,
+        child46: cameraGuestTotals.child46NightRate,
       };
       const pastoLabel = bookingPasto.options[bookingPasto.selectedIndex]?.text || '—';
 
@@ -2045,21 +2055,27 @@ if ($pianoSel === 0 && $edificioSel > 0) {
         const cameraSubtotal = roomTotalComputed + cityTaxTotal;
         const roomScaleFactor = roomTotal > 0 ? (roomTotalComputed / roomTotal) : 1;
         const adultNightRateComputed = cameraGuestBaseRates.adult * roomScaleFactor;
-        const childNightRateComputed = cameraGuestBaseRates.child * roomScaleFactor;
+        const child03NightRateComputed = cameraGuestBaseRates.child03 * roomScaleFactor;
+        const child46NightRateComputed = cameraGuestBaseRates.child46 * roomScaleFactor;
         const cityTaxUnit = Number(res.camera?.city_tax?.cost || 0);
         const taxAdultUnits = cityTaxUnit > 0 ? Math.round((cameraGuestTotals.taxAdult / cityTaxUnit) * 100) / 100 : 0;
         const taxChildUnits = cityTaxUnit > 0 ? Math.round((cameraGuestTotals.taxChild / cityTaxUnit) * 100) / 100 : 0;
         const adultUnits = cameraGuestTotals.adultPresence * nights;
-        const childUnits = cameraGuestTotals.childPresence * nights;
+        const child03Units = cameraGuestTotals.child03Presence * nights;
+        const child46Units = cameraGuestTotals.child46Presence * nights;
         const adultTotalRow = adultNightRateComputed * adultUnits;
-        const childTotalRow = childNightRateComputed * childUnits;
+        const child03TotalRow = child03NightRateComputed * child03Units;
+        const child46TotalRow = child46NightRateComputed * child46Units;
         const taxAdultTotalRow = cityTaxUnit * taxAdultUnits;
         const taxChildTotalRow = cityTaxUnit * taxChildUnits;
         const adultLabel = cameraGuestTotals.adultPresence
           ? `(${formatCurrency(adultNightRateComputed)} x ${cameraGuestTotals.adultPresence}${nights > 1 ? ` x ${nights} notti` : ''})`
           : '';
-        const childLabel = cameraGuestTotals.childPresence
-          ? `(${formatCurrency(childNightRateComputed)} x ${cameraGuestTotals.childPresence}${nights > 1 ? ` x ${nights} notti` : ''})`
+        const child03Label = cameraGuestTotals.child03Presence
+          ? `(${formatCurrency(child03NightRateComputed)} x ${cameraGuestTotals.child03Presence}${nights > 1 ? ` x ${nights} notti` : ''})`
+          : '';
+        const child46Label = cameraGuestTotals.child46Presence
+          ? `(${formatCurrency(child46NightRateComputed)} x ${cameraGuestTotals.child46Presence}${nights > 1 ? ` x ${nights} notti` : ''})`
           : '';
         const taxAdultLabel = cameraGuestTotals.taxAdult
           ? `(${formatCurrency(cityTaxUnit)} x ${taxAdultUnits}${nights > 1 ? ` incl. ${nights} notti` : ''})`
@@ -2146,7 +2162,8 @@ if ($pianoSel === 0 && $edificioSel > 0) {
               </div>
               <table class="table table-sm"><tbody>${cameraRows}</tbody><tfoot>
                 <tr><th>Prezzo notte adulto <span class="text-muted small">${adultLabel || ''}</span></th><th class="text-end">${cameraGuestTotals.adultPresence ? `${formatCurrency(adultNightRateComputed)} → ${formatCurrency(adultTotalRow)}` : '—'}</th></tr>
-                <tr><th>Prezzo notte bambino <span class="text-muted small">${childLabel || ''}</span></th><th class="text-end">${cameraGuestTotals.childPresence ? `${formatCurrency(childNightRateComputed)} → ${formatCurrency(childTotalRow)}` : '—'}</th></tr>
+                <tr><th>Prezzo notte bambino 0-3 <span class="text-muted small">${child03Label || ''}</span></th><th class="text-end">${cameraGuestTotals.child03Presence ? `${formatCurrency(child03NightRateComputed)} → ${formatCurrency(child03TotalRow)}` : '—'}</th></tr>
+                <tr><th>Prezzo notte bambino 4-6 <span class="text-muted small">${child46Label || ''}</span></th><th class="text-end">${cameraGuestTotals.child46Presence ? `${formatCurrency(child46NightRateComputed)} → ${formatCurrency(child46TotalRow)}` : '—'}</th></tr>
                 <tr><th>Tassa soggiorno adulto <span class="text-muted small">${taxAdultLabel || ''}</span></th><th class="text-end">${cameraGuestTotals.taxAdult ? `${formatCurrency(cityTaxUnit)} → ${formatCurrency(taxAdultTotalRow)}` : '—'}</th></tr>
                 <tr><th>Tassa soggiorno bambino <span class="text-muted small">${taxChildLabel || ''}</span></th><th class="text-end">${cameraGuestTotals.taxChild ? `${formatCurrency(cityTaxUnit)} → ${formatCurrency(taxChildTotalRow)}` : '—'}</th></tr>
                 <tr><th>Sconto camera</th><th class="text-end">- ${formatCurrency(cameraDiscountAmount)}</th></tr>
