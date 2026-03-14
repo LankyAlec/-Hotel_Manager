@@ -387,6 +387,7 @@ CREATE TABLE `soggiorni` (
   `stato` enum('prenotato','occupato','chiuso','annullato','fuori_servizio') NOT NULL DEFAULT 'prenotato',
   `piano_pasto_sigla` varchar(10) NOT NULL DEFAULT 'BB',
   `hb_servizio` enum('PRANZO','CENA') DEFAULT 'CENA',
+  `costi_json` longtext DEFAULT NULL,
   `note` text DEFAULT NULL,
   `created_at` datetime NOT NULL DEFAULT current_timestamp(),
   `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
