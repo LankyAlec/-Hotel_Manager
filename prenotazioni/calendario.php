@@ -2060,23 +2060,27 @@ if ($pianoSel === 0 && $edificioSel > 0) {
         const cityTaxUnit = Number(res.camera?.city_tax?.cost || 0);
         const taxAdultUnits = cityTaxUnit > 0 ? Math.round((cameraGuestTotals.taxAdult / cityTaxUnit) * 100) / 100 : 0;
         const taxChildUnits = cityTaxUnit > 0 ? Math.round((cameraGuestTotals.taxChild / cityTaxUnit) * 100) / 100 : 0;
-        const adultUnits = cameraGuestTotals.adultPresence * nights;
-        const child03Units = cameraGuestTotals.child03Presence * nights;
-        const child46Units = cameraGuestTotals.child46Presence * nights;
+        const adultUnits = cameraGuestTotals.adultPresence;
+        const child03Units = cameraGuestTotals.child03Presence;
+        const child46Units = cameraGuestTotals.child46Presence;
         const adultTotalRow = adultNightRateComputed * adultUnits;
         const child03TotalRow = child03NightRateComputed * child03Units;
         const child46TotalRow = child46NightRateComputed * child46Units;
         const taxAdultTotalRow = cityTaxUnit * taxAdultUnits;
         const taxChildTotalRow = cityTaxUnit * taxChildUnits;
-        const adultLabel = cameraGuestTotals.adultPresence
-          ? `(${formatCurrency(adultNightRateComputed)} x ${cameraGuestTotals.adultPresence}${nights > 1 ? ` x ${nights} notti` : ''})`
-          : '';
-        const child03Label = cameraGuestTotals.child03Presence
-          ? `(${formatCurrency(child03NightRateComputed)} x ${cameraGuestTotals.child03Presence}${nights > 1 ? ` x ${nights} notti` : ''})`
-          : '';
-        const child46Label = cameraGuestTotals.child46Presence
-          ? `(${formatCurrency(child46NightRateComputed)} x ${cameraGuestTotals.child46Presence}${nights > 1 ? ` x ${nights} notti` : ''})`
-          : '';
+        const getGuestLabel = (nightRate, totalPresence) => {
+          if (!totalPresence) return '';
+          if (nights > 1) {
+            const perNightGuests = totalPresence / nights;
+            if (Number.isInteger(perNightGuests)) {
+              return `(${formatCurrency(nightRate)} x ${perNightGuests} persone x ${nights} notti)`;
+            }
+          }
+          return `(${formatCurrency(nightRate)} x ${totalPresence} presenze)`;
+        };
+        const adultLabel = getGuestLabel(adultNightRateComputed, cameraGuestTotals.adultPresence);
+        const child03Label = getGuestLabel(child03NightRateComputed, cameraGuestTotals.child03Presence);
+        const child46Label = getGuestLabel(child46NightRateComputed, cameraGuestTotals.child46Presence);
         const taxAdultLabel = cameraGuestTotals.taxAdult
           ? `(${formatCurrency(cityTaxUnit)} x ${taxAdultUnits}${nights > 1 ? ` incl. ${nights} notti` : ''})`
           : '';
@@ -2114,12 +2118,6 @@ if ($pianoSel === 0 && $edificioSel > 0) {
         const totalComputed = cameraTotalComputed + serviziTotalComputed + extraTotalComputed;
         const totalResiduo = Math.max(0, totalComputed - paidTotal);
 
-        const cameraRows = tipologiaMissing
-          ? `<tr><td colspan="2" class="text-muted small">Seleziona la tipologia di camera per calcolare la tariffa.</td></tr>`
-          : (cameraBreakdown.length ? cameraBreakdown.map(n => `
-            <tr><td>${formatDisplayDate(n.date)}</td><td class="text-end">${formatCurrency(nightlyRate)}</td></tr>
-          `).join('') : `<tr><td colspan="2" class="text-muted small">Nessuna notte nel periodo selezionato.</td></tr>`);
-
         const serviziRows = serviziRowsData.map(r => `
           <tr>
             <td>${escapeHtml(r.nome || '')} ${r.is_paid ? '<span class="badge bg-success-subtle text-success-emphasis border border-success-subtle ms-1">pagato</span>' : ''}</td>
@@ -2139,6 +2137,8 @@ if ($pianoSel === 0 && $edificioSel > 0) {
             <span class="badge">Notti: ${nights}</span>
             <span class="badge">Piano: ${escapeHtml(pastoLabel)}</span>
             <span class="badge">Ospiti: ${getTargetGuestCount()}</span>
+            <span class="badge">Check-in: ${bookingCheckin.value ? escapeHtml(formatDisplayDate(bookingCheckin.value)) : '—'}</span>
+            <span class="badge">Check-out: ${bookingCheckout.value ? escapeHtml(formatDisplayDate(bookingCheckout.value)) : '—'}</span>
           </div>
           <div class="row g-3">
             <div class="col-12 col-lg-6">
@@ -2160,7 +2160,7 @@ if ($pianoSel === 0 && $edificioSel > 0) {
                   </div>
                 </div>
               </div>
-              <table class="table table-sm"><tbody>${cameraRows}</tbody><tfoot>
+              <table class="table table-sm"><tfoot>
                 <tr><th>Prezzo notte adulto <span class="text-muted small">${adultLabel || ''}</span></th><th class="text-end">${cameraGuestTotals.adultPresence ? `${formatCurrency(adultNightRateComputed)} → ${formatCurrency(adultTotalRow)}` : '—'}</th></tr>
                 <tr><th>Prezzo notte bambino 0-3 <span class="text-muted small">${child03Label || ''}</span></th><th class="text-end">${cameraGuestTotals.child03Presence ? `${formatCurrency(child03NightRateComputed)} → ${formatCurrency(child03TotalRow)}` : '—'}</th></tr>
                 <tr><th>Prezzo notte bambino 4-6 <span class="text-muted small">${child46Label || ''}</span></th><th class="text-end">${cameraGuestTotals.child46Presence ? `${formatCurrency(child46NightRateComputed)} → ${formatCurrency(child46TotalRow)}` : '—'}</th></tr>
