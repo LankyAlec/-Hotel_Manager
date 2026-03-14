@@ -528,15 +528,6 @@ if ($pianoSel === 0 && $edificioSel > 0) {
 
           <div class="tab-pane fade booking-tab-pane" id="pane-ospiti" role="tabpanel" aria-labelledby="tab-ospiti" tabindex="0">
             <div class="border-top pt-3 mt-3">
-              <div class="mb-3">
-                <label class="form-label small d-block">Esenzione tassa di soggiorno</label>
-                <div class="form-check mt-1">
-                  <input class="form-check-input" type="checkbox" id="bookingSchoolGroupExempt">
-                  <label class="form-check-label small" for="bookingSchoolGroupExempt">
-                    Gruppo scolastico (fino al primo grado) esente
-                  </label>
-                </div>
-              </div>
 
               <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
                 <div>
@@ -1212,6 +1203,10 @@ if ($pianoSel === 0 && $edificioSel > 0) {
               <div class="form-check">
                 <input class="form-check-input" type="checkbox" name="esenzione_accompagnatore_disabile" ${guest.esenzione_accompagnatore_disabile ? 'checked' : ''}>
                 <label class="form-check-label small">Accompagnatore disabile</label>
+              </div>
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="gruppo_scolastico" ${guest.gruppo_scolastico ? 'checked' : ''}>
+                <label class="form-check-label small">Gruppo scolastico (fino al primo grado)</label>
               </div>
             </div>
           </div>
