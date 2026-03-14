@@ -1,0 +1,2 @@
+ALTER TABLE soggiorni
+  ADD COLUMN IF NOT EXISTS costi_json LONGTEXT NULL AFTER hb_servizio;
