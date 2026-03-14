@@ -1006,7 +1006,7 @@ if ($pianoSel === 0 && $edificioSel > 0) {
       return {
         sconti: { camera: 0, servizi: 0, extra: 0 },
         pagamenti: {
-          camera: { paid: 0, payment_type: '', note: '' },
+          camera: { paid: 0, payment_type: '', note: '', acconti: [] },
           servizi: { paid: 0, payment_type: '', note: '' },
           extra: { paid: 0, payment_type: '', note: '' },
         },
@@ -1031,6 +1031,15 @@ if ($pianoSel === 0 && $edificioSel > 0) {
           out.pagamenti[section].payment_type = String(paymentType);
         }
       });
+      if (Array.isArray(incoming?.pagamenti?.camera?.acconti)) {
+        out.pagamenti.camera.acconti = incoming.pagamenti.camera.acconti
+          .map(item => ({
+            importo: Math.max(0, parseFloat(item?.importo ?? item?.amount ?? 0) || 0),
+            data: String(item?.data || ''),
+            payment_type: String(item?.payment_type || ''),
+          }))
+          .filter(item => item.importo > 0 || item.data || item.payment_type);
+      }
       return out;
     }
 
@@ -1430,6 +1439,15 @@ if ($pianoSel === 0 && $edificioSel > 0) {
           next.pagamenti[section].payment_type = typeEl.value || '';
         }
       });
+      const accontiRows = Array.from(document.querySelectorAll('.camera-acconto-row'));
+      next.pagamenti.camera.acconti = accontiRows.map(row => ({
+        importo: Math.max(0, parseFloat(row.querySelector('.camera-acconto-amount')?.value || '0') || 0),
+        data: row.querySelector('.camera-acconto-date')?.value || '',
+        payment_type: row.querySelector('.camera-acconto-type')?.value || '',
+      })).filter(item => item.importo > 0 || item.data || item.payment_type);
+      if (next.pagamenti.camera.acconti.length) {
+        next.pagamenti.camera.paid = next.pagamenti.camera.acconti.reduce((sum, item) => sum + Number(item.importo || 0), 0);
+      }
       currentCostState = next;
       return next;
     }
@@ -2028,6 +2046,13 @@ if ($pianoSel === 0 && $edificioSel > 0) {
         const roomScaleFactor = roomTotal > 0 ? (roomTotalComputed / roomTotal) : 1;
         const adultNightRateComputed = cameraGuestBaseRates.adult * roomScaleFactor;
         const childNightRateComputed = cameraGuestBaseRates.child * roomScaleFactor;
+        const cityTaxUnit = Number(res.camera?.city_tax?.cost || 0);
+        const taxAdultUnits = cityTaxUnit > 0 ? Math.round((cameraGuestTotals.taxAdult / cityTaxUnit) * 100) / 100 : 0;
+        const taxChildUnits = cityTaxUnit > 0 ? Math.round((cameraGuestTotals.taxChild / cityTaxUnit) * 100) / 100 : 0;
+        const adultLabel = cameraGuestTotals.adultPresence ? `(${formatCurrency(adultNightRateComputed)} x ${cameraGuestTotals.adultPresence})` : '';
+        const childLabel = cameraGuestTotals.childPresence ? `(${formatCurrency(childNightRateComputed)} x ${cameraGuestTotals.childPresence})` : '';
+        const taxAdultLabel = cameraGuestTotals.taxAdult ? `(${formatCurrency(cityTaxUnit)} x ${taxAdultUnits})` : '';
+        const taxChildLabel = cameraGuestTotals.taxChild ? `(${formatCurrency(cityTaxUnit)} x ${taxChildUnits})` : '';
 
         const serviziSubtotal = serviziRowsData.reduce((sum, item) => sum + Number(item.price || 0), 0);
         const extraSubtotal = extraRowsData.reduce((sum, item) => sum + Number(item.price || 0), 0);
@@ -2043,7 +2068,11 @@ if ($pianoSel === 0 && $edificioSel > 0) {
         const autoPaidServizi = serviziRowsData.reduce((sum, item) => sum + (item.is_paid ? Number(item.price || 0) : 0), 0);
         const autoPaidExtra = extraRowsData.reduce((sum, item) => sum + (item.is_paid ? Number(item.price || 0) : 0), 0);
 
-        const paidCamera = Math.min(cameraTotalComputed, Math.max(0, Number(currentCostState.pagamenti.camera.paid || 0)));
+        const cameraAcconti = Array.isArray(currentCostState?.pagamenti?.camera?.acconti)
+          ? currentCostState.pagamenti.camera.acconti
+          : [];
+        const paidCameraFromAcconti = cameraAcconti.reduce((sum, item) => sum + Math.max(0, Number(item?.importo || 0)), 0);
+        const paidCamera = Math.min(cameraTotalComputed, Math.max(0, paidCameraFromAcconti || Number(currentCostState.pagamenti.camera.paid || 0)));
         const paidServizi = Math.min(serviziTotalComputed, Math.max(0, Number(currentCostState.pagamenti.servizi.paid || autoPaidServizi)));
         const paidExtra = Math.min(extraTotalComputed, Math.max(0, Number(currentCostState.pagamenti.extra.paid || autoPaidExtra)));
 
@@ -2102,19 +2131,43 @@ if ($pianoSel === 0 && $edificioSel > 0) {
                 </div>
               </div>
               <table class="table table-sm"><tbody>${cameraRows}</tbody><tfoot>
-                <tr><th>Prezzo notte adulto</th><th class="text-end">${formatCurrency(adultNightRateComputed)}</th></tr>
-                <tr><th>Prezzo notte bambino</th><th class="text-end">${cameraGuestTotals.childPresence ? formatCurrency(childNightRateComputed) : '—'}</th></tr>
-                <tr><th>Tassa soggiorno adulto</th><th class="text-end">${formatCurrency(cameraGuestTotals.taxAdult)}</th></tr>
-                <tr><th>Tassa soggiorno bambino</th><th class="text-end">${cameraGuestTotals.taxChild ? formatCurrency(cameraGuestTotals.taxChild) : '—'}</th></tr>
+                <tr><th>Prezzo notte adulto <span class="text-muted small">${adultLabel || ''}</span></th><th class="text-end">${formatCurrency(adultNightRateComputed)}</th></tr>
+                <tr><th>Prezzo notte bambino <span class="text-muted small">${childLabel || ''}</span></th><th class="text-end">${cameraGuestTotals.childPresence ? formatCurrency(childNightRateComputed) : '—'}</th></tr>
+                <tr><th>Tassa soggiorno adulto <span class="text-muted small">${taxAdultLabel || ''}</span></th><th class="text-end">${cameraGuestTotals.taxAdult ? formatCurrency(cityTaxUnit) : '—'}</th></tr>
+                <tr><th>Tassa soggiorno bambino <span class="text-muted small">${taxChildLabel || ''}</span></th><th class="text-end">${cameraGuestTotals.taxChild ? formatCurrency(cityTaxUnit) : '—'}</th></tr>
                 <tr><th>Totale camera (solo soggiorno)</th><th class="text-end">${formatCurrency(roomTotalComputed)}</th></tr>
                 <tr><th>Tassa di soggiorno totale</th><th class="text-end">${formatCurrency(cityTaxTotal)}</th></tr>
                 <tr><th>Sconto camera</th><th class="text-end">- ${formatCurrency(cameraDiscountAmount)}</th></tr>
                 <tr><th>Totale camera</th><th class="text-end">${formatCurrency(cameraTotalComputed)}</th></tr>
               </tfoot></table>
-              <div class="row g-2 mt-1">
-                <div class="col-6"><label class="small text-muted">Pagato camera</label><input id="paidCameraInput" type="number" min="0" step="0.01" class="form-control form-control-sm" value="${paidCamera.toFixed(2)}"></div>
-                <div class="col-6"><label class="small text-muted">Tipologia pagamento</label><select id="paymentTypeCameraInput" class="form-select form-select-sm">${paymentTypeOptions(currentCostState.pagamenti.camera.payment_type)}</select></div>
-                <div class="col-12 small text-muted">Residuo camera: <strong>${formatCurrency(cameraResiduo)}</strong></div>
+              <div class="mt-2">
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                  <label class="small text-muted m-0">Acconti camera</label>
+                  <button type="button" class="btn btn-outline-secondary btn-sm" id="addCameraAccontoBtn">+ Aggiungi acconto</button>
+                </div>
+                <div id="cameraAccontiBox" class="d-grid gap-2">
+                  ${(cameraAcconti.length ? cameraAcconti : [{ importo: 0, data: '', payment_type: '' }]).map((acconto, idx) => `
+                    <div class="row g-2 align-items-end camera-acconto-row" data-index="${idx}">
+                      <div class="col-4">
+                        <label class="small text-muted">Importo</label>
+                        <input type="number" min="0" step="0.01" class="form-control form-control-sm camera-acconto-amount" value="${Number(acconto.importo || 0).toFixed(2)}">
+                      </div>
+                      <div class="col-4">
+                        <label class="small text-muted">Data</label>
+                        <input type="date" class="form-control form-control-sm camera-acconto-date" value="${escapeHtml(acconto.data || '')}">
+                      </div>
+                      <div class="col-3">
+                        <label class="small text-muted">Tipologia</label>
+                        <select class="form-select form-select-sm camera-acconto-type">${paymentTypeOptions(acconto.payment_type || '')}</select>
+                      </div>
+                      <div class="col-1 text-end">
+                        <button type="button" class="btn btn-outline-danger btn-sm remove-camera-acconto-btn" title="Rimuovi">×</button>
+                      </div>
+                    </div>
+                  `).join('')}
+                </div>
+                <div class="small mt-2">Totale acconti camera: <strong>${formatCurrency(paidCamera)}</strong></div>
+                <div class="small text-muted">Residuo camera: <strong>${formatCurrency(cameraResiduo)}</strong></div>
               </div>
             </div>
             <div class="col-12 col-lg-6">
@@ -2165,10 +2218,15 @@ if ($pianoSel === 0 && $edificioSel > 0) {
         const storeCostsAndRefresh = () => {
           currentCostState = mergeCostState(getDefaultCostState(), currentCostState);
           currentCostState.sconti = readDiscounts();
-          currentCostState.pagamenti.camera.paid = parseFloat(document.getElementById('paidCameraInput')?.value || '0') || 0;
+          const accontiRows = Array.from(document.querySelectorAll('.camera-acconto-row'));
+          currentCostState.pagamenti.camera.acconti = accontiRows.map(row => ({
+            importo: Math.max(0, parseFloat(row.querySelector('.camera-acconto-amount')?.value || '0') || 0),
+            data: row.querySelector('.camera-acconto-date')?.value || '',
+            payment_type: row.querySelector('.camera-acconto-type')?.value || '',
+          })).filter(item => item.importo > 0 || item.data || item.payment_type);
+          currentCostState.pagamenti.camera.paid = currentCostState.pagamenti.camera.acconti.reduce((sum, item) => sum + Number(item.importo || 0), 0);
           currentCostState.pagamenti.servizi.paid = parseFloat(document.getElementById('paidServiziInput')?.value || '0') || 0;
           currentCostState.pagamenti.extra.paid = parseFloat(document.getElementById('paidExtraInput')?.value || '0') || 0;
-          currentCostState.pagamenti.camera.payment_type = document.getElementById('paymentTypeCameraInput')?.value || '';
           currentCostState.pagamenti.servizi.payment_type = document.getElementById('paymentTypeServiziInput')?.value || '';
           currentCostState.pagamenti.extra.payment_type = document.getElementById('paymentTypeExtraInput')?.value || '';
           const nextRate = Number.isFinite(parseFloat(document.getElementById('pricePerNightInput')?.value))
@@ -2177,13 +2235,42 @@ if ($pianoSel === 0 && $edificioSel > 0) {
           renderPreview(nextRate, currentCostState.sconti);
         };
 
-        ['discountCameraInput','discountServicesInput','discountExtraInput','paidCameraInput','paidServiziInput','paidExtraInput','paymentTypeCameraInput','paymentTypeServiziInput','paymentTypeExtraInput','pricePerNightInput']
+        ['discountCameraInput','discountServicesInput','discountExtraInput','paidServiziInput','paidExtraInput','paymentTypeServiziInput','paymentTypeExtraInput','pricePerNightInput']
           .forEach(id => {
             const el = document.getElementById(id);
             if (!el) return;
             const eventName = el.tagName === 'SELECT' ? 'change' : 'input';
             el.addEventListener(eventName, storeCostsAndRefresh, { once: true });
           });
+        document.getElementById('addCameraAccontoBtn')?.addEventListener('click', () => {
+          const next = mergeCostState(getDefaultCostState(), currentCostState);
+          if (!Array.isArray(next.pagamenti.camera.acconti)) next.pagamenti.camera.acconti = [];
+          next.pagamenti.camera.acconti.push({ importo: 0, data: '', payment_type: '' });
+          currentCostState = next;
+          renderPreview(
+            Number.isFinite(parseFloat(document.getElementById('pricePerNightInput')?.value))
+              ? parseFloat(document.getElementById('pricePerNightInput')?.value)
+              : nightlyRate,
+            next.sconti,
+          );
+        }, { once: true });
+        Array.from(document.querySelectorAll('.remove-camera-acconto-btn')).forEach((btn, index) => {
+          btn.addEventListener('click', () => {
+            const next = mergeCostState(getDefaultCostState(), currentCostState);
+            next.pagamenti.camera.acconti = (next.pagamenti.camera.acconti || []).filter((_, idx) => idx !== index);
+            currentCostState = next;
+            renderPreview(
+              Number.isFinite(parseFloat(document.getElementById('pricePerNightInput')?.value))
+                ? parseFloat(document.getElementById('pricePerNightInput')?.value)
+                : nightlyRate,
+              next.sconti,
+            );
+          }, { once: true });
+        });
+        Array.from(document.querySelectorAll('.camera-acconto-amount, .camera-acconto-date, .camera-acconto-type')).forEach(el => {
+          const eventName = el.tagName === 'SELECT' ? 'change' : 'input';
+          el.addEventListener(eventName, storeCostsAndRefresh, { once: true });
+        });
       };
 
       renderPreview(defaultNightlyRate, currentCostState.sconti || { camera: 0, servizi: 0, extra: 0 });
